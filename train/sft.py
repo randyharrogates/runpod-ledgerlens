@@ -45,6 +45,9 @@ def main():
     parser.add_argument("--load-in-4bit", action="store_true")
     parser.add_argument("--finetune-vision", action="store_true")
     parser.add_argument("--max-pixels", type=int, default=DEFAULT_MAX_PIXELS)
+    # Same as serving's MAX_MODEL_LEN. A 2 MP page is up to ~1,950 image tokens plus the JSON answer;
+    # Unsloth's 2,048 default truncated examples mid-image (rehearsal, 9 Oct).
+    parser.add_argument("--max-seq-length", type=int, default=8192)
     parser.add_argument("--seed", type=int, default=7)
     parser.add_argument("--eval-steps", type=int, default=50)
     parser.add_argument("--resume-from-checkpoint", type=Path)
@@ -66,7 +69,10 @@ def main():
     start = time.perf_counter()
     torch.cuda.reset_peak_memory_stats()
     model, processor = FastVisionModel.from_pretrained(
-        args.model, load_in_4bit=args.load_in_4bit, use_gradient_checkpointing="unsloth"
+        args.model,
+        load_in_4bit=args.load_in_4bit,
+        use_gradient_checkpointing="unsloth",
+        max_seq_length=args.max_seq_length,
     )
     set_max_pixels(processor.image_processor, args.max_pixels)
     model = FastVisionModel.get_peft_model(
@@ -113,7 +119,9 @@ def main():
         eval_dataset=pages("val"),
         # resize="max": no extra resizing. The default ("min") shrinks Qwen3-VL pages to 512 px wide,
         # far below the 1 MP cap used for evaluation and serving.
-        data_collator=UnslothVisionDataCollator(model, processor, resize="max"),
+        data_collator=UnslothVisionDataCollator(
+            model, processor, resize="max", max_seq_length=args.max_seq_length
+        ),
         args=SFTConfig(
             output_dir=str(args.out / "checkpoints"),
             num_train_epochs=args.epochs,
