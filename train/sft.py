@@ -15,6 +15,22 @@ from train.common import (
 )
 
 
+def set_max_pixels(image_processor, max_pixels):
+    """Cap the processor at the training pixel limit.
+
+    transformers 5.x derives `max_pixels` from `size["longest_edge"]` (a read-only property); older
+    versions expose a plain attribute. Pages are already resized to this cap, so this is a backstop.
+    """
+    size = getattr(image_processor, "size", None)
+    try:
+        shortest = size["shortest_edge"]
+        size["longest_edge"]
+    except (TypeError, KeyError):
+        image_processor.max_pixels = max_pixels
+        return
+    image_processor.size = {"shortest_edge": shortest, "longest_edge": max_pixels}
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--data", type=Path, required=True)
@@ -51,7 +67,7 @@ def main():
     model, processor = FastVisionModel.from_pretrained(
         args.model, load_in_4bit=args.load_in_4bit, use_gradient_checkpointing="unsloth"
     )
-    processor.image_processor.max_pixels = args.max_pixels
+    set_max_pixels(processor.image_processor, args.max_pixels)
     model = FastVisionModel.get_peft_model(
         model,
         finetune_vision_layers=args.finetune_vision,

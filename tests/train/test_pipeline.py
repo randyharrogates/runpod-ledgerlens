@@ -324,3 +324,41 @@ def test_cord_number_keeps_sign_of_grouped_amounts(printed, expected):
     from train.build_dataset import cord_number
 
     assert cord_number(printed) == Decimal(expected)
+
+
+@pytest.mark.parametrize(
+    ("printed", "quantity", "expected"),
+    [
+        ("181,500.00", False, "181500.00"),
+        ("8.500,00", False, "8500.00"),
+        ("Rp. 22.000", False, "22000"),
+        ("Rp.56.000", False, "56000"),
+        ("40,000.", False, "40000"),
+        ("*46000", False, "46000"),
+        ("-", False, None),
+        ("---", False, None),
+        ("*2", True, "2"),
+        ("1Prs", True, "1"),
+        ("*4 Pcs", True, "4"),
+    ],
+)
+def test_cord_number_formats_seen_in_rehearsal(printed, quantity, expected):
+    from decimal import Decimal
+
+    from train.build_dataset import cord_number
+
+    result = cord_number(printed, quantity=quantity)
+    assert result == (Decimal(expected) if expected is not None else None)
+
+
+def test_set_max_pixels_handles_both_processor_apis():
+    from types import SimpleNamespace
+
+    from train.sft import set_max_pixels
+
+    new_style = SimpleNamespace(size={"shortest_edge": 3136, "longest_edge": 99})
+    set_max_pixels(new_style, 1_003_520)
+    assert new_style.size == {"shortest_edge": 3136, "longest_edge": 1_003_520}
+    old_style = SimpleNamespace(size=None, max_pixels=99)
+    set_max_pixels(old_style, 1_003_520)
+    assert old_style.max_pixels == 1_003_520
