@@ -231,3 +231,31 @@ def test_direction_checked_aggregation(tmp_path, ledger):
     assert checked["f1"] == pytest.approx(0.5)
     for name in ("missing", "invalid"):
         assert report["pages"][name]["rows_direction_checked"]["f1"] == 0
+
+
+@pytest.mark.parametrize(
+    "field", ["quantity", "unit_price", "amount", "subtotal", "tax", "total"]
+)
+@pytest.mark.parametrize(
+    "gold_value,pred_value", [(None, None), (None, "2"), ("2", None)]
+)
+def test_receipt_nullable_scoring(tmp_path, field, gold_value, pred_value):
+    gold = {"doc_type": "receipt", "menu_items": [{"description": "Tea"}]}
+    prediction = {"doc_type": "receipt", "menu_items": [{"description": "Tea"}]}
+    item_field = field in {"quantity", "unit_price", "amount"}
+    (gold["menu_items"][0] if item_field else gold)[field] = gold_value
+    (prediction["menu_items"][0] if item_field else prediction)[field] = pred_value
+    result = score_document(prediction, gold)
+    equal = gold_value == pred_value
+    if item_field:
+        assert result["rows"]["matched"] == int(equal)
+    else:
+        assert result["header_fields"][field] == equal
+    gold_dir, pred_dir = tmp_path / "gold", tmp_path / "pred"
+    gold_dir.mkdir()
+    pred_dir.mkdir()
+    (gold_dir / "receipt.json").write_text(json.dumps(gold))
+    (pred_dir / "receipt.json").write_text(json.dumps(prediction))
+    batch = score_batch(pred_dir, gold_dir)
+    assert batch["pages"]["receipt"]["header_fields"] == result["header_fields"]
+    assert batch["pages"]["receipt"]["rows"] == result["rows"]

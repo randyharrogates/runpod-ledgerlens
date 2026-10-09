@@ -3,8 +3,9 @@
 import argparse
 import json
 import logging
+import re
 from collections import Counter
-from decimal import Decimal
+from decimal import Decimal, InvalidOperation
 from pathlib import Path
 
 from train.common import SETS, canonical_target
@@ -12,40 +13,76 @@ from train.common import SETS, canonical_target
 LOG = logging.getLogger(__name__)
 
 
-def printed_decimal(value):
-    if value is None or str(value).strip() == "":
+def cord_number(value, *, quantity=False) -> Decimal | None:
+    if value is None:
         return None
-    amount = Decimal(str(value).replace(",", "").replace(" ", ""))
-    if not amount.is_finite():
-        raise ValueError("Non-finite CORD number")
-    return amount
+    text = re.sub(r"(?i)(?:Rp|IDR|SGD|MYR|USD|RM)|[@x$€£¥\s]", "", str(value))
+    if not text:
+        return None
+    # Discounts print as "-60.000" or "(60.000)"; parse the digits, then restore the sign.
+    sign = ""
+    if text.startswith("(") and text.endswith(")"):
+        sign, text = "-", text[1:-1]
+    elif text[0] in "+-":
+        sign, text = text[0].replace("+", ""), text[1:]
+    # Rupiah has no cents in CORD; . and , group thousands.
+    if not quantity and re.fullmatch(r"\d{1,3}([.,]\d{3})+", text):
+        text = text.replace(".", "").replace(",", "")
+    else:
+        text = text.replace(",", ".")
+    try:
+        number = Decimal(sign + text)
+    except InvalidOperation as error:
+        raise ValueError(f"Unparseable CORD number: {value!r}") from error
+    if not number.is_finite():
+        raise ValueError(f"Non-finite CORD number: {value!r}")
+    return number
 
 
-def cord_receipt(ground_truth: str | dict) -> dict:
-    """Map printed fields only; absent fields remain null for schema validation."""
+def cord_receipt(ground_truth: str | dict, *, stats: Counter | None = None) -> dict:
+    """Map printed fields only, flattening add-ons in their printed order."""
+    stats = stats if stats is not None else Counter()
     data = json.loads(ground_truth) if isinstance(ground_truth, str) else ground_truth
     parsed = data["gt_parse"]
-    menu = parsed.get("menu", [])
-    if isinstance(menu, dict):
-        menu = [menu] if "nm" in menu else list(menu.values())
     items = []
-    for item in menu:
-        items.append(
-            {
-                "description": item.get("nm"),
-                "quantity": printed_decimal(item.get("cnt")),
-                "unit_price": printed_decimal(item.get("unitprice")),
-                "amount": printed_decimal(item.get("price")),
-            }
-        )
-    subtotal = parsed.get("sub_total") or {}
-    total = parsed.get("total") or {}
+
+    def add_items(menu):
+        if isinstance(menu, dict):
+            menu = [menu]
+        for item in menu or []:
+            if not isinstance(item, dict):
+                stats["items_skipped"] += 1
+                continue
+            name = item.get("nm")
+            if not isinstance(name, str) or not name.strip():
+                stats["items_skipped"] += 1
+            else:
+                items.append(
+                    {
+                        "description": name,
+                        "quantity": cord_number(item.get("cnt"), quantity=True),
+                        "unit_price": cord_number(item.get("unitprice")),
+                        "amount": cord_number(item.get("price")),
+                    }
+                )
+            add_items(item.get("sub", []))
+
+    def first_dict(value):
+        if isinstance(value, list):
+            return next((entry for entry in value if isinstance(entry, dict)), {})
+        return value or {}
+
+    add_items(parsed.get("menu", []))
+    if not items:
+        raise ValueError("No receipt items")
+    subtotal = first_dict(parsed.get("sub_total"))
+    total = first_dict(parsed.get("total"))
     return {
         "doc_type": "receipt",
         "menu_items": items,
-        "subtotal": printed_decimal(subtotal.get("subtotal_price")),
-        "tax": printed_decimal(subtotal.get("tax_price")),
-        "total": printed_decimal(total.get("total_price")),
+        "subtotal": cord_number(subtotal.get("subtotal_price")),
+        "tax": cord_number(subtotal.get("tax_price")),
+        "total": cord_number(total.get("total_price")),
     }
 
 
@@ -90,7 +127,14 @@ def build_dataset(
             ("test", "test_cord"),
         ):
             dataset = load_dataset("naver-clova-ix/cord-v2", split=source)
-            failed = accepted = 0
+            accepted = 0
+            failures = Counter()
+            stats = Counter()
+            missing = Counter(
+                dict.fromkeys(
+                    ("quantity", "unit_price", "amount", "subtotal", "tax", "total"), 0
+                )
+            )
             for index, example in enumerate(dataset):
                 if (
                     source == "train"
@@ -99,11 +143,19 @@ def build_dataset(
                 ):
                     break
                 try:
-                    target = canonical_target(cord_receipt(example["ground_truth"]))
+                    receipt = cord_receipt(example["ground_truth"], stats=stats)
+                    target = canonical_target(receipt)
                 except (ValueError, TypeError, KeyError, ArithmeticError) as error:
-                    failed += 1
+                    failures[f"{type(error).__name__}: {error}"] += 1
                     LOG.warning("Skipping CORD %s/%s: %s", source, index, error)
                     continue
+                for field in missing:
+                    absent = (
+                        any(item[field] is None for item in receipt["menu_items"])
+                        if field in {"quantity", "unit_price", "amount"}
+                        else receipt[field] is None
+                    )
+                    missing[field] += int(absent)
                 page_id = f"cord_{source}_{index:06d}"
                 image = (image_dir / f"{page_id}.png").resolve()
                 example["image"].convert("RGB").save(image)
@@ -116,7 +168,16 @@ def build_dataset(
                     }
                 )
                 accepted += 1
-            LOG.info("CORD %s: accepted=%d mapping_failed=%d", source, accepted, failed)
+            LOG.info(
+                "CORD %s: accepted=%d mapping_failed=%d failed_by_reason=%s "
+                "items_skipped=%d receipts_missing=%s",
+                source,
+                accepted,
+                sum(failures.values()),
+                dict(failures),
+                stats["items_skipped"],
+                dict(missing),
+            )
     all_ids = [row["id"] for rows in splits.values() for row in rows]
     assert len(all_ids) == len(set(all_ids)), "ID overlap across splits"
     for split, rows in splits.items():
