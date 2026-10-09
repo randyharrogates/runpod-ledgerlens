@@ -1,3 +1,3 @@
 {% extends "statement.html" %}
 {% block style %}header {background:#e9f2ed;padding:25px} th {background:#254939;color:white}{% endblock %}
-{% block heading %}<p>MONTHLY ACCOUNT SUMMARY</p><h1>{{ doc.bank_name }}</h1>{% endblock %}
+{% block heading %}<p>{{ statement_heading }}</p><h1>{{ doc.bank_name }}</h1>{% endblock %}

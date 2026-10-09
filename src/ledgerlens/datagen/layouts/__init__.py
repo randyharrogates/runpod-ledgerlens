@@ -109,7 +109,14 @@ def render_html(document: Statement | Invoice, layout_id: str) -> str:
             }
             rows.append(values)
         return env.get_template(f"{layout_id}.html").render(
-            doc=document, layout=layout, rows=rows
+            doc=document,
+            layout=layout,
+            rows=rows,
+            statement_heading={
+                "SGD": "STATEMENT OF ACCOUNT",
+                "MYR": "PENYATA AKAUN / STATEMENT",
+                "IDR": "MUTASI REKENING",
+            }.get(document.currency, "STATEMENT OF ACCOUNT"),
         )
     if layout_id not in INVOICE_LAYOUTS:
         raise ValueError(f"Unknown invoice layout: {layout_id}")

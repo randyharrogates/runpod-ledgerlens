@@ -1,3 +1,3 @@
 {% extends "statement.html" %}
 {% block style %}h1 {color:#70512c} table {border:2px solid #70512c} th {background:#f7eddc}{% endblock %}
-{% block heading %}<h1>{{ doc.bank_name }}</h1><p>Penyata Akaun · Ringkasan transaksi</p>{% endblock %}
+{% block heading %}<h1>{{ doc.bank_name }}</h1><p>{{ statement_heading }}</p>{% endblock %}

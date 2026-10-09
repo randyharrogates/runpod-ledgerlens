@@ -44,7 +44,7 @@ def paginate(ledger: Ledger, business_id: str, rows_per_page: int = 18) -> list[
                 "global_transaction_indices": affected,
             }
             if label["type"] == "unreconciled_page":
-                printed += Decimal("123.45")
+                printed += Decimal("123" if statement.currency == "IDR" else "123.45")
                 local.update(
                     printed_closing_balance=str(printed),
                     true_closing_balance=str(true_closing),

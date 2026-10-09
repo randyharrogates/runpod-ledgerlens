@@ -42,7 +42,9 @@ def generate_ledger(business: Business, seed: int, year: int = 2026) -> Ledger:
     events: list[tuple[str, list[Transaction]]] = []
 
     def money(value: float) -> Decimal:
-        return Decimal(str(value)).quantize(Decimal("0.01"))
+        return Decimal(str(value)).quantize(
+            Decimal("1") if business.currency == "IDR" else Decimal("0.01")
+        )
 
     def add(day, description, debit=None, credit=None):
         row = Transaction(
@@ -54,16 +56,16 @@ def generate_ledger(business: Business, seed: int, year: int = 2026) -> Ledger:
         rows.append(row)
         return row
 
-    def description(name):
+    rails = {
+        "SG": ("PayNow", "FAST", "GIRO"),
+        "MY": ("DuitNow", "IBG", "JomPAY"),
+        "ID": ("BI-FAST", "SKN", "RTGS"),
+    }[business.country]
+
+    def description(name, *, incoming=False):
         ref = rng.randrange(100000, 999999)
-        return rng.choice(
-            [
-                f"GIRO | {name} | REF {ref}",
-                f"DuitNow FROM {name} REF {ref}",
-                f"PayNow TO {name} REF {ref}",
-                f"TRANSFER | {name} | {ref}",
-            ]
-        )
+        direction = "FROM" if incoming else "TO"
+        return f"{rng.choice(rails)} {direction} {name} REF {ref}"
 
     def random_date():
         return date(year, 1, 1) + timedelta(days=rng.randrange(2, 170))
@@ -81,7 +83,11 @@ def generate_ledger(business: Business, seed: int, year: int = 2026) -> Ledger:
             customer = business.customers[j % len(business.customers)]
             if "customer_concentration" in selected:
                 customer = business.customers[0] if j % 5 else business.customers[-1]
-            add(day(), description(customer), credit=unit * rng.uniform(0.85, 1.15))
+            add(
+                day(),
+                description(customer, incoming=True),
+                credit=unit * rng.uniform(0.85, 1.15),
+            )
         for j, payment_day in enumerate(
             range(rng.randint(1, 7), last + 1, business.supplier_cadence)
         ):
@@ -92,7 +98,7 @@ def generate_ledger(business: Business, seed: int, year: int = 2026) -> Ledger:
             )
         add(
             date(year, month, business.payday),
-            "PAYROLL GIRO Gaji",
+            f"PAYROLL {rails[-1]} Gaji",
             debit=scale * rng.uniform(0.15, 0.24),
         )
         add(
@@ -138,7 +144,7 @@ def generate_ledger(business: Business, seed: int, year: int = 2026) -> Ledger:
         outgoing = add(when, description(name), debit=amount)
         incoming = add(
             when + timedelta(days=rng.randint(3, 10)),
-            description(name),
+            description(name, incoming=True),
             credit=money(amount * Decimal(str(rng.uniform(0.9901, 1)))),
         )
         events.append(("round_trip", [outgoing, incoming]))

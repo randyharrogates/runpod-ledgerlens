@@ -112,13 +112,14 @@ def generate_dataset(
                 layout_id=layout_id, country=business.country, uen=business.uen
             )
             write(page.id, page.statement, page.metadata, split)
+        invoice_scale = Decimal(1000 if business.currency == "IDR" else 1)
         for j, layout_id in enumerate(INVOICE_LAYOUTS):
             lines = [
                 InvoiceLine(
                     description="Office supplies 文具 / Bekalan",
                     quantity=Decimal(5),
-                    unit_price=Decimal("12.50"),
-                    amount=Decimal("62.50"),
+                    unit_price=Decimal("12.50") * invoice_scale,
+                    amount=Decimal("62.50") * invoice_scale,
                 )
             ]
             invoice = Invoice(
@@ -128,9 +129,9 @@ def generate_dataset(
                 date=date(2026, 6, 10 + j),
                 currency=business.currency,
                 line_items=lines,
-                subtotal=Decimal("62.50"),
-                tax=Decimal("5.00"),
-                total=Decimal("67.50"),
+                subtotal=Decimal("62.50") * invoice_scale,
+                tax=Decimal("5.00") * invoice_scale,
+                total=Decimal("67.50") * invoice_scale,
             )
             write(
                 f"{business.id}_inv{j + 1}",

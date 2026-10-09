@@ -1,3 +1,3 @@
 {% extends "statement.html" %}
 {% block style %}header {border-left:12px solid #69445c;padding-left:25px} tbody tr:nth-child(even) {background:#f6eef4}{% endblock %}
-{% block heading %}<p>账户流水 / Statement</p><h1>{{ doc.bank_name }}</h1>{% endblock %}
+{% block heading %}<p>{{ statement_heading }}</p><h1>{{ doc.bank_name }}</h1>{% endblock %}

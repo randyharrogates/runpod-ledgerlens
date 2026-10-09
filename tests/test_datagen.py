@@ -102,6 +102,15 @@ def test_splits_and_html(tmp_path, count):
             assert (tmp_path / f"{page_id}.json").exists()
             metadata = json.loads((tmp_path / f"{page_id}.meta.json").read_text())
             assert metadata["rendered"] is False
+            document = json.loads((tmp_path / f"{page_id}.json").read_text())
+            if document["currency"] == "IDR" and info["layout_id"].startswith(
+                "invoice"
+            ):
+                for field in ("subtotal", "tax", "total"):
+                    assert Decimal(document[field]) % 1 == 0
+                for line in document["line_items"]:
+                    assert Decimal(line["unit_price"]) % 1 == 0
+                    assert Decimal(line["amount"]) % 1 == 0
         business_sets.append(identities)
     assert not business_sets[0] & business_sets[1]
     assert not business_sets[0] & business_sets[2]
@@ -259,3 +268,80 @@ def test_business_layout_and_name_isolation(tmp_path):
         or names["train"] & names["test"]
         or names["val"] & names["test"]
     )
+
+
+@pytest.mark.parametrize("seed", [0, 7, 42])
+def test_country_amounts_rails_and_names(seed):
+    import re
+
+    from ledgerlens.analytics import payer
+
+    rails = {
+        "SG": {"PayNow", "FAST", "GIRO"},
+        "MY": {"DuitNow", "IBG", "JomPAY"},
+        "ID": {"BI-FAST", "SKN", "RTGS"},
+    }
+    observed_countries = set()
+    observed_rails = {country: set() for country in rails}
+    fractional_currencies = set()
+    cjk_names = 0
+    for i, business in enumerate(generate_businesses(60, seed)):
+        observed_countries.add(business.country)
+        for name in (
+            business.name,
+            business.director,
+            *business.customers,
+            *business.suppliers,
+        ):
+            words = name.casefold().split()
+            assert all(a != b for a, b in zip(words, words[1:]))
+            if re.search(r"[\u4e00-\u9fff]", name):
+                cjk_names += 1
+                assert not re.search(r"[\u4e00-\u9fff]\s+[\u4e00-\u9fff]", name)
+                assert " " not in name
+        ledger = generate_ledger(business, seed + i * 101)
+        for row in ledger.statement.transactions:
+            directions = re.findall(r"\b(FROM|TO)\b", row.description)
+            if directions:
+                assert directions == ["FROM" if row.credit else "TO"]
+                rail = row.description.split()[0]
+                assert rail in rails[business.country]
+                observed_rails[business.country].add(rail)
+                expected = row.description.split(f" {directions[0]} ", 1)[1]
+                assert (
+                    payer(row.description) == expected.rsplit(" REF ", 1)[0].casefold()
+                )
+            for rail in set.union(*rails.values()):
+                if rail in row.description.split():
+                    assert rail in rails[business.country]
+            if (row.credit or row.debit) % 1:
+                fractional_currencies.add(business.currency)
+        for page in paginate(ledger, business.id):
+            if business.currency == "IDR":
+                amounts = [
+                    page.statement.opening_balance,
+                    page.statement.closing_balance,
+                ]
+                for row in page.statement.transactions:
+                    amounts.extend([row.debit, row.credit, row.balance])
+                assert all(value % 1 == 0 for value in amounts if value is not None)
+    assert observed_countries == set(rails)
+    assert observed_rails == rails
+    assert fractional_currencies == {"SGD", "MYR"}
+    assert cjk_names
+
+
+@pytest.mark.parametrize(
+    ("currency", "heading"),
+    [
+        ("SGD", "STATEMENT OF ACCOUNT"),
+        ("MYR", "PENYATA AKAUN / STATEMENT"),
+        ("IDR", "MUTASI REKENING"),
+    ],
+)
+def test_statement_heading_by_country(ledger, currency, heading):
+    statement = ledger.statement.model_copy(update={"currency": currency})
+    for layout_id in LAYOUTS:
+        html = render_html(statement, layout_id)
+        assert heading in html
+        assert "Fictional synthetic document" in html

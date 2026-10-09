@@ -53,8 +53,9 @@ def generate_businesses(n: int, seed: int) -> list[Business]:
     def name() -> str:
         while True:
             pool = rng.choice(pools)
-            value = " ".join(rng.choice(words) for words in pool[:2])
-            value += " " + rng.choice(pool[1]) + " " + rng.choice(pool[2])
+            middle = rng.sample(pool[1], 2)
+            words = [rng.choice(pool[0]), *middle, rng.choice(pool[2])]
+            value = ("" if pool is pools[1] else " ").join(words)
             if value.casefold() not in used:
                 used.add(value.casefold())
                 return value
