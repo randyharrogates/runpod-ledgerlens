@@ -129,7 +129,7 @@ def test_batch_gold_and_invalid_predictions(tmp_path):
     )  # Printed errors are part of the gold.
     out = tmp_path / "report.md"
     write_markdown(report, out)
-    assert "| row_f1 | 1.0000 |" in out.read_text()
+    assert "| Row F1 (raw model) | 1.0000 |" in out.read_text()
     pages = sorted(
         path
         for path in pred_dir.glob("*_p*.json")
@@ -205,3 +205,29 @@ def test_false_positives_on_clean_business(ledger):
     assert result["precision"] == 0
     assert result["by_type"]["returned_cheque"]["false_positives"] == 1
     assert result["by_type"]["returned_cheque"]["precision"] == 0
+
+
+def test_direction_checked_aggregation(tmp_path, ledger):
+    gold_dir, pred_dir = tmp_path / "gold", tmp_path / "pred"
+    gold_dir.mkdir()
+    pred_dir.mkdir()
+    gold = ledger.statement
+    swapped = gold.model_copy(deep=True)
+    row = swapped.transactions[0]
+    row.debit, row.credit = row.credit, row.debit
+    for name in ("valid", "missing", "invalid"):
+        (gold_dir / f"{name}.json").write_text(gold.model_dump_json())
+    (pred_dir / "valid.json").write_text(swapped.model_dump_json())
+    (pred_dir / "invalid.json").write_text("{}")
+    report = score_batch(pred_dir, gold_dir)
+    n = len(gold.transactions)
+    assert report["pages"]["valid"]["rows"]["matched"] == n - 1
+    assert report["pages"]["valid"]["rows_direction_checked"]["matched"] == n
+    assert report["direction_fixes"] == 1
+    checked = report["rows_direction_checked"]
+    assert checked["matched"] == n
+    assert checked["precision"] == 1
+    assert checked["recall"] == pytest.approx(1 / 3)
+    assert checked["f1"] == pytest.approx(0.5)
+    for name in ("missing", "invalid"):
+        assert report["pages"][name]["rows_direction_checked"]["f1"] == 0

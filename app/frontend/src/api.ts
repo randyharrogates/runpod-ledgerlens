@@ -1,4 +1,10 @@
 export type Row = Record<string, string | null>;
+export type DirectionFix = {
+  row: number;
+  from: 'debit' | 'credit';
+  to: 'debit' | 'credit';
+  amount: string;
+};
 export type Page = {
   id: string;
   doc_type?: string;
@@ -14,6 +20,7 @@ export type Page = {
   } | null;
   metrics: Record<string, unknown> | null;
   edited: string[];
+  direction_fixes: DirectionFix[];
   error?: string;
 };
 export type Citation = { page_id: string; row_index: number };
@@ -55,7 +62,11 @@ export const api = {
     requests: Record<string, unknown>[];
   }>(`/api/sessions/${session}`),
   sample: (session: string) => request(`/api/sessions/${session}/sample`, { method: 'POST' }),
-  extract: (session: string, page: string, model: string, doc_type: string) => request(
+  extract: (session: string, page: string, model: string, doc_type: string) => request<{
+    document: Page['document'];
+    metrics: Page['metrics'];
+    direction_fixes: DirectionFix[];
+  }>(
     `/api/sessions/${session}/pages/${page}/extract`, json('POST', { model, doc_type }),
   ),
   edit: (

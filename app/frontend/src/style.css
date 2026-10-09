@@ -482,3 +482,14 @@ progress {
     grid-template-columns: minmax(0, 1fr);
   }
 }
+
+.direction-marker {
+  color: #247b83;
+  font-size: 12px;
+  margin-right: 4px;
+}
+
+.direction-note {
+  color: #247b83;
+  font-size: 13px;
+}
