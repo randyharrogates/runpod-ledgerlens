@@ -362,3 +362,31 @@ def test_set_max_pixels_handles_both_processor_apis():
     old_style = SimpleNamespace(size=None, max_pixels=99)
     set_max_pixels(old_style, 1_003_520)
     assert old_style.max_pixels == 1_003_520
+
+
+def test_parse_prediction_fills_omitted_doc_type():
+    from train.predict import parse_prediction
+
+    # Base models under structured decoding omitted doc_type (a schema default) in the rehearsal.
+    raw = json.dumps(
+        {
+            "bank_name": "Rimba Bintang Bank",
+            "account_holder": "Fern Brook Ridge Foods",
+            "account_number_masked": "***3721",
+            "period_start": "2026-01-01",
+            "period_end": "2026-06-30",
+            "currency": "MYR",
+            "opening_balance": 206204.73,
+            "closing_balance": 199706.43,
+            "transactions": [
+                {"date": "2026-01-04", "description": "RENT", "balance": 199706.43}
+            ],
+        }
+    )
+    parsed = json.loads(parse_prediction(raw, "statement"))
+    assert parsed["doc_type"] == "statement"
+    assert parsed["transactions"][0]["debit"] is None
+    with pytest.raises(ValueError, match="Wrong document type"):
+        parse_prediction(raw.replace("{", '{"doc_type": "invoice", ', 1), "statement")
+    with pytest.raises(TypeError):
+        parse_prediction("[]", "statement")

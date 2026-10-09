@@ -26,6 +26,19 @@ def structured_params(schema):
     return {"structured_outputs": StructuredOutputsParams(json=schema)}
 
 
+def parse_prediction(raw, doc_type):
+    """Canonical JSON for one model answer; raises ValueError/TypeError if it is not valid."""
+    parsed = json.loads(raw)
+    if not isinstance(parsed, dict):
+        raise TypeError("Answer is not a JSON object")
+    # doc_type has a schema default, so structured decoding may omit it (the base models did in
+    # the 9 Oct rehearsal); the worker's pydantic validation fills it the same way.
+    parsed.setdefault("doc_type", doc_type)
+    if parsed["doc_type"] != doc_type:
+        raise ValueError("Wrong document type")
+    return canonical_target(parsed)
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--model", required=True)
@@ -90,10 +103,7 @@ def main():
             for row, output in zip(group, outputs, strict=True):
                 raw = output.outputs[0].text
                 try:
-                    parsed = json.loads(raw)
-                    if parsed.get("doc_type") != row["doc_type"]:
-                        raise ValueError("Wrong document type")
-                    text = canonical_target(parsed)
+                    text = parse_prediction(raw, row["doc_type"])
                 except (ValueError, TypeError, AttributeError) as error:
                     logging.warning("Invalid output %s: %s", row["id"], error)
                     text = json.dumps(
