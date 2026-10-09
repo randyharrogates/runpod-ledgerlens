@@ -7,7 +7,12 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
-git fetch -q origin
+# The machine's default gh account is a work account; authenticate as randyharrogates per command.
+git_personal() {
+  git -c credential.helper= -c 'credential.helper=!f() { echo username=x-access-token; echo "password=$(gh auth token --user randyharrogates)"; }; f' "$@"
+}
+
+git_personal fetch -q origin
 if [[ "$(git rev-parse main)" != "$(git rev-parse origin/main)" ]]; then
   echo "main is not pushed yet; push it first." >&2
   exit 1
@@ -21,5 +26,5 @@ git diff --stat origin/deploy main -- worker src pyproject.toml uv.lock .dockeri
 read -r -p "Release to the endpoint (Runpod will rebuild)? [y/N] " answer
 [[ "$answer" == "y" ]] || { echo "Not released."; exit 0; }
 
-git push origin main:deploy
+git_personal push origin main:deploy
 echo "Released $(git rev-parse --short main). Watch the build in the Runpod console."
