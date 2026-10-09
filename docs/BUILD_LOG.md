@@ -107,3 +107,9 @@ the bottom of each day.
 |---|---|
 | Network volume (100 GB, prorated) | ~$0.25/day |
 | GPU time | $0 |
+- **16:33 — Deploy branch.** Runpod's GitHub integration rebuilds on every push to the tracked
+  branch, so the endpoint will track **`deploy`** instead of `main`. Created `deploy` at `7d15fed`
+  (the commit currently building, so the switch changes nothing deployed). Added
+  `scripts/release-worker.sh`: runs the tests, shows the image-affecting diff since the last release,
+  and fast-forwards `deploy` to `main` only on confirmation. Docs and app commits no longer cost a
+  rebuild.
