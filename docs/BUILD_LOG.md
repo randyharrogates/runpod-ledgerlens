@@ -65,7 +65,25 @@ the bottom of each day.
   the live worker (train/serve parity); bf16 LoRA instead of 4-bit to match bf16 serving.
 - **16:01 — Commit `e90cb39`:** security fix from an automated review — the worker now checks an
   image's declared size before decoding (60 MP cap) so a decompression bomb can't stall a job.
-- **16:05 — In progress:** the interactive app (FastAPI backend + React frontend).
+- **16:05 — Interactive app, first version** (FastAPI backend + React/Vite frontend, 114 tests).
+  Review: one TypeScript error fixed so it builds; port moved from 8080 to **8090** (8080 is taken
+  by a local Jenkins on the Mac) and made configurable via `PORT`.
+- **16:20 — Clicked through every screen in a headless browser** (Playwright script, demo mode,
+  no console errors). Found: the bundled sample "statements" were plain-text dumps drawn with Pillow,
+  not our rendered layouts; the review table cut off the balance column and showed unformatted
+  amounts; red flags named the type but did not explain it; a raw JSON debug line under the memo;
+  the "under the hood" drawer was one long key/value table per request; the frontend was one
+  267-line file with minified CSS (not walkthrough-friendly); uploads needed the same
+  decompression-bomb cap as the worker. All sent back to Codex (16:25).
+
+### Endpoint
+- **16:15 — Workers decided:** Active (min) **0** so nothing bills while idle (cold starts are shown,
+  not hidden); Max **2**. One Active worker only for the demo hour.
+- **16:15 — Asian data centre question.** Runpod's only Asian capacity is AP-JP-1 (Japan) and India,
+  H100/H200 only (~$0.00155/s ≈ $5.60/h running vs ~$1.10/h for a 4090 in EU-RO-1). Latency is not
+  the issue (≈0.2 s extra per request against seconds of inference). Plan: build and test in
+  EU-RO-1; before the demo add a second endpoint in AP-JP-1 from the same repo so the cost panel shows
+  the real in-region vs out-of-region trade-off — a data-residency answer backed by measured numbers.
 
 ### Spend so far
 | Item | Cost |
