@@ -47,6 +47,18 @@ def test_prepare_image_applies_training_pixel_cap(monkeypatch):
     assert abs(out.height / out.width - 2) < 0.1
 
 
+def test_prepare_image_rejects_decompression_bomb(monkeypatch):
+    monkeypatch.setattr(worker, "MAX_INPUT_PIXELS", 10_000)
+    with pytest.raises(ValueError, match="megapixels"):
+        worker.prepare_image(png_bytes((200, 100)))
+
+
+def test_extract_reports_oversized_image_as_error(monkeypatch):
+    monkeypatch.setattr(worker, "MAX_INPUT_PIXELS", 1_000)
+    job = {"input": extract_input()}
+    assert "Could not read image" in next(worker.handler(job))["error"]
+
+
 def test_extract_rejects_undecodable_image():
     job = {
         "input": {

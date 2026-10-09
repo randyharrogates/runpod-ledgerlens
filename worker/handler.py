@@ -28,6 +28,9 @@ except ModuleNotFoundError:  # Direct execution by the Docker CMD.
 
 BASE_URL = "http://127.0.0.1:8000"
 MAX_PIXELS = int(os.getenv("MAX_PIXELS", str(DEFAULT_MAX_PIXELS)))
+# Largest input accepted before decoding: covers 50 MP phone cameras, rejects decompression bombs.
+MAX_INPUT_PIXELS = 60_000_000
+Image.MAX_IMAGE_PIXELS = MAX_INPUT_PIXELS
 MODELS = {"statement": Statement, "invoice": Invoice, "receipt": Receipt}
 ENGINE = {"status": "disabled", "engine_load_seconds": 0.0, "model_source": None}
 PROCESS = None
@@ -186,8 +189,20 @@ def validate_input(job):
 
 
 def prepare_image(image_bytes):
-    """Shrink the page exactly as training did, then re-encode it as PNG base64."""
+    """Shrink the page exactly as training did, then re-encode it as PNG base64.
+
+    The image is untrusted: a small compressed file can declare enormous dimensions (a
+    decompression bomb). Image.open only reads the header, so the size is checked before any
+    pixel is decoded.
+    """
     with Image.open(io.BytesIO(image_bytes)) as image:
+        if image.width * image.height > MAX_INPUT_PIXELS:
+            raise ValueError(
+                f"image is {image.width}x{image.height}; the limit is "
+                f"{MAX_INPUT_PIXELS // 1_000_000} megapixels"
+            )
+        # JPEG only: let the decoder downscale while decoding instead of after.
+        image.draft("RGB", (image.width // 2, image.height // 2))
         resized = resize_image(image, MAX_PIXELS)
     buffer = io.BytesIO()
     resized.save(buffer, format="PNG")
@@ -240,7 +255,7 @@ def handler(job):
         doc_type = data["doc_type"]
         try:
             image_b64 = prepare_image(base64.b64decode(data["image_base64"]))
-        except (OSError, ValueError) as exc:
+        except (OSError, ValueError, Image.DecompressionBombError) as exc:
             yield {"error": f"Could not read image: {exc}"}
             return
         payload.update(
