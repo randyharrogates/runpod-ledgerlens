@@ -84,6 +84,23 @@ the bottom of each day.
   the issue (≈0.2 s extra per request against seconds of inference). Plan: build and test in
   EU-RO-1; before the demo add a second endpoint in AP-JP-1 from the same repo so the cost panel shows
   the real in-region vs out-of-region trade-off — a data-residency answer backed by measured numbers.
+- **16:35 — Console settings reviewed before deploy.** Allowed CUDA restricted to 12.9+ (the image is
+  CUDA 12.9; older host drivers would fail to start it). GPU types: kept RTX 5090 (32 GB) and RTX 3090
+  (24 GB); removed L4 (≈⅓ of a 3090's memory bandwidth, slow for decoding), PRO 6000 MIG 24GB (a
+  compute slice) and RTX A5000 (slower). All data centres left allowed: with no volume attached
+  nothing pins the endpoint, and wider choice finds GPUs faster. No exposed ports (queue endpoint).
+- **16:40 — Runpod MCP installer declined.** `npx @runpod/mcp-server@latest add` is an interactive
+  installer that rewrites every detected AI client's config and, in local mode, stores the API key in
+  plain text; it would also need the local agent restarted. `runpodctl` already covers the needed commands
+  (including `serverless logs`).
+- **16:45 — Endpoint `szucrtrufff80a` created** (console, GitHub build of `main`, Dockerfile
+  `worker/Dockerfile`, template `ej6398fg30`). Checked with `runpodctl serverless get` /
+  `template get`: workers 0/2, idle 60 s, FlashBoot on, queue-delay scaling 4 s, execution timeout
+  600 s, env `MODEL_NAME`, `MAX_MODEL_LEN=8192`, `GPU_MEM_UTIL=0.92` correct. Fixed from the CLI:
+  container disk 5 → **40 GB** (`runpodctl template update ej6398fg30 --container-disk-in-gb 40`),
+  and the 8B model attached to Runpod's model cache (`runpodctl serverless update szucrtrufff80a
+  --model-reference https://huggingface.co/Qwen/Qwen3-VL-8B-Instruct:main`, pinned to commit
+  `0c351dd`) so workers don't download 17 GB at start-up.
 
 ### Spend so far
 | Item | Cost |
