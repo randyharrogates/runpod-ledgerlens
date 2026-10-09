@@ -19,7 +19,6 @@ from worker.prompts import EXTRACT_SYSTEM
     [
         [{"nm": "Tea", "cnt": "2", "unitprice": "750", "price": "1,500"}],
         {"nm": "Tea", "cnt": "2", "unitprice": "750", "price": "1,500"},
-        {"0": {"nm": "Tea", "cnt": "2", "price": "1,500"}},
     ],
 )
 def test_cord_mapping(menu):
@@ -36,10 +35,7 @@ def test_cord_mapping(menu):
     assert result["menu_items"][0]["amount"] == Decimal("1500")
     assert result["subtotal"] == Decimal("1500")
     assert result["total"] is None
-    if "0" in menu:
-        assert result["menu_items"][0]["unit_price"] is None
-    with pytest.raises(ValueError):
-        canonical_target(result)
+    assert DOCUMENT_ADAPTER.validate_json(canonical_target(result)).total is None
 
 
 def test_canonical_roundtrip():
@@ -190,3 +186,141 @@ def test_render_pod_splits_page_ids_across_workers(tmp_path, monkeypatch):
     )
     render_pod.main()
     assert sorted(seen) == [f"biz_0000_p00{i}" for i in range(1, 6)]
+
+
+@pytest.mark.parametrize(
+    ("value", "quantity", "expected"),
+    [
+        ("60.000", False, "60000"),
+        ("5.455", False, "5455"),
+        ("1,200,000", False, "1200000"),
+        ("Rp 12.000", False, "12000"),
+        ("@12.000", False, "12000"),
+        ("x2", True, "2"),
+        ("2.00", True, "2.00"),
+        ("1,0", True, "1.0"),
+        ("", False, None),
+        (None, False, None),
+    ],
+)
+def test_cord_numbers(value, quantity, expected):
+    from train.build_dataset import cord_number
+
+    assert cord_number(value, quantity=quantity) == (
+        Decimal(expected) if expected is not None else None
+    )
+
+
+def test_cord_real_dict_and_addons():
+    from collections import Counter
+
+    real = cord_receipt(
+        {
+            "gt_parse": {
+                "menu": {
+                    "nm": "-TICKET CP",
+                    "num": "901016",
+                    "cnt": "2",
+                    "price": "60.000",
+                    "itemsubtotal": "60.000",
+                },
+                "sub_total": [{"tax_price": "5.455"}],
+                "total": [{"total_price": "60.000"}, {"total_price": "1"}],
+            }
+        }
+    )
+    assert real["menu_items"][0]["amount"] == Decimal("60000")
+    assert real["menu_items"][0]["unit_price"] is None
+    assert real["tax"] == Decimal("5455")
+    assert real["total"] == Decimal("60000")
+    stats = Counter()
+    mapped = cord_receipt(
+        {
+            "gt_parse": {
+                "menu": [
+                    {"nm": "Tea", "sub": {"nm": "Milk", "price": "@12.000"}},
+                    {"nm": "Rice", "sub": [{"nm": "Egg"}, {"nm": "Sauce"}]},
+                    {"price": "bad"},
+                    "invalid entry",
+                ]
+            }
+        },
+        stats=stats,
+    )
+    assert [item["description"] for item in mapped["menu_items"]] == [
+        "Tea",
+        "Milk",
+        "Rice",
+        "Egg",
+        "Sauce",
+    ]
+    assert mapped["menu_items"][1]["amount"] == Decimal("12000")
+    assert stats["items_skipped"] == 2
+    assert DOCUMENT_ADAPTER.validate_json(canonical_target(mapped)).total is None
+
+
+@pytest.mark.parametrize("price", ["bad", "1.2.3", "NaN", "Infinity"])
+def test_cord_unparseable_price(price):
+    with pytest.raises(ValueError):
+        cord_receipt({"gt_parse": {"menu": {"nm": "Tea", "price": price}}})
+
+
+def test_cord_unnamed_dict_is_one_skipped_item():
+    from collections import Counter
+
+    stats = Counter()
+    with pytest.raises(ValueError, match="No receipt items"):
+        cord_receipt(
+            {"gt_parse": {"menu": {"num": "901016", "price": "60.000"}}}, stats=stats
+        )
+    assert stats["items_skipped"] == 1
+
+
+def test_cord_split_logging(tmp_path, monkeypatch, caplog):
+    import logging
+    import sys
+    from types import SimpleNamespace
+
+    synth = tmp_path / "synth"
+    synth.mkdir()
+    (synth / "splits.json").write_text(json.dumps({"train": [], "val": [], "test": []}))
+    examples = [
+        {
+            "ground_truth": {"gt_parse": {"menu": [{"nm": "Tea"}, "skip"]}},
+            "image": Image.new("RGB", (8, 8)),
+        },
+        {"ground_truth": {"gt_parse": {"menu": {"nm": "Tea", "price": "bad"}}}},
+        {"ground_truth": {"gt_parse": {"menu": {"price": "60.000"}}}},
+    ]
+    monkeypatch.setitem(
+        sys.modules,
+        "datasets",
+        SimpleNamespace(load_dataset=lambda *args, **kwargs: examples),
+    )
+    with caplog.at_level(logging.INFO, logger="train.build_dataset"):
+        splits = build_dataset(synth, tmp_path / "out", cord=True)
+    assert len(splits["test_cord"]) == 1
+    for source in ("train", "validation", "test"):
+        message = next(
+            record.message
+            for record in caplog.records
+            if record.message.startswith(f"CORD {source}:")
+        )
+        assert "accepted=1 mapping_failed=2" in message
+        assert "No receipt items" in message
+        assert "Unparseable CORD number" in message
+        assert "items_skipped=2" in message
+        for field in ("quantity", "unit_price", "amount", "subtotal", "tax", "total"):
+            assert f"'{field}': 1" in message
+
+
+@pytest.mark.parametrize(
+    ("printed", "expected"),
+    [("-60.000", "-60000"), ("(12.000)", "-12000"), ("+5.455", "5455")],
+)
+def test_cord_number_keeps_sign_of_grouped_amounts(printed, expected):
+    from decimal import Decimal
+
+    from train.build_dataset import cord_number
+
+    assert cord_number(printed) == Decimal(expected)

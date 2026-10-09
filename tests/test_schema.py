@@ -45,7 +45,7 @@ def test_invoice_and_receipt_round_trip():
             line_items=[line],
             **totals,
         ),
-        Receipt(menu_items=[line], **totals),
+        Receipt(menu_items=[line.model_dump()], **totals),
     ]
     for document in documents:
         assert DOCUMENT_ADAPTER.validate_json(document.model_dump_json()) == document
@@ -54,3 +54,20 @@ def test_invoice_and_receipt_round_trip():
         DOCUMENT_ADAPTER.validate_python({"doc_type": "unknown"})
     with pytest.raises(ValueError):
         json_schema("unknown")
+
+
+def test_optional_receipt_fields_and_schema():
+    from ledgerlens.schema import ReceiptItem
+
+    receipt = Receipt(menu_items=[ReceiptItem(description="Tea")])
+    assert receipt.subtotal is receipt.tax is receipt.total is None
+    item = receipt.menu_items[0]
+    assert item.quantity is item.unit_price is item.amount is None
+    assert DOCUMENT_ADAPTER.validate_json(receipt.model_dump_json()) == receipt
+    schema = json_schema("receipt")
+    assert schema["required"] == ["menu_items"]
+    assert schema["$defs"]["ReceiptItem"]["required"] == ["description"]
+    for field in ("subtotal", "tax", "total"):
+        assert {"type": "null"} in schema["properties"][field]["anyOf"]
+    with pytest.raises(ValidationError):
+        InvoiceLine(description="Tea")

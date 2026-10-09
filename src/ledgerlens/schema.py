@@ -56,14 +56,26 @@ class Invoice(BaseModel):
     total: Decimal
 
 
+class ReceiptItem(BaseModel):
+    """One printed receipt item, with absent numeric fields left null."""
+
+    description: str
+    quantity: Decimal | None = None
+    unit_price: Decimal | None = None
+    amount: Decimal | None = None
+
+
 class Receipt(BaseModel):
-    """Receipt menu items and totals, including CORD-style receipts."""
+    """Printed fields only; null when not printed.
+
+    CORD often omits unit price, tax and subtotal.
+    """
 
     doc_type: Literal["receipt"] = "receipt"
-    menu_items: list[InvoiceLine]
-    subtotal: Decimal
-    tax: Decimal
-    total: Decimal
+    menu_items: list[ReceiptItem]
+    subtotal: Decimal | None = None
+    tax: Decimal | None = None
+    total: Decimal | None = None
 
 
 Document = Annotated[Statement | Invoice | Receipt, Field(discriminator="doc_type")]
