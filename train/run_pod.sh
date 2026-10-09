@@ -63,8 +63,13 @@ stage setup-train setup_train
 stage setup-infer setup_infer
 stage generate generate
 stage dataset .venv-train/bin/python -m train.build_dataset --synth "$RUN/synth" --out "$RUN/data" --cord
-# Smoke includes eval, masking preflight, adapter save and merged-weight export.
-stage smoke .venv-train/bin/python -m train.sft --data "$RUN/data" --out "$RUN/smoke" --max-steps 30 --eval-steps 30 --seed 7
+# Smoke includes eval, masking preflight, adapter save and merged-weight export. Its merged copy
+# (8.7 GB) is then deleted: the 100 GB volume can't hold it next to the main run's.
+smoke() {
+    .venv-train/bin/python -m train.sft --data "$RUN/data" --out "$RUN/smoke" --max-steps 30 --eval-steps 30 --seed 7
+    rm -rf "$RUN/smoke/merged" "$RUN/smoke/checkpoints"
+}
+stage smoke smoke
 # To resume an interrupted main run, add --resume-from-checkpoint /workspace/.../checkpoint-N.
 stage main .venv-train/bin/python -m train.sft --data "$RUN/data" --out "$RUN/main" --epochs 1 --seed 7
 stage predict-8b .venv-infer/bin/python -m train.predict --model Qwen/Qwen3-VL-8B-Instruct --data "$RUN/data" --out "$RUN/predictions/8b" "${LIMIT[@]}"
