@@ -95,8 +95,8 @@ def start_engine():
                 if PROCESS.poll() is not None:
                     _STDERR.seek(0, os.SEEK_END)
                     size = _STDERR.tell()
-                    _STDERR.seek(max(0, size - 16384))
-                    tail = _STDERR.read().decode(errors="replace").splitlines()[-20:]
+                    _STDERR.seek(max(0, size - 65536))
+                    tail = _STDERR.read().decode(errors="replace").splitlines()[-80:]
                     raise RuntimeError("vLLM exited early:\n" + "\n".join(tail))
                 try:
                     if client.get(BASE_URL + "/health").is_success:
@@ -239,9 +239,18 @@ def handler(job):
         return
     if data["task"] == "health":
         status = dict(ENGINE)
-        if PROCESS is not None and PROCESS.poll() is not None:
+        if (
+            ENGINE["status"] != "failed"
+            and PROCESS is not None
+            and PROCESS.poll() is not None
+        ):
             status["status"] = "exited"
         yield {"task": "health", **status, "cold_start": cold}
+        return
+    if ENGINE["status"] == "failed":
+        yield {
+            "error": f"Model engine failed to start: {ENGINE.get('error', 'unknown error')}"
+        }
         return
     started = time.monotonic()
     payload = {
@@ -338,7 +347,11 @@ def handler(job):
 
 
 if os.getenv("LEDGERLENS_NO_ENGINE") != "1":
-    start_engine()
+    try:
+        start_engine()
+    except Exception as exc:
+        logging.exception("Model engine failed to start")
+        ENGINE.update(status="failed", error=str(exc)[-2000:])
 
 if __name__ == "__main__":
     import runpod

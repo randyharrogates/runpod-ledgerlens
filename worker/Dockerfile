@@ -11,6 +11,11 @@ WORKDIR /app
 # depends on. If they conflict, the build fails here instead of the worker failing later.
 RUN pip list --format=freeze > /tmp/constraints.txt \
  && pip install --no-cache-dir -c /tmp/constraints.txt runpod httpx
+# The cu129 image ships a CUDA 13 torchcodec (needs libcudart.so.13), which raises OSError when vLLM
+# imports it and kills the server at start. We only send images, so remove it; vLLM treats a missing
+# torchcodec as "no audio decoding". The import check fails the build, not the worker, if this recurs.
+RUN pip uninstall -y torchcodec \
+ && python3 -c "import vllm.multimodal.media"
 COPY pyproject.toml /app/pyproject.toml
 COPY src/ledgerlens /app/src/ledgerlens
 RUN pip install --no-cache-dir --no-deps /app
