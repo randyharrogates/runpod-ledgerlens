@@ -154,3 +154,39 @@ def test_cord_complete_printed_values():
     assert receipt.total == Decimal("1500")
     assert receipt.menu_items[0].quantity == Decimal("2")
     assert receipt.menu_items[0].unit_price == Decimal("750")
+
+
+def test_render_pod_splits_page_ids_across_workers(tmp_path, monkeypatch):
+    import sys
+
+    from train import render_pod
+
+    (tmp_path / "splits.json").write_text(
+        json.dumps({"pages": {f"biz_0000_p00{i}": {} for i in range(1, 6)}})
+    )
+    seen = []
+
+    class InlinePool:
+        def __init__(self, workers):
+            pass
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *exc):
+            return False
+
+        def map(self, fn, *iterables):
+            return [fn(*args) for args in zip(*iterables)]
+
+    def fake_render(data, page_ids):
+        seen.extend(page_ids)
+        return len(page_ids)
+
+    monkeypatch.setattr(render_pod, "ProcessPoolExecutor", InlinePool)
+    monkeypatch.setattr(render_pod, "render_chunk", fake_render)
+    monkeypatch.setattr(
+        sys, "argv", ["render_pod", "--data", str(tmp_path), "--workers", "2"]
+    )
+    render_pod.main()
+    assert sorted(seen) == [f"biz_0000_p00{i}" for i in range(1, 6)]
