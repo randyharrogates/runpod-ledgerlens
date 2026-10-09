@@ -68,13 +68,13 @@ the bottom of each day.
 - **16:05 — Interactive app, first version** (FastAPI backend + React/Vite frontend, 114 tests).
   Review: one TypeScript error fixed so it builds; port moved from 8080 to **8090** (8080 is taken
   by a local Jenkins on the Mac) and made configurable via `PORT`.
-- **16:20 — Clicked through every screen in a headless browser** (Playwright script, demo mode,
+- **16:18 — Clicked through every screen in a headless browser** (Playwright script, demo mode,
   no console errors). Found: the bundled sample "statements" were plain-text dumps drawn with Pillow,
   not our rendered layouts; the review table cut off the balance column and showed unformatted
   amounts; red flags named the type but did not explain it; a raw JSON debug line under the memo;
   the "under the hood" drawer was one long key/value table per request; the frontend was one
   267-line file with minified CSS (not walkthrough-friendly); uploads needed the same
-  decompression-bomb cap as the worker. All sent back to Codex (16:25).
+  decompression-bomb cap as the worker. All sent back to Codex (16:20).
 
 ### Endpoint
 - **16:15 — Workers decided:** Active (min) **0** so nothing bills while idle (cold starts are shown,
@@ -84,16 +84,16 @@ the bottom of each day.
   the issue (≈0.2 s extra per request against seconds of inference). Plan: build and test in
   EU-RO-1; before the demo add a second endpoint in AP-JP-1 from the same repo so the cost panel shows
   the real in-region vs out-of-region trade-off — a data-residency answer backed by measured numbers.
-- **16:35 — Console settings reviewed before deploy.** Allowed CUDA restricted to 12.9+ (the image is
+- **16:23 — Console settings reviewed before deploy.** Allowed CUDA restricted to 12.9+ (the image is
   CUDA 12.9; older host drivers would fail to start it). GPU types: kept RTX 5090 (32 GB) and RTX 3090
   (24 GB); removed L4 (≈⅓ of a 3090's memory bandwidth, slow for decoding), PRO 6000 MIG 24GB (a
   compute slice) and RTX A5000 (slower). All data centres left allowed: with no volume attached
   nothing pins the endpoint, and wider choice finds GPUs faster. No exposed ports (queue endpoint).
-- **16:40 — Runpod MCP installer declined.** `npx @runpod/mcp-server@latest add` is an interactive
+- **16:24 — Runpod MCP installer declined.** `npx @runpod/mcp-server@latest add` is an interactive
   installer that rewrites every detected AI client's config and, in local mode, stores the API key in
   plain text; it would also need the local agent restarted. `runpodctl` already covers the needed commands
   (including `serverless logs`).
-- **16:45 — Endpoint `szucrtrufff80a` created** (console, GitHub build of `main`, Dockerfile
+- **16:26 — Endpoint `szucrtrufff80a` created** (console, GitHub build of `main`, Dockerfile
   `worker/Dockerfile`, template `ej6398fg30`). Checked with `runpodctl serverless get` /
   `template get`: workers 0/2, idle 60 s, FlashBoot on, queue-delay scaling 4 s, execution timeout
   600 s, env `MODEL_NAME`, `MAX_MODEL_LEN=8192`, `GPU_MEM_UTIL=0.92` correct. Fixed from the CLI:
