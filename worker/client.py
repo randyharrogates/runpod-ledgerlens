@@ -20,6 +20,18 @@ def runpodctl_key(path=Path.home() / ".runpod" / "config.toml"):
         return None
 
 
+def job_errors(result):
+    """Collect errors from Runpod jobs and aggregated worker output."""
+    if isinstance(result, dict):
+        errors = [str(result["error"])] if result.get("error") else []
+        for field in ("output", "stream"):
+            errors.extend(job_errors(result.get(field)))
+        return errors
+    if isinstance(result, list):
+        return [error for item in result for error in job_errors(item)]
+    return []
+
+
 def call_endpoint(endpoint_id, payload, key, *, stream=False, timeout=900):
     base = f"https://api.runpod.ai/v2/{endpoint_id}"
     deadline = time.monotonic() + timeout
@@ -35,8 +47,21 @@ def call_endpoint(endpoint_id, payload, key, *, stream=False, timeout=900):
             return result
         job_id = result["id"]
         chunks = []
+
+        def timed_out():
+            errors = job_errors({**result, "stream": chunks})
+            detail = "; " + "; ".join(errors) if errors else ""
+            return TimeoutError(
+                f"Runpod job {job_id} still {result.get('status', 'UNKNOWN')} "
+                f"after {timeout}s; check with: runpodctl serverless status "
+                f"{endpoint_id} {job_id}{detail}"
+            )
+
         while time.monotonic() < deadline:
-            response = client.get(base + f"/stream/{job_id}")
+            try:
+                response = client.get(base + f"/stream/{job_id}")
+            except httpx.TimeoutException as exc:
+                raise timed_out() from exc
             response.raise_for_status()
             result = response.json()
             chunks.extend(result.get("stream") or [])
@@ -46,9 +71,9 @@ def call_endpoint(endpoint_id, payload, key, *, stream=False, timeout=900):
                 "CANCELLED",
                 "TIMED_OUT",
             ):
-                return {**result, "stream": chunks}
+                return {**result, "id": job_id, "stream": chunks}
             time.sleep(1)
-    raise TimeoutError("Runpod job did not finish before the client timeout")
+        raise timed_out()
 
 
 def main(argv=None):
@@ -64,10 +89,15 @@ def main(argv=None):
     for command in (extract, memo):
         command.add_argument("--endpoint-id", required=True)
         command.add_argument("--max-tokens", type=int)
+        command.add_argument("--timeout", type=float, default=900)
     args = parser.parse_args(argv)
     key = os.getenv("RUNPOD_API_KEY") or runpodctl_key()
+
+    def safe_print(message, **kwargs):
+        print(message.replace(key, "[REDACTED]") if key else message, **kwargs)
+
     if not key:
-        print(
+        safe_print(
             "Set RUNPOD_API_KEY or run `runpodctl doctor` to save a key",
             file=sys.stderr,
         )
@@ -85,16 +115,30 @@ def main(argv=None):
             payload["max_tokens"] = args.max_tokens
         started = time.monotonic()
         result = call_endpoint(
-            args.endpoint_id, payload, key, stream=args.task == "memo"
+            args.endpoint_id,
+            payload,
+            key,
+            stream=args.task == "memo",
+            timeout=args.timeout,
         )
         output = json.dumps(
             {"result": result, "round_trip_s": time.monotonic() - started}, indent=2
         )
-        print(output.replace(key, "[REDACTED]"))
-        return 0
-    except (OSError, ValueError, KeyError, httpx.HTTPError, TimeoutError):
+        safe_print(output)
+        failed = result.get("status") in ("FAILED", "CANCELLED", "TIMED_OUT")
+        return 1 if failed or job_errors(result) else 0
+    except httpx.HTTPStatusError as exc:
+        safe_print(
+            f"HTTP {exc.response.status_code} for {exc.request.url.path}",
+            file=sys.stderr,
+        )
+        return 1
+    except TimeoutError as exc:
+        safe_print(str(exc), file=sys.stderr)
+        return 1
+    except (OSError, ValueError, KeyError, httpx.HTTPError):
         # Avoid printing server bodies or exception strings that might echo credentials.
-        print(
+        safe_print(
             "Request failed; check input files, endpoint, and credentials",
             file=sys.stderr,
         )

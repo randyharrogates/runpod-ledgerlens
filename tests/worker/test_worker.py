@@ -373,3 +373,219 @@ def test_rest_client_runsync(monkeypatch):
     )
     result = client.call_endpoint("endpoint", {"task": "extract"}, "secret")
     assert result["output"]["valid"]
+
+
+def test_engine_import_failure_still_starts_serverless(monkeypatch, caplog):
+    import runpy
+    from types import SimpleNamespace
+
+    reason = "x" * 3000 + " torchcodec root cause"
+    registered = []
+
+    def fail(*args, **kwargs):
+        raise OSError(reason)
+
+    monkeypatch.delenv("LEDGERLENS_NO_ENGINE")
+    monkeypatch.delenv("MODEL_PATH", raising=False)
+    monkeypatch.setattr(subprocess, "Popen", fail)
+    monkeypatch.setitem(
+        sys.modules,
+        "runpod",
+        SimpleNamespace(serverless=SimpleNamespace(start=registered.append)),
+    )
+    module = runpy.run_path("worker/handler.py", run_name="__main__")
+    assert registered[0]["handler"] is module["handler"]
+    assert module["ENGINE"]["status"] == "failed"
+    assert module["ENGINE"]["error"] == reason[-2000:]
+    assert reason in caplog.text
+    module["handler"].__globals__["vllm_client"] = lambda _: pytest.fail("no model")
+    for data in (extract_input(), {"task": "memo", "analysis": {}}):
+        assert list(module["handler"]({"input": data})) == [
+            {"error": "Model engine failed to start: " + reason[-2000:]}
+        ]
+    health = next(module["handler"]({"input": {"task": "health"}}))
+    assert health["status"] == "failed" and health["error"] == reason[-2000:]
+    module["_STDERR"].close()
+
+
+def test_failed_health_preserves_status_for_exited_process(monkeypatch):
+    from types import SimpleNamespace
+
+    worker.ENGINE.update(status="failed", error="root cause")
+    monkeypatch.setattr(worker, "PROCESS", SimpleNamespace(poll=lambda: 1))
+    health = next(worker.handler({"input": {"task": "health"}}))
+    assert health["status"] == "failed" and health["error"] == "root cause"
+
+
+def test_engine_stderr_keeps_80_lines_and_64_kib(monkeypatch):
+    from types import SimpleNamespace
+
+    lines = [f"line {i}: " + "x" * 600 for i in range(100)]
+    lines[30] = "torchcodec root cause" + "x" * 600
+
+    def launch(command, **kwargs):
+        kwargs["stderr"].write(("\n".join(lines) + "\n").encode())
+        kwargs["stderr"].flush()
+        return SimpleNamespace(poll=lambda: 1)
+
+    monkeypatch.setattr(worker, "resolve_model", lambda: ("org/model", "download"))
+    monkeypatch.setattr(subprocess, "Popen", launch)
+    try:
+        with pytest.raises(RuntimeError) as caught:
+            worker.start_engine()
+        assert str(caught.value).splitlines()[1:] == lines[-80:]
+    finally:
+        worker._STDERR.close()
+
+
+@pytest.mark.parametrize("status", ["FAILED", "CANCELLED", "TIMED_OUT"])
+@pytest.mark.parametrize("error_location", ["error", "output", "stream"])
+def test_client_terminal_failure(monkeypatch, capsys, tmp_path, status, error_location):
+    secret = "private-test-token"
+    monkeypatch.setenv("RUNPOD_API_KEY", secret)
+    analysis = tmp_path / "analysis.json"
+    analysis.write_text("{}")
+    error = f"torchcodec failed {secret}"
+    details = {
+        "error": error,
+        "output": [{"error": error}],
+        "stream": [{"output": {"error": error}}],
+    }
+    monkeypatch.setattr(
+        client,
+        "call_endpoint",
+        lambda *a, **kw: {
+            "id": "job-123",
+            "status": status,
+            error_location: details[error_location],
+        },
+    )
+    assert (
+        client.main(["memo", "--endpoint-id", "endpoint", "--analysis", str(analysis)])
+        == 1
+    )
+    captured = capsys.readouterr()
+    output = captured.out + captured.err
+    assert all(
+        value in output
+        for value in ("job-123", status, "torchcodec failed", "[REDACTED]")
+    )
+    assert secret not in output
+
+
+@pytest.mark.parametrize("task", ["extract", "memo"])
+def test_client_timeout_details_and_option(monkeypatch, capsys, tmp_path, task):
+    secret = "private-test-token"
+    monkeypatch.setenv("RUNPOD_API_KEY", secret)
+    source = tmp_path / "input.json"
+    source.write_text("{}")
+    real_client = httpx.Client
+    monkeypatch.setattr(
+        client.httpx,
+        "Client",
+        lambda **kwargs: real_client(
+            transport=httpx.MockTransport(
+                lambda request: httpx.Response(
+                    200,
+                    json={
+                        "id": "job-123",
+                        "status": "IN_QUEUE",
+                        "output": {"error": secret},
+                    },
+                )
+            ),
+            **kwargs,
+        ),
+    )
+    options = (
+        ["--analysis", str(source)]
+        if task == "memo"
+        else ["--image", str(source), "--doc-type", "statement"]
+    )
+    assert (
+        client.main([task, "--endpoint-id", "endpoint", "--timeout", "0", *options])
+        == 1
+    )
+    output = capsys.readouterr().err
+    assert "Runpod job job-123 still IN_QUEUE after 0.0s" in output
+    assert "runpodctl serverless status endpoint job-123" in output
+    assert "[REDACTED]" in output and secret not in output
+
+
+def test_client_http_error_is_redacted(monkeypatch, capsys, tmp_path):
+    secret = "private-test-token"
+    monkeypatch.setenv("RUNPOD_API_KEY", secret)
+    source = tmp_path / "analysis.json"
+    source.write_text("{}")
+
+    def fail(*args, **kwargs):
+        request = httpx.Request(
+            "POST", f"https://user:{secret}@example.com/v2/{secret}/run"
+        )
+        response = httpx.Response(403, request=request, text=secret)
+        response.raise_for_status()
+
+    monkeypatch.setattr(client, "call_endpoint", fail)
+    assert (
+        client.main(["memo", "--endpoint-id", "endpoint", "--analysis", str(source)])
+        == 1
+    )
+    output = capsys.readouterr().err
+    assert output == "HTTP 403 for /v2/[REDACTED]/run\n"
+    assert secret not in output and "example.com" not in output
+
+
+@pytest.mark.parametrize("terminal", ["FAILED", "http_timeout", "client_timeout"])
+def test_polling_failure_retains_job_details(monkeypatch, terminal):
+    responses = iter(
+        [
+            {"id": "job-123", "status": "IN_QUEUE"},
+            {"status": "IN_PROGRESS", "stream": [{"output": {"error": "root cause"}}]},
+        ]
+    )
+
+    def respond(request):
+        result = next(responses, None)
+        if result is not None:
+            return httpx.Response(200, json=result)
+        if terminal == "http_timeout":
+            raise httpx.ReadTimeout("secret", request=request)
+        return httpx.Response(200, json={"status": "FAILED", "error": "root cause"})
+
+    real_client = httpx.Client
+    monkeypatch.setattr(
+        client.httpx,
+        "Client",
+        lambda **kwargs: real_client(transport=httpx.MockTransport(respond), **kwargs),
+    )
+    monkeypatch.setattr(client.time, "sleep", lambda _: None)
+    clock_values = iter([0, 0, 901] if terminal == "client_timeout" else [0, 0, 0])
+    monkeypatch.setattr(client.time, "monotonic", lambda: next(clock_values))
+    if terminal == "FAILED":
+        result = client.call_endpoint("endpoint", {}, "secret", stream=True)
+        assert result["id"] == "job-123" and result["status"] == "FAILED"
+        assert result["error"] == "root cause"
+    else:
+        with pytest.raises(TimeoutError) as caught:
+            client.call_endpoint("endpoint", {}, "secret", stream=True)
+        message = str(caught.value)
+        assert "job-123 still IN_PROGRESS" in message and "root cause" in message
+        assert "secret" not in message
+
+
+def test_client_exits_nonzero_when_completed_job_carries_error(monkeypatch, tmp_path):
+    monkeypatch.setenv("RUNPOD_API_KEY", "private-test-token")
+    analysis = tmp_path / "analysis.json"
+    analysis.write_text("{}")
+    monkeypatch.setattr(
+        client,
+        "call_endpoint",
+        lambda *a, **kw: {
+            "id": "job-1",
+            "status": "COMPLETED",
+            "output": [{"error": "Model engine failed to start: boom"}],
+        },
+    )
+    assert (
+        client.main(["memo", "--endpoint-id", "id", "--analysis", str(analysis)]) == 1
+    )
