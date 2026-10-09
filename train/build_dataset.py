@@ -16,17 +16,30 @@ LOG = logging.getLogger(__name__)
 def cord_number(value, *, quantity=False) -> Decimal | None:
     if value is None:
         return None
-    text = re.sub(r"(?i)(?:Rp|IDR|SGD|MYR|USD|RM)|[@x$€£¥\s]", "", str(value))
-    if not text:
+    text = re.sub(r"(?i)rp\.?|idr|sgd|myr|usd|rm|[@$€£¥\s*]", "", str(value))
+    # A printed dash means "nothing here", not zero.
+    if not text or set(text) <= {"-"}:
         return None
+    if quantity:
+        # Quantities print as "2", "2.00", "x2", "1Prs", "4 Pcs": keep the leading number.
+        match = re.match(r"x?(\d+(?:[.,]\d+)?)", text, re.IGNORECASE)
+        if not match:
+            raise ValueError(f"Unparseable CORD number: {value!r}")
+        return Decimal(match.group(1).replace(",", "."))
     # Discounts print as "-60.000" or "(60.000)"; parse the digits, then restore the sign.
     sign = ""
     if text.startswith("(") and text.endswith(")"):
         sign, text = "-", text[1:-1]
     elif text[0] in "+-":
         sign, text = text[0].replace("+", ""), text[1:]
-    # Rupiah has no cents in CORD; . and , group thousands.
-    if not quantity and re.fullmatch(r"\d{1,3}([.,]\d{3})+", text):
+    text = text.rstrip(".,")
+    if "." in text and "," in text:
+        # Both separators: the last one is the decimal point ("181,500.00", "8.500,00").
+        decimal = "." if text.rfind(".") > text.rfind(",") else ","
+        grouping = "," if decimal == "." else "."
+        text = text.replace(grouping, "").replace(decimal, ".")
+    elif re.fullmatch(r"\d{1,3}([.,]\d{3})+", text):
+        # Rupiah has no cents in CORD; a lone . or , before three digits groups thousands.
         text = text.replace(".", "").replace(",", "")
     else:
         text = text.replace(",", ".")
