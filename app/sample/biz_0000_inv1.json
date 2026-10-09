@@ -1,0 +1,19 @@
+{
+  "doc_type": "invoice",
+  "issuer": "Cedar Petal Reed Trading",
+  "recipient": "Bintang Damai Indah Makanan",
+  "invoice_number": "INV-biz_0000-1",
+  "date": "2026-06-10",
+  "currency": "SGD",
+  "line_items": [
+    {
+      "description": "Office supplies 文具 / Bekalan",
+      "quantity": "5",
+      "unit_price": "12.50",
+      "amount": "62.50"
+    }
+  ],
+  "subtotal": "62.50",
+  "tax": "5.00",
+  "total": "67.50"
+}

@@ -1,0 +1,139 @@
+{
+  "doc_type": "statement",
+  "bank_name": "Cloudpetal Bank",
+  "account_holder": "Cedar Petal Reed Trading",
+  "account_number_masked": "****5845",
+  "period_start": "2026-01-01",
+  "period_end": "2026-06-30",
+  "currency": "SGD",
+  "opening_balance": "83777.88",
+  "closing_balance": "85361.57",
+  "transactions": [
+    {
+      "date": "2026-02-08",
+      "description": "RENT Sewa 租金",
+      "debit": "1717.52",
+      "credit": null,
+      "balance": "82060.36"
+    },
+    {
+      "date": "2026-02-08",
+      "description": "LOAN REPAYMENT",
+      "debit": "1317.64",
+      "credit": null,
+      "balance": "80742.72"
+    },
+    {
+      "date": "2026-02-08",
+      "description": "BANK FEES",
+      "debit": "37.63",
+      "credit": null,
+      "balance": "80705.09"
+    },
+    {
+      "date": "2026-02-08",
+      "description": "CARD SETTLEMENT BATCH 78901",
+      "debit": null,
+      "credit": "624.37",
+      "balance": "81329.46"
+    },
+    {
+      "date": "2026-02-08",
+      "description": "INTEREST CREDIT",
+      "debit": null,
+      "credit": "6.34",
+      "balance": "81335.80"
+    },
+    {
+      "date": "2026-02-09",
+      "description": "GIRO FROM Coral Grove Ridge Commerce REF 902330",
+      "debit": null,
+      "credit": "1782.44",
+      "balance": "83118.24"
+    },
+    {
+      "date": "2026-02-10",
+      "description": "PayNow FROM Bintang Damai Indah Makanan REF 581316",
+      "debit": null,
+      "credit": "1486.49",
+      "balance": "84604.73"
+    },
+    {
+      "date": "2026-02-10",
+      "description": "PayNow FROM Bintang Damai Indah Makanan REF 747736",
+      "debit": null,
+      "credit": "1926.45",
+      "balance": "86531.18"
+    },
+    {
+      "date": "2026-02-10",
+      "description": "FAST FROM Senja Hijau Damai Niaga REF 243065",
+      "debit": null,
+      "credit": "1661.60",
+      "balance": "88192.78"
+    },
+    {
+      "date": "2026-02-11",
+      "description": "FAST FROM 银山桥食品 REF 119071",
+      "debit": null,
+      "credit": "1613.72",
+      "balance": "89806.50"
+    },
+    {
+      "date": "2026-02-12",
+      "description": "GIRO FROM Bintang Damai Indah Makanan REF 557099",
+      "debit": null,
+      "credit": "1768.66",
+      "balance": "91575.16"
+    },
+    {
+      "date": "2026-02-14",
+      "description": "FAST TO 银林泉商贸 REF 654950",
+      "debit": "3947.32",
+      "credit": null,
+      "balance": "87627.84"
+    },
+    {
+      "date": "2026-02-14",
+      "description": "GST TAX Cukai",
+      "debit": "860.20",
+      "credit": null,
+      "balance": "86767.64"
+    },
+    {
+      "date": "2026-02-14",
+      "description": "ATM WITHDRAWAL",
+      "debit": "165.77",
+      "credit": null,
+      "balance": "86601.87"
+    },
+    {
+      "date": "2026-02-15",
+      "description": "FAST FROM Bintang Damai Indah Makanan REF 317303",
+      "debit": null,
+      "credit": "1938.05",
+      "balance": "88539.92"
+    },
+    {
+      "date": "2026-02-16",
+      "description": "FX CONVERSION USD",
+      "debit": "224.78",
+      "credit": null,
+      "balance": "88315.14"
+    },
+    {
+      "date": "2026-02-19",
+      "description": "GIRO TO Cedar Petal Reed Holdings REF 867240",
+      "debit": "4671.52",
+      "credit": null,
+      "balance": "83643.62"
+    },
+    {
+      "date": "2026-02-20",
+      "description": "GIRO FROM Coral Grove Ridge Commerce REF 142878",
+      "debit": null,
+      "credit": "1717.95",
+      "balance": "85361.57"
+    }
+  ]
+}

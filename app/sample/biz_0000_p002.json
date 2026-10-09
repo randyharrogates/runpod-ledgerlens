@@ -1,0 +1,139 @@
+{
+  "doc_type": "statement",
+  "bank_name": "Cloudpetal Bank",
+  "account_holder": "Cedar Petal Reed Trading",
+  "account_number_masked": "****5845",
+  "period_start": "2026-01-01",
+  "period_end": "2026-06-30",
+  "currency": "SGD",
+  "opening_balance": "57406.02",
+  "closing_balance": "83777.88",
+  "transactions": [
+    {
+      "date": "2026-01-25",
+      "description": "GIRO TO 海峰河材料 REF 544314",
+      "debit": "2772.06",
+      "credit": null,
+      "balance": "54633.96"
+    },
+    {
+      "date": "2026-01-26",
+      "description": "PayNow FROM Senja Hijau Damai Niaga REF 384948",
+      "debit": null,
+      "credit": "2477.93",
+      "balance": "57111.89"
+    },
+    {
+      "date": "2026-01-27",
+      "description": "FAST FROM Cahaya Hijau Jaya Dagang REF 211341",
+      "debit": null,
+      "credit": "2518.91",
+      "balance": "59630.80"
+    },
+    {
+      "date": "2026-01-28",
+      "description": "PayNow FROM Coral Grove Ridge Commerce REF 490482",
+      "debit": null,
+      "credit": "3039.92",
+      "balance": "62670.72"
+    },
+    {
+      "date": "2026-01-28",
+      "description": "PAYROLL GIRO Gaji",
+      "debit": "6590.89",
+      "credit": null,
+      "balance": "56079.83"
+    },
+    {
+      "date": "2026-01-30",
+      "description": "GIRO FROM Bintang Damai Indah Makanan REF 126885",
+      "debit": null,
+      "credit": "3008.40",
+      "balance": "59088.23"
+    },
+    {
+      "date": "2026-01-30",
+      "description": "INTEREST CREDIT",
+      "debit": null,
+      "credit": "4.86",
+      "balance": "59093.09"
+    },
+    {
+      "date": "2026-01-30",
+      "description": "CASH LODGEMENT",
+      "debit": null,
+      "credit": "12071.87",
+      "balance": "71164.96"
+    },
+    {
+      "date": "2026-01-31",
+      "description": "GIRO FROM Senja Hijau Damai Niaga REF 957612",
+      "debit": null,
+      "credit": "3036.34",
+      "balance": "74201.30"
+    },
+    {
+      "date": "2026-02-02",
+      "description": "PayNow FROM Coral Grove Ridge Commerce REF 576876",
+      "debit": null,
+      "credit": "1653.10",
+      "balance": "75854.40"
+    },
+    {
+      "date": "2026-02-02",
+      "description": "PayNow TO Bintang Makmur Murni Tekstil REF 437046",
+      "debit": "2370.46",
+      "credit": null,
+      "balance": "73483.94"
+    },
+    {
+      "date": "2026-02-02",
+      "description": "CUSTOMER REFUND",
+      "debit": "88.44",
+      "credit": null,
+      "balance": "73395.50"
+    },
+    {
+      "date": "2026-02-04",
+      "description": "PayNow FROM 银山桥食品 REF 980202",
+      "debit": null,
+      "credit": "1830.36",
+      "balance": "75225.86"
+    },
+    {
+      "date": "2026-02-04",
+      "description": "PayNow FROM Senja Hijau Damai Niaga REF 162222",
+      "debit": null,
+      "credit": "1492.93",
+      "balance": "76718.79"
+    },
+    {
+      "date": "2026-02-05",
+      "description": "GIRO FROM Coral Grove Ridge Commerce REF 912897",
+      "debit": null,
+      "credit": "1676.48",
+      "balance": "78395.27"
+    },
+    {
+      "date": "2026-02-06",
+      "description": "GIRO FROM 银山桥食品 REF 447400",
+      "debit": null,
+      "credit": "1469.22",
+      "balance": "79864.49"
+    },
+    {
+      "date": "2026-02-06",
+      "description": "GIRO FROM 银山桥食品 REF 724463",
+      "debit": null,
+      "credit": "1966.01",
+      "balance": "81830.50"
+    },
+    {
+      "date": "2026-02-08",
+      "description": "FAST FROM Cahaya Hijau Jaya Dagang REF 228078",
+      "debit": null,
+      "credit": "1947.38",
+      "balance": "83777.88"
+    }
+  ]
+}

@@ -1,0 +1,74 @@
+{
+  "business_id": "biz_0000",
+  "page_number": 3,
+  "transaction_offset": 36,
+  "true_closing_balance": "85361.57",
+  "printed_closing_balance": "85361.57",
+  "anomalies": [
+    {
+      "type": "round_trip",
+      "transaction_indices": [
+        16
+      ],
+      "label_id": 1,
+      "global_transaction_indices": [
+        52
+      ]
+    }
+  ],
+  "layout_id": "stmt_b",
+  "country": "SG",
+  "uen": "202600000A",
+  "strength": "medium",
+  "seed": 4,
+  "rendered": true,
+  "degradation": {
+    "strength": "medium",
+    "seed": 4,
+    "operations": [
+      {
+        "op": "perspective",
+        "coefficients": [
+          1,
+          0.028574622342462247,
+          0,
+          -0.016766559044175913,
+          1,
+          0,
+          2.1266693067473647e-05,
+          5.437225350893567e-07
+        ]
+      },
+      {
+        "op": "rotation",
+        "degrees": 0.5153079935761422
+      },
+      {
+        "op": "gaussian_blur",
+        "radius": 0.8011892675018181
+      },
+      {
+        "op": "lighting",
+        "minimum": 0.76,
+        "reversed": true
+      },
+      {
+        "op": "fold",
+        "x": 807,
+        "width": 8
+      },
+      {
+        "op": "downscale",
+        "scale": 0.68,
+        "size": [
+          843,
+          1192
+        ]
+      },
+      {
+        "op": "jpeg_recompression",
+        "quality": 60
+      }
+    ]
+  }
+}
