@@ -4,3 +4,12 @@ node_modules/
 .git/
 tests/
 *.png
+# Never ship personal context, agent config or the app into the worker image
+CLAUDE.local.md
+CLAUDE.md
+AGENTS.md
+context/
+.claude/
+app/
+docs/
+train/

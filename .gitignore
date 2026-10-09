@@ -7,3 +7,9 @@ data/**/*.png
 .pytest_cache/
 .ruff_cache/
 *.egg-info/
+app/frontend/dist/
+
+# Local-only notes — never committed
+CLAUDE.local.md
+context/
+.claude/settings.local.json
