@@ -134,6 +134,30 @@ the bottom of each day.
   `/runpod/model-store/...`; Runpod's docs say workers see it at
   `/runpod-volume/huggingface-cache/hub/`, which is what `resolve_model()` reads. Confirm on the
   first successful job (`model_source` should be `cache`).
+- **17:28 — Endpoint switched to `deploy`** (console: Manage → Edit → Repository configuration →
+  Branch). `scripts/release-worker.sh` now pushes with the personal token (`git_personal`).
+- **17:30 — Released `f6dbfd4`** (`main:deploy`). Build passed, including the new import check;
+  template image `…-deploy-worker-dockerfile:f6dbfd480` at 17:36.
+- **17:40 — vLLM up.** Weights read from `/runpod-volume/huggingface-cache/hub/…/0c351dd…` (model
+  cache path confirmed, 16.3 GiB loaded in 5.7 s). Cold start ≈ 3.5 min, container start → handler
+  ready: torch.compile 27 s and CUDA-graph capture 63 s are the big parts (worth caching later).
+  The job queued since 16:37 then ran.
+- **17:41 — Gate 1, first live result (warm, RTX 5090):** `biz_0000_p002` (light) — valid JSON,
+  queue 0.13 s, execution 15.1 s, 1,710 prompt + 1,359 output tokens. Every description, amount and
+  balance right, but row F1 **0** — two systematic errors: dates mangled (`29 Jan 2026` →
+  `2901-01-20`: the model starts day-first and the ISO date grammar forces the digits into the wrong
+  slots) and 6/9 incoming payments filed as debits (layout prints one signed Amount column). The
+  prompt said "exactly as printed" with no rule for either.
+- **17:44 — Prompt fix (`a0bb907`):** dates as YYYY-MM-DD with day-first examples; money out = debit,
+  in = credit; how to read a single signed column. Training imports the same prompt.
+- **17:57 — Re-test after rebuild (image `a0bb907`):** `p002` light (cold start, ~5 min end to end):
+  header 9/9, rows **16/18**, both misses are credits filed as debits. `p004` heavy (warm, 14.0 s):
+  header 8/9 (closing balance), rows **7/18**: 9 credit/debit swaps, 4 digit misreads
+  (`933846`→`633846`, `1997.93`→`1967.93`, a balance), 2 dropped CJK/Malay characters, 1 row missing.
+  Dates now right on both. Reading: zero-shot 8B reads digits well on clean pages but not the
+  accounting convention — the main thing the fine-tune has to teach. The balance column is read
+  correctly, so debit/credit can also be checked deterministically from balance changes.
+
 ### App (review of Codex's polish pass)
 - **17:07 — Samples regenerated** with `app/make_sample.py` outside the sandbox (Chromium): four
   consecutive `stmt_b` pages (clean → heavy) and one invoice, seed 4, fictional "Cloudpetal Bank".
@@ -151,4 +175,4 @@ the bottom of each day.
 | Item | Cost |
 |---|---|
 | Network volume (100 GB, prorated) | ~$0.25/day |
-| GPU time (crash-looping workers, 16:37–17:10) | ~$0.19 (balance $214.64 → $214.45) |
+| GPU time (crash loop 16:37–17:10, builds/tests to 17:57) | ~$0.52 total (balance $214.64 → $214.12) |
