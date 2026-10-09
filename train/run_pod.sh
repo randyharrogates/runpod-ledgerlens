@@ -20,16 +20,21 @@ LIMIT=()
 if [[ -n "${PREDICT_LIMIT:-}" ]]; then LIMIT=(--limit "$PREDICT_LIMIT"); fi
 mkdir -p "$RUN"/{logs,done}
 command -v uv >/dev/null || { pip install -q uv && hash -r; }
+# Package installs are shared by every run on this volume; data and model stages belong to $RUN.
+ENV_DONE=/workspace/env-done
+mkdir -p "$ENV_DONE"
 stage() {
     local name="$1"
     shift
-    if [[ -f "$RUN/done/$name" ]]; then
+    local marker="$RUN/done/$name"
+    if [[ "$name" == setup-* ]]; then marker="$ENV_DONE/$name"; fi
+    if [[ -f "$marker" ]]; then
         echo "$(date -Is) skipping $name"
         return
     fi
     echo "$(date -Is) starting $name"
     "$@" 2>&1 | tee "$RUN/logs/$name.log"
-    touch "$RUN/done/$name"
+    touch "$marker"
     echo "$(date -Is) completed $name"
     if [[ "$name" == "$STOP_AFTER" ]]; then
         echo "$(date -Is) stopping after $name (STOP_AFTER)"
