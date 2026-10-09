@@ -102,14 +102,53 @@ the bottom of each day.
   --model-reference https://huggingface.co/Qwen/Qwen3-VL-8B-Instruct:main`, pinned to commit
   `0c351dd`) so workers don't download 17 GB at start-up.
 
-### Spend so far
-| Item | Cost |
-|---|---|
-| Network volume (100 GB, prorated) | ~$0.25/day |
-| GPU time | $0 |
 - **16:33 — Deploy branch.** Runpod's GitHub integration rebuilds on every push to the tracked
   branch, so the endpoint will track **`deploy`** instead of `main`. Created `deploy` at `7d15fed`
   (the commit currently building, so the switch changes nothing deployed). Added
   `scripts/release-worker.sh`: runs the tests, shows the image-affecting diff since the last release,
   and fast-forwards `deploy` to `main` only on confirmation. Docs and app commits no longer cost a
   rebuild.
+- **16:37 — First live request queued, never ran.** `worker/client.py extract` on `biz_0000_p002`;
+  the client gave up after ~6 min with a generic "Request failed". Health showed workers "ready" and
+  "idle" but the job stayed `IN_QUEUE`.
+- **17:03 — Root cause: vLLM crash loop on start.** Stored logs showed only repeated system
+  "start container" lines; `runpodctl serverless logs szucrtrufff80a --follow` caught the container
+  output: `vllm serve` dies importing `torchcodec` — `OSError: Could not load this library:
+  .../torchcodec/libtorchcodec_image.so`. The handler re-raised, the container exited, Runpod
+  restarted it, the job never got a worker. Billing hit $1.59/h while it looped.
+- **17:05 — Why.** The PyPI torchcodec wheel (0.14+, no cu129 build exists on the PyTorch index)
+  links `libcudart.so.13` / `libnvrtc.so.13`, but the image is `vllm/vllm-openai:v0.31.0-cu129`
+  (CUDA 12.9). vLLM 0.31.0 guards that import with `except (ImportError, RuntimeError)` — not
+  `OSError` — so it is fatal. Checked with `llvm-objdump -p` on the wheel and the vLLM v0.31.0 source.
+- **17:06 — Fix (Dockerfile).** `pip uninstall -y torchcodec` (vLLM then treats audio decoding as
+  unavailable; we only send images; every other torchcodec import in vLLM is guarded or model-specific)
+  plus a build-time `python3 -c "import vllm.multimodal.media"` so this class of failure breaks the
+  build instead of crash-looping paid workers. Not yet deployed.
+- **17:10 — Fail fast instead of crash-looping (Codex, reviewed).** If vLLM fails to start, the
+  handler logs the full error, keeps the worker up, and answers every job at once with
+  `Model engine failed to start: <last 2,000 chars>`; health reports it. stderr tail kept for the
+  error: 20 → 80 lines. Client: `--timeout`, prints job id + status + error on failure, exit 1 when the
+  job failed or its output carries an error; key redaction on every print. Review fixes: keep the
+  *end* of the error (root cause is last), non-zero exit for COMPLETED-with-error. 137 tests pass.
+- **17:10 — Model cache path checked.** `runpodctl serverless model-status` shows the host mount
+  `/runpod/model-store/...`; Runpod's docs say workers see it at
+  `/runpod-volume/huggingface-cache/hub/`, which is what `resolve_model()` reads. Confirm on the
+  first successful job (`model_source` should be `cache`).
+### App (review of Codex's polish pass)
+- **17:07 — Samples regenerated** with `app/make_sample.py` outside the sandbox (Chromium): four
+  consecutive `stmt_b` pages (clean → heavy) and one invoice, seed 4, fictional "Cloudpetal Bank".
+  The committed-before samples were text dumps. Looked at the pages: the heavy page reads like a real
+  phone photo.
+- **17:10 — Clicked through every screen** (demo mode, headless Chromium). Works: cached results are
+  labelled "Cached demo · ground truth" and "no model call"; review table fits and formats money;
+  flags cite rows (`p1:r4`). Follow-ups: review shows the page above the rows (side by side would let
+  a reviewer check a row against the source); March is a partial month and reads as a collapse on the
+  chart, net line stops at Feb; counterparties appear lowercased in flags and the memo ("cedar petal
+  reed holdings"); memo headings unstyled; invoice sample has one line, right-aligned description and
+  8% tax (SG GST is 9%); zoom slider unstyled.
+
+### Spend so far
+| Item | Cost |
+|---|---|
+| Network volume (100 GB, prorated) | ~$0.25/day |
+| GPU time (crash-looping workers, 16:37–17:10) | ~$0.19 (balance $214.64 → $214.45) |
