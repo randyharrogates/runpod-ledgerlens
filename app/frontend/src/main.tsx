@@ -48,7 +48,15 @@ function App() {
   useEffect(() => {
     if (!session || mobile) return;
     const poll = () => {
-      void refresh().catch(e => setError(e.message));
+      void refresh().catch(e => {
+        // Sessions live in server memory: after a backend restart, start a fresh one.
+        if (e.message === 'Session not found') {
+          localStorage.removeItem('ledgerlens-session');
+          setSession('');
+          return;
+        }
+        setError(e.message);
+      });
       void api.status().then(setStatus).catch(() => setStatus({ connection: 'unavailable' }));
     };
     poll();

@@ -290,3 +290,33 @@ def test_cached_memo_uses_computed_numbers_and_explained_flags(client):
         assert heading in text
     assert "SGD" in text
     assert " ." not in text
+
+
+def test_live_direction_fixes(client, monkeypatch):
+    monkeypatch.setenv("DEMO_MODE", "0")
+    monkeypatch.setenv("RUNPOD_ENDPOINT_8B", "endpoint")
+    s = create(client)
+    sample(client, s)
+    truth = main.SESSIONS[s]["pages"]["p1"]["truth"]
+    prediction = json.loads(json.dumps(truth))
+    row = prediction["transactions"][0]
+    row["debit"], row["credit"] = row["credit"], row["debit"]
+    monkeypatch.setattr(
+        main.worker_client,
+        "call_endpoint",
+        lambda *a, **k: {
+            "output": [{"document": prediction}],
+            "delayTime": 1234,
+        },
+    )
+    response = extract(client, s, "p1").json()
+    assert response["document"] == truth
+    assert len(response["direction_fixes"]) == 1
+    assert response["metrics"]["direction_fixes"] == 1
+    assert response["metrics"]["delayTime"] == 1234
+    page = client.get(f"/api/sessions/{s}").json()["pages"][0]
+    assert page["direction_fixes"] == response["direction_fixes"]
+    monkeypatch.setenv("DEMO_MODE", "1")
+    cached = extract(client, s, "p1").json()
+    assert cached["direction_fixes"] == []
+    assert cached["metrics"]["direction_fixes"] == 0

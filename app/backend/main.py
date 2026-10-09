@@ -3,6 +3,7 @@
 import base64
 import io
 import json
+import logging
 import os
 import secrets
 import socket
@@ -23,6 +24,7 @@ from starlette.concurrency import run_in_threadpool
 
 from ledgerlens.analytics import analyze, payer
 from ledgerlens.datagen.layouts import LAYOUTS
+from ledgerlens.direction import check_direction
 from ledgerlens.schema import DOCUMENT_ADAPTER, Statement
 from worker import client as worker_client
 
@@ -133,6 +135,7 @@ def add_page(pages, data, mime, truth=None):
         "document": None,
         "metrics": None,
         "edited": [],
+        "direction_fixes": [],
         "truth": truth,
     }
     return p
@@ -243,6 +246,7 @@ async def extract(s: str, p: str, request: Extract):
     if item["status"] == "extracting":
         raise HTTPException(409, "Extraction already running")
     item["status"] = "extracting"
+    corrections = []
     endpoint, key = config(request.model)
     try:
         if os.getenv("DEMO_MODE") == "1" or not endpoint or not key:
@@ -263,21 +267,37 @@ async def extract(s: str, p: str, request: Extract):
         document = DOCUMENT_ADAPTER.validate_python(output["document"])
         if document.doc_type != request.doc_type:
             raise ValueError("Wrong document type")
+        if isinstance(document, Statement):
+            document, corrections = check_direction(document)
         item["metrics"] = metrics(result, output, request.model)
-    except Exception:
+    except Exception as exc:
+        live_error = None if str(exc) == "offline" else f"{type(exc).__name__}: {exc}"
+        if live_error:
+            # Never fall back silently: a failed live call must not pass for a working one.
+            logging.warning("Live extraction of %s failed: %s", p, live_error)
         if item["truth"]:
+            corrections = []
             document = DOCUMENT_ADAPTER.validate_python(item["truth"])
             item["metrics"] = metrics({}, {}, request.model, "cached-demo")
+            item["metrics"]["live_error"] = live_error
         else:
             item.update(
                 status="error",
                 error="No endpoint is configured or the endpoint failed. Configure an endpoint and retry; sample pages work offline.",
             )
             raise HTTPException(503, item["error"]) from None
+    item["direction_fixes"] = corrections
+    item["metrics"]["direction_fixes"] = len(corrections)
     item.update(document=document.model_dump(mode="json"), status="done", edited=[])
     item.pop("error", None)
     session(s)["requests"].append({"page_id": p, "task": "extract", **item["metrics"]})
-    return clean({"document": item["document"], "metrics": item["metrics"]})
+    return clean(
+        {
+            "document": item["document"],
+            "metrics": item["metrics"],
+            "direction_fixes": item["direction_fixes"],
+        }
+    )
 
 
 class Edit(BaseModel):
@@ -555,10 +575,13 @@ def frontend(path: str):
         raise HTTPException(404, "Route not found")
     dist = ROOT / "frontend/dist"
     target = (dist / path).resolve()
+    # index.html must never be cached: it names the hashed bundle, so a stale copy keeps old code.
+    no_cache = {"Cache-Control": "no-cache"}
     if target.is_relative_to(dist.resolve()) and target.is_file():
-        return FileResponse(target)
+        headers = no_cache if target.name == "index.html" else None
+        return FileResponse(target, headers=headers)
     if (dist / "index.html").exists():
-        return FileResponse(dist / "index.html")
+        return FileResponse(dist / "index.html", headers=no_cache)
     raise HTTPException(
         503, "Frontend not built: run npm install && npm run build in app/frontend"
     )

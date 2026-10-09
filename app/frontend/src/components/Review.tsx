@@ -8,12 +8,13 @@ type CellProps = {
   value: string | null;
   display: string;
   edited: boolean;
+  directionTitle?: string;
   numeric: boolean;
   label: string;
   save: (value: string | null) => Promise<void>;
 };
 
-function Cell({ value, display, edited, numeric, label, save }: CellProps) {
+function Cell({ value, display, edited, directionTitle, numeric, label, save }: CellProps) {
   const [draft, setDraft] = useState(value || '');
   const [editing, setEditing] = useState(false);
   const [error, setError] = useState('');
@@ -34,6 +35,7 @@ function Cell({ value, display, edited, numeric, label, save }: CellProps) {
 
   return (
     <td className={`${edited ? 'edited' : ''} ${numeric ? 'numeric' : ''}`}>
+      {directionTitle && <span className="direction-marker" title={directionTitle}>↔</span>}
       {edited && <span className="edit-marker" title="corrected by analyst">●</span>}
       {editing ? (
         <textarea
@@ -77,6 +79,7 @@ export function Review({ pages, selected, row, choose, analysis, save }: ReviewP
   }, [row, selected]);
   if (!page) return <p>Upload or load sample pages first.</p>;
   const rows = page.document?.transactions || page.document?.line_items || [];
+  const fixes = page.direction_fixes || [];
   const invoice = page.document?.doc_type === 'invoice';
   const fields = invoice
     ? ['description', 'quantity', 'unit_price', 'amount']
@@ -111,6 +114,11 @@ export function Review({ pages, selected, row, choose, analysis, save }: ReviewP
           </div>
         </div>
         <div className="table-scroll review-table">
+          {fixes.length > 0 && (
+            <p className="direction-note">
+              {fixes.length} rows moved between debit and credit to match the printed balance.
+            </p>
+          )}
           <table>
             <colgroup>
               <col style={{ width: '4%' }} />
@@ -139,6 +147,10 @@ export function Review({ pages, selected, row, choose, analysis, save }: ReviewP
                     className={`${bad ? 'bad' : ''} ${row === i ? 'selected' : ''}`}>
                     <td>{i + 1}</td>
                     {fields.map(field => {
+                      const fix = fixes.find(f => f.row === i && f.to === field);
+                      const directionTitle = fix
+                        ? `Moved from ${fix.from} to ${fix.to}: the balance went ${fix.to === 'credit' ? 'up' : 'down'} by this amount`
+                        : undefined;
                       const numeric = numericFields.includes(field);
                       const display = field === 'date'
                         ? printedDate(transaction[field], page.date_format)
@@ -147,6 +159,7 @@ export function Review({ pages, selected, row, choose, analysis, save }: ReviewP
                           : transaction[field] || '';
                       return (
                         <Cell key={field} value={transaction[field]} display={display}
+                          directionTitle={directionTitle}
                           numeric={numeric} label={`Edit row ${i + 1} ${field}`}
                           edited={page.edited.includes(`${i}:${field}`)}
                           save={value => save(page.id, i, field, value)} />

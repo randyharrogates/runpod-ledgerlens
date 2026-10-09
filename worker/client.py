@@ -35,16 +35,12 @@ def job_errors(result):
 def call_endpoint(endpoint_id, payload, key, *, stream=False, timeout=900):
     base = f"https://api.runpod.ai/v2/{endpoint_id}"
     deadline = time.monotonic() + timeout
-    with httpx.Client(
-        headers={"Authorization": f"Bearer {key}"}, timeout=timeout
-    ) as client:
-        response = client.post(
-            base + ("/run" if stream else "/runsync"), json={"input": payload}
-        )
+    # Always /run then poll: /runsync holds one connection open for the whole job, and Runpod
+    # dropped it mid-job on a cold start (the job still completed). Short requests, many polls.
+    with httpx.Client(headers={"Authorization": f"Bearer {key}"}, timeout=30) as client:
+        response = client.post(base + "/run", json={"input": payload})
         response.raise_for_status()
         result = response.json()
-        if not stream and result.get("status") not in ("IN_QUEUE", "IN_PROGRESS"):
-            return result
         job_id = result["id"]
         chunks = []
 
@@ -59,9 +55,12 @@ def call_endpoint(endpoint_id, payload, key, *, stream=False, timeout=900):
 
         while time.monotonic() < deadline:
             try:
-                response = client.get(base + f"/stream/{job_id}")
-            except httpx.TimeoutException as exc:
-                raise timed_out() from exc
+                route = "stream" if stream else "status"
+                response = client.get(base + f"/{route}/{job_id}")
+            except httpx.TransportError:
+                # A dropped or slow poll is not a failed job; try again until the deadline.
+                time.sleep(1)
+                continue
             response.raise_for_status()
             result = response.json()
             chunks.extend(result.get("stream") or [])
@@ -71,7 +70,11 @@ def call_endpoint(endpoint_id, payload, key, *, stream=False, timeout=900):
                 "CANCELLED",
                 "TIMED_OUT",
             ):
-                return {**result, "id": job_id, "stream": chunks}
+                return (
+                    {**result, "id": job_id, "stream": chunks}
+                    if stream
+                    else {**result, "id": job_id}
+                )
             time.sleep(1)
         raise timed_out()
 

@@ -80,8 +80,8 @@ def make_report(
             [
                 f"## {split}",
                 "",
-                "| Model | Header accuracy | Row F1 | Reconciliation | Valid JSON | Anomaly precision | Anomaly recall | Seconds/page | Cost/1,000 pages |",
-                "| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |",
+                "| Model | Header accuracy | Row F1 (raw model) | Row F1 (after balance check) | Reconciliation | Valid JSON | Anomaly precision | Anomaly recall | Seconds/page | Cost/1,000 pages |",
+                "| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |",
             ]
         )
         worst_lines = []
@@ -133,6 +133,7 @@ def make_report(
                     "anomaly_recall",
                 )
             ]
+            values.insert(2, result["rows_direction_checked"]["f1"])
             values.extend([timing["seconds_per_page"], result["cost_per_1000_pages"]])
             lines.append(
                 f"| {name} | "

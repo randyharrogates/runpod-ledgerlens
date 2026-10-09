@@ -12,6 +12,7 @@ from typing import Any
 from pydantic import BaseModel, ValidationError
 
 from ledgerlens.analytics import detect_anomalies, reconciliation_checks
+from ledgerlens.direction import check_direction
 from ledgerlens.schema import DOCUMENT_ADAPTER, Invoice, Receipt, Statement
 
 MONEY_FIELDS = {
@@ -251,6 +252,7 @@ def score_batch(pred_dir: Path, gold_dir: Path) -> dict:
     matched = predicted_count = gold_count = reconciles = reconcile_agreement = (
         statement_count
     ) = 0
+    checked_matched = checked_predicted = checked_gold = correction_count = 0
     for gold_path in gold_paths:
         page_id = gold_path.stem
         target = parse_document(gold_path.read_text(encoding="utf-8"))
@@ -286,6 +288,17 @@ def score_batch(pred_dir: Path, gold_dir: Path) -> dict:
                 "reconciliation_accuracy": 0.0,
                 "error": error,
             }
+        checked_rows = result["rows"]
+        fixes = []
+        if isinstance(target, Statement) and isinstance(prediction, Statement):
+            checked, fixes = check_direction(prediction)
+            checked_rows = row_metrics(checked.transactions, target.transactions)
+        result["rows_direction_checked"] = checked_rows.copy()
+        result["direction_fixes"] = len(fixes)
+        checked_matched += checked_rows["matched"]
+        checked_predicted += checked_rows["predicted"]
+        checked_gold += checked_rows["gold"]
+        correction_count += len(fixes)
         pages[page_id] = result
         header_correct += sum(result["header_fields"].values())
         header_total += len(result["header_fields"])
@@ -365,7 +378,29 @@ def score_batch(pred_dir: Path, gold_dir: Path) -> dict:
         )
     precision = matched / predicted_count if predicted_count else float(not gold_count)
     recall = matched / gold_count if gold_count else float(not predicted_count)
+    checked_precision = (
+        checked_matched / checked_predicted
+        if checked_predicted
+        else float(not checked_gold)
+    )
+    checked_recall = (
+        checked_matched / checked_gold if checked_gold else float(not checked_predicted)
+    )
     return {
+        "rows_direction_checked": {
+            "precision": checked_precision,
+            "recall": checked_recall,
+            "f1": 2
+            * checked_precision
+            * checked_recall
+            / (checked_precision + checked_recall)
+            if checked_precision + checked_recall
+            else 0.0,
+            "matched": checked_matched,
+            "predicted": checked_predicted,
+            "gold": checked_gold,
+        },
+        "direction_fixes": correction_count,
         "documents": len(gold_paths),
         "valid_json_rate": valid_json / len(gold_paths),
         "valid_document_rate": valid_documents / len(gold_paths),
@@ -406,7 +441,12 @@ def write_markdown(report: dict, out: Path) -> None:
                 if value is None
                 else str(value)
             )
-            lines.append(f"| {key} | {formatted} |")
+            label = "Row F1 (raw model)" if key == "row_f1" else key
+            lines.append(f"| {label} | {formatted} |")
+            if key == "row_f1":
+                lines.append(
+                    f"| Row F1 (after balance check) | {report['rows_direction_checked']['f1']:.4f} |"
+                )
     lines.extend(
         [
             "",

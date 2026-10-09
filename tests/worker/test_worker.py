@@ -357,10 +357,12 @@ def test_rest_client_stream(monkeypatch):
     assert len(result["stream"]) == 2 and result["status"] == "COMPLETED"
 
 
-def test_rest_client_runsync(monkeypatch):
+def test_rest_client_runs_then_polls_status(monkeypatch):
     def respond(request):
-        assert request.url.path == "/v2/endpoint/runsync"
-        assert json.loads(request.content)["input"]["task"] == "extract"
+        if request.url.path == "/v2/endpoint/run":
+            assert json.loads(request.content)["input"]["task"] == "extract"
+            return httpx.Response(200, json={"id": "job", "status": "IN_QUEUE"})
+        assert request.url.path == "/v2/endpoint/status/job"
         return httpx.Response(
             200, json={"status": "COMPLETED", "output": {"valid": True}}
         )
@@ -371,8 +373,9 @@ def test_rest_client_runsync(monkeypatch):
         "Client",
         lambda **kwargs: real_client(transport=httpx.MockTransport(respond), **kwargs),
     )
+    monkeypatch.setattr(client.time, "sleep", lambda _: None)
     result = client.call_endpoint("endpoint", {"task": "extract"}, "secret")
-    assert result["output"]["valid"]
+    assert result["output"]["valid"] and result["id"] == "job"
 
 
 def test_engine_import_failure_still_starts_serverless(monkeypatch, caplog):
@@ -559,7 +562,9 @@ def test_polling_failure_retains_job_details(monkeypatch, terminal):
         lambda **kwargs: real_client(transport=httpx.MockTransport(respond), **kwargs),
     )
     monkeypatch.setattr(client.time, "sleep", lambda _: None)
-    clock_values = iter([0, 0, 901] if terminal == "client_timeout" else [0, 0, 0])
+    # A dropped poll (http_timeout) is retried until the deadline, then reported like a timeout.
+    clocks = {"client_timeout": [0, 0, 901], "http_timeout": [0, 0, 0, 901]}
+    clock_values = iter(clocks.get(terminal, [0, 0, 0]))
     monkeypatch.setattr(client.time, "monotonic", lambda: next(clock_values))
     if terminal == "FAILED":
         result = client.call_endpoint("endpoint", {}, "secret", stream=True)
@@ -589,3 +594,44 @@ def test_client_exits_nonzero_when_completed_job_carries_error(monkeypatch, tmp_
     assert (
         client.main(["memo", "--endpoint-id", "id", "--analysis", str(analysis)]) == 1
     )
+
+
+def test_rest_client_cold_start_polls_status(monkeypatch):
+    import httpx
+
+    responses = iter(
+        [
+            {"id": "cold-job", "status": "IN_QUEUE"},
+            {"id": "cold-job", "status": "IN_PROGRESS"},
+            {
+                "id": "cold-job",
+                "status": "COMPLETED",
+                "output": [{"document": {}}],
+                "delayTime": 1234,
+                "executionTime": 5678,
+            },
+        ]
+    )
+    paths = []
+
+    def respond(request):
+        paths.append(request.url.path)
+        return httpx.Response(200, json=next(responses))
+
+    real_client = httpx.Client
+    monkeypatch.setattr(
+        client.httpx,
+        "Client",
+        lambda **kwargs: real_client(transport=httpx.MockTransport(respond), **kwargs),
+    )
+    monkeypatch.setattr(client.time, "sleep", lambda _: None)
+    result = client.call_endpoint("endpoint", {"task": "extract"}, "secret")
+    assert paths == [
+        "/v2/endpoint/run",
+        "/v2/endpoint/status/cold-job",
+        "/v2/endpoint/status/cold-job",
+    ]
+    assert result["output"] == [{"document": {}}]
+    assert result["delayTime"] == 1234
+    assert result["executionTime"] == 5678
+    assert "stream" not in result
