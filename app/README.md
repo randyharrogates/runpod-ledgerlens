@@ -20,7 +20,7 @@ Environment variables:
 | RUNPOD_ENDPOINT_8B | Base model endpoint ID; optional |
 | RUNPOD_ENDPOINT_FT | Fine-tuned model endpoint ID; optional |
 | RUNPOD_API_KEY | Server-only credential; falls back to worker.client.runpodctl_key() |
-| GPU_PRICE_PER_SEC_8B / GPU_PRICE_PER_SEC_FT | GPU price in dollars per second; each defaults to 0.00031 |
+| GPU_PRICE_PER_SEC_8B / GPU_PRICE_PER_SEC_FT | GPU price in dollars per second; each defaults to 0.000439 (32 GB PRO flex, $1.58/h, 9 Oct 2026) — set the FT one to its endpoint's tier |
 | DEMO_MODE | Set to 1 to force offline behavior |
 | PUBLIC_BASE_URL | Phone-facing origin, e.g. http://192.168.1.20:8090; otherwise LAN IP detected via UDP |
 

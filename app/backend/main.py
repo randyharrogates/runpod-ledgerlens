@@ -221,7 +221,9 @@ class Extract(BaseModel):
 
 def metrics(result, output, model, source="runpod"):
     seconds = float(result.get("executionTime") or 0) / 1000
-    price = float(os.getenv("GPU_PRICE_PER_SEC_" + model.upper(), "0.00031"))
+    # Default: Runpod Serverless flex rate for the 32 GB PRO tier (RTX 5090) the 8B endpoint runs
+    # on, $1.58/h as listed in the endpoint editor on 9 Oct 2026. Override per model.
+    price = float(os.getenv("GPU_PRICE_PER_SEC_" + model.upper(), "0.000439"))
     return clean(
         {
             "source": source,

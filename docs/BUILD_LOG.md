@@ -157,6 +157,23 @@ the bottom of each day.
   Dates now right on both. Reading: zero-shot 8B reads digits well on clean pages but not the
   accounting convention — the main thing the fine-tune has to teach. The balance column is read
   correctly, so debit/credit can also be checked deterministically from balance changes.
+- **18:10 — Debit/credit check from the running balance (Codex, reviewed).**
+  `ledgerlens.direction.check_direction` moves an amount between debit and credit only when the
+  printed balance changes by exactly that amount; anything else is left alone. Evaluation keeps raw
+  model accuracy as the headline and adds "Row F1 (after balance check)". 149 tests.
+- **18:20 — Live app test exposed three bugs, all fixed.** (1) `/runsync` holds one connection for
+  the whole job; on a cold start Runpod dropped it ("Server disconnected without sending a
+  response") although the job completed — the client now always uses `/run` and polls `/status`
+  (which also returns delay/execution time), retrying dropped polls. (2) The app silently showed
+  cached ground truth when a live call failed — now logged and recorded as `live_error`.
+  (3) After a backend restart the browser kept a dead session and a cached `index.html` — the app
+  now starts a fresh session and serves `index.html` with `no-cache`.
+- **18:43 — Live heavy page through the app (warm, RTX 5090):** queue 1.4 s, execution 13.7 s. The
+  balance check moved 7 rows debit→credit; 4 rows stay red because the model misread a digit
+  (e.g. 6,673.00 read as 673.00) — exactly the rows an analyst should check against the photo.
+- **18:48 — Measured serverless cost, 8B on RTX 5090 (warm):** 13.7–15.1 s per statement page ×
+  $0.000439/s (32 GB PRO flex, $1.58/h in the endpoint editor) ≈ **$6.0–6.6 per 1,000 pages**.
+  App default price corrected from $0.00031/s.
 
 ### App (review of Codex's polish pass)
 - **17:07 — Samples regenerated** with `app/make_sample.py` outside the sandbox (Chromium): four
@@ -170,6 +187,21 @@ the bottom of each day.
   chart, net line stops at Feb; counterparties appear lowercased in flags and the memo ("cedar petal
   reed holdings"); memo headings unstyled; invoice sample has one line, right-aligned description and
   8% tax (SG GST is 9%); zoom slider unstyled.
+
+### Training (preparation)
+- **18:30 — GPU stock in EU-RO-1 (where the network volume lives):** no A100 80 GB or L40S at first
+  check; RTX PRO 4500 (32 GB, $0.72/h) Medium, RTX 4090 Medium, A100 SXM ($1.79/h) appeared as
+  Low at 18:45. Stock moves minute to minute. Plan: A100 SXM if available tomorrow, else RTX PRO
+  4500 (32 GB holds the 4B LoRA and the 8B for prediction — the 8B served from 32 GB today).
+- **18:45 — `train/run_pod.sh` made configurable** (`RUN`, `N_BUSINESSES`, `STOP_AFTER`,
+  `PREDICT_LIMIT`, `GPU_PRICE`); installs `uv` if missing; HF and uv caches on the volume so the
+  real run reuses tonight's downloads. All three models are costed at the price of the GPU they ran
+  on (the old script mixed in prices of other GPUs).
+- **18:45 — Rehearsal Pod `xvj2ohnvkpwa4f`** (RTX PRO 4500, EU-RO-1, volume `0kelufi0wo` at
+  `/workspace`, image `runpod/pytorch:1.0.2-cu1281-torch280-ubuntu2404`, min CUDA 13.0; driver
+  580.173, 48 vCPU, 251 GB RAM). Repo copied as a git bundle over SSH (no GitHub token on the Pod).
+  Running `RUN=/workspace/rehearsal N_BUSINESSES=20 STOP_AFTER=predict-ft PREDICT_LIMIT=3` to check
+  the nine untested GPU-library assumptions in `train/README.md` tonight.
 
 ### Spend so far
 | Item | Cost |
