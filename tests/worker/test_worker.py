@@ -1,4 +1,5 @@
 import base64
+import io
 import json
 import os
 import subprocess
@@ -6,6 +7,7 @@ import sys
 
 import httpx
 import pytest
+from PIL import Image
 
 os.environ["LEDGERLENS_NO_ENGINE"] = "1"
 from worker import client  # noqa: E402
@@ -22,12 +24,37 @@ def reset(monkeypatch):
     monkeypatch.setenv("RUNPOD_GPU_TYPE", "test GPU")
 
 
+def png_bytes(size=(40, 60)):
+    buffer = io.BytesIO()
+    Image.new("RGB", size, "white").save(buffer, format="PNG")
+    return buffer.getvalue()
+
+
 def extract_input():
     return {
         "task": "extract",
         "doc_type": "statement",
-        "image_base64": base64.b64encode(b"\x89PNG\r\n\x1a\n").decode(),
+        "image_base64": base64.b64encode(png_bytes()).decode(),
     }
+
+
+def test_prepare_image_applies_training_pixel_cap(monkeypatch):
+    monkeypatch.setattr(worker, "MAX_PIXELS", 1000)
+    out = Image.open(
+        io.BytesIO(base64.b64decode(worker.prepare_image(png_bytes((100, 200)))))
+    )
+    assert out.width * out.height <= 1000
+    assert abs(out.height / out.width - 2) < 0.1
+
+
+def test_extract_rejects_undecodable_image():
+    job = {
+        "input": {
+            **extract_input(),
+            "image_base64": base64.b64encode(b"\x89PNG\r\n\x1a\n").decode(),
+        }
+    }
+    assert "Could not read image" in next(worker.handler(job))["error"]
 
 
 @pytest.mark.parametrize(

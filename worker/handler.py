@@ -2,6 +2,7 @@
 
 import base64
 import binascii
+import io
 import json
 import logging
 import os
@@ -14,8 +15,10 @@ import time
 from pathlib import Path
 
 import httpx
+from PIL import Image
 from pydantic import ValidationError
 
+from ledgerlens.images import DEFAULT_MAX_PIXELS, resize_image
 from ledgerlens.schema import Invoice, Receipt, Statement, json_schema
 
 try:
@@ -24,6 +27,7 @@ except ModuleNotFoundError:  # Direct execution by the Docker CMD.
     from prompts import EXTRACT_SYSTEM, MEMO_SYSTEM
 
 BASE_URL = "http://127.0.0.1:8000"
+MAX_PIXELS = int(os.getenv("MAX_PIXELS", str(DEFAULT_MAX_PIXELS)))
 MODELS = {"statement": Statement, "invoice": Invoice, "receipt": Receipt}
 ENGINE = {"status": "disabled", "engine_load_seconds": 0.0, "model_source": None}
 PROCESS = None
@@ -71,6 +75,9 @@ def start_engine():
         os.getenv("GPU_MEM_UTIL", "0.92"),
         "--limit-mm-per-prompt",
         '{"image": 1, "video": 0}',
+        # Same pixel cap as training (ledgerlens.images), so the processor never rescales again.
+        "--mm-processor-kwargs",
+        json.dumps({"max_pixels": MAX_PIXELS}),
         *shlex.split(os.getenv("VLLM_EXTRA_ARGS", "")),
     ]
     env = os.environ.copy()
@@ -178,6 +185,15 @@ def validate_input(job):
     return data, None
 
 
+def prepare_image(image_bytes):
+    """Shrink the page exactly as training did, then re-encode it as PNG base64."""
+    with Image.open(io.BytesIO(image_bytes)) as image:
+        resized = resize_image(image, MAX_PIXELS)
+    buffer = io.BytesIO()
+    resized.save(buffer, format="PNG")
+    return base64.b64encode(buffer.getvalue()).decode()
+
+
 def gpu_name():
     if name := os.getenv("RUNPOD_GPU_TYPE"):
         return name
@@ -222,6 +238,11 @@ def handler(job):
     }
     if data["task"] == "extract":
         doc_type = data["doc_type"]
+        try:
+            image_b64 = prepare_image(base64.b64decode(data["image_base64"]))
+        except (OSError, ValueError) as exc:
+            yield {"error": f"Could not read image: {exc}"}
+            return
         payload.update(
             messages=[
                 {"role": "system", "content": EXTRACT_SYSTEM},
@@ -231,9 +252,7 @@ def handler(job):
                         {"type": "text", "text": f"Transcribe this {doc_type}."},
                         {
                             "type": "image_url",
-                            "image_url": {
-                                "url": f"data:{mime};base64,{data['image_base64']}"
-                            },
+                            "image_url": {"url": f"data:image/png;base64,{image_b64}"},
                         },
                     ],
                 },
