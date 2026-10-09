@@ -76,27 +76,25 @@ To regenerate predictions or reports after changing settings, remove their marke
 and affected output directories first. Logs are overwritten on a stage retry;
 archive them if needed. Stop the Pod yourself after reviewing results.
 
-## GPU API checks required tomorrow
+## GPU API checks (rehearsal, 9 Oct, RTX PRO 4500 32 GB)
 
-1. Installed Unsloth supports Qwen3-VL-4B, the selected 4-bit path,
-   `FastVisionModel.from_pretrained`, `get_peft_model` layer flags, and bf16.
-2. `UnslothVisionDataCollator` accepts this system/text/PIL message structure,
-   respects the processor cap without an additional resize, and preserves labels.
-3. `train_on_responses_only` either supports the lazy dataset or raises a supported
-   compatibility exception; ChatML delimiter tokenization matches collated IDs.
-4. Installed TRL accepts `processing_class`, a lazy map-style Python dataset,
-   `skip_prepare_dataset`, `max_length=None`, `eval_strategy`, best-checkpoint
-   loading, and the listed SFTConfig arguments. The package snapshots pin the
-   actual successful run; Unsloth/TRL are intentionally resolver-selected.
-5. `save_pretrained_merged(..., processor, save_method="merged_16bit")` exports
-   Qwen3-VL vision weights, processor and a vLLM-loadable model from 4-bit LoRA.
-6. vLLM 0.31.0 exposes `StructuredOutputsParams(json=...)` through
-   `vllm.sampling_params` and accepts `SamplingParams(structured_outputs=...)`;
-   older installs use `GuidedDecodingParams`/`guided_decoding` via import fallback.
-7. Offline `LLM` accepts `mm_processor_kwargs`, `limit_mm_per_prompt`, list-valued
-   per-request SamplingParams, and returns ordered RequestOutput objects.
-8. `LLM.get_tokenizer().apply_chat_template` accepts text plus image-marker
-   content with the model's Qwen chat template; `multi_modal_data` accepts PIL.
-9. Qwen3-VL, including the merged model, fits the chosen GPU at length 8192;
-   4096 output tokens cover the longest pages without truncation. Check smoke
-   output lengths, validation failures, and memory before the full evaluation.
+A 20-business rehearsal ran every stage up to `predict-ft` with `PREDICT_LIMIT=3`. Installed:
+TRL 1.13, transformers 5.17, torch 2.14.1+cu130, vLLM 0.31.0.
+
+1. Unsloth loads Qwen3-VL-4B in bf16 (the 4-bit path is not used) and applies the layer flags.
+2. `UnslothVisionDataCollator` takes the messages, but its default `resize="min"` shrank pages to
+   512 px; it now uses `resize="max"` and `max_seq_length=8192` (2,048 truncated images mid-way).
+3. `train_on_responses_only` works on the lazy dataset; the masking preflight passed
+   (1,040 supervised tokens on the first example).
+4. TRL 1.x requires a Hugging Face `Dataset`; a lazy `Dataset.with_transform` is used.
+5. The merged 16-bit export (8.3 GB) loads in vLLM and gave valid JSON on every test page.
+6. and 7. `StructuredOutputsParams`, `mm_processor_kwargs`, per-request params: all work.
+   But `doc_type` is optional in the schema, so base models omitted it;
+   `predict.parse_prediction` fills it from the requested type.
+8. The chat template with an image marker plus PIL `multi_modal_data` works.
+9. Peak training memory 12.8 GB at batch 2 × 8,192 tokens. One base-4B CORD receipt
+   returned JSON broken at character 4,264 (16 s/page; counted as invalid); the fine-tune's were valid.
+
+Measured stage times (20 businesses): smoke 16 min (30 steps, eval, merged export); main 25 min
+for 108 steps (one epoch, ~860 examples, ~11 s/step); each prediction stage spends 10–20 min loading and
+compiling before the first page.
