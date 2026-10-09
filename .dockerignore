@@ -1,0 +1,6 @@
+data/
+.venv/
+node_modules/
+.git/
+tests/
+*.png

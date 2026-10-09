@@ -1,0 +1,5 @@
+{% extends "base.html" %}
+{% block content %}<header>{% block heading %}{% endblock %}<p>{{ doc.account_holder }}<br>Account / Akaun 账户: {{ doc.account_number_masked }}</p><p>{{ doc.period_start|printed_date(layout.date_format) }} — {{ doc.period_end|printed_date(layout.date_format) }} · {{ doc.currency }}</p></header>
+<p>Balance brought forward / 结转余额: {{ doc.opening_balance|money(layout.suffixes) }}</p>
+<table><thead><tr>{% for col in layout.columns %}<th class="{{ col }}">{{ col|title }}</th>{% endfor %}</tr></thead><tbody>{% for row in rows %}<tr>{% for col in layout.columns %}<td class="{{ col }}">{{ row[col] }}</td>{% endfor %}</tr>{% endfor %}</tbody></table>
+<p class="totals">Balance carried forward / Baki akhir: {{ doc.closing_balance|money(layout.suffixes) }}</p><footer>Fictional synthetic document · No real bank or account</footer>{% endblock %}

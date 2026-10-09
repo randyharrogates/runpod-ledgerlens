@@ -1,0 +1,9 @@
+data/
+.env
+__pycache__/
+.venv/
+node_modules/
+data/**/*.png
+.pytest_cache/
+.ruff_cache/
+*.egg-info/

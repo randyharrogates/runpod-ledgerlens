@@ -1,0 +1,4 @@
+{% extends "base.html" %}
+{% block style %}header {background:#efe8df;padding:35px} table {border:2px solid #785b35}{% endblock %}
+{% block content %}<header><h1>INVOICE / 发票</h1><p>{{ doc.issuer }} → {{ doc.recipient }}</p><p>{{ doc.invoice_number }} · {{ doc.date }} · {{ doc.currency }}</p></header>
+<table><tr><th>Description</th><th>Quantity</th><th>Unit price</th><th>Amount</th></tr>{% for line in doc.line_items %}<tr><td>{{ line.description }}</td><td>{{ line.quantity }}</td><td>{{ line.unit_price|money }}</td><td>{{ line.amount|money }}</td></tr>{% endfor %}</table><p class="totals">Subtotal {{ doc.subtotal|money }}<br>Tax {{ doc.tax|money }}<br>Total {{ doc.total|money }}</p><footer>Fictional synthetic invoice</footer>{% endblock %}
