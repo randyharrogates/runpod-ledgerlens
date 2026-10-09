@@ -57,6 +57,7 @@ def main():
     from unsloth.trainer import UnslothVisionDataCollator
 
     logging.info("Unsloth imported before TRL")
+    from datasets import Dataset
     from trl import SFTConfig, SFTTrainer
 
     if not torch.cuda.is_available() or not torch.cuda.is_bf16_supported():
@@ -82,22 +83,23 @@ def main():
     )
     FastVisionModel.for_training(model)
 
-    class Pages:
-        """Load images lazily rather than retaining thousands of full pages in RAM."""
+    def pages(split):
+        """A Hugging Face Dataset (TRL 1.x requires one) that opens each image only when used."""
+        rows = read_rows(args.data, split)
+        if not rows:
+            raise ValueError(f"Empty {split} dataset")
 
-        def __init__(self, split):
-            self.rows = read_rows(args.data, split)
-            if not self.rows:
-                raise ValueError(f"Empty {split} dataset")
+        def load(batch):
+            messages = []
+            for path, doc_type, target in zip(
+                batch["image"], batch["doc_type"], batch["target"], strict=True
+            ):
+                with Image.open(path) as image:
+                    image = resize_image(image, args.max_pixels)
+                messages.append(build_messages(doc_type, image, target))
+            return {"messages": messages}
 
-        def __len__(self):
-            return len(self.rows)
-
-        def __getitem__(self, index):
-            row = self.rows[index]
-            with Image.open(row["image"]) as image:
-                image = resize_image(image, args.max_pixels)
-            return {"messages": build_messages(row["doc_type"], image, row["target"])}
+        return Dataset.from_list(rows).with_transform(load)
 
     eval_steps = (
         min(args.eval_steps, args.max_steps) if args.max_steps else args.eval_steps
@@ -107,9 +109,11 @@ def main():
     trainer = SFTTrainer(
         model=model,
         processing_class=processor,
-        train_dataset=Pages("train"),
-        eval_dataset=Pages("val"),
-        data_collator=UnslothVisionDataCollator(model, processor),
+        train_dataset=pages("train"),
+        eval_dataset=pages("val"),
+        # resize="max": no extra resizing. The default ("min") shrinks Qwen3-VL pages to 512 px wide,
+        # far below the 1 MP cap used for evaluation and serving.
+        data_collator=UnslothVisionDataCollator(model, processor, resize="max"),
         args=SFTConfig(
             output_dir=str(args.out / "checkpoints"),
             num_train_epochs=args.epochs,
