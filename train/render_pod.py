@@ -52,7 +52,8 @@ def main():
     parser.add_argument("--workers", type=int, default=min(8, os.cpu_count() or 1))
     args = parser.parse_args()
 
-    pages = json.loads((args.data / "splits.json").read_text())["pages"]
+    # splits.json maps page id -> metadata; sorted ids give every worker a stable share.
+    pages = sorted(json.loads((args.data / "splits.json").read_text())["pages"])
     chunks = [pages[i :: args.workers] for i in range(args.workers)]
     with ProcessPoolExecutor(args.workers) as pool:
         counts = list(pool.map(render_chunk, [args.data] * len(chunks), chunks))
