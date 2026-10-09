@@ -6,6 +6,7 @@ dependencies = ["pydantic>=2", "jinja2", "pillow", "numpy", "httpx"]
 
 [project.optional-dependencies]
 worker = ["runpod"]
+app = ["fastapi", "uvicorn", "python-multipart", "qrcode[pil]"]
 
 [dependency-groups]
 dev = ["pytest", "ruff"]

@@ -1,0 +1,13 @@
+{
+  "business_id": "biz_0000",
+  "layout_id": "invoice_a",
+  "anomalies": [],
+  "strength": "clean",
+  "seed": 4,
+  "rendered": true,
+  "degradation": {
+    "strength": "clean",
+    "seed": 4,
+    "operations": []
+  }
+}
