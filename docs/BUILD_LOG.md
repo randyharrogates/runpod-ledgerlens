@@ -203,8 +203,43 @@ the bottom of each day.
   Running `RUN=/workspace/rehearsal N_BUSINESSES=20 STOP_AFTER=predict-ft PREDICT_LIMIT=3` to check
   the nine untested GPU-library assumptions in `train/README.md` tonight.
 
+- **19:08–20:14 — The rehearsal found seven bugs that tests could not**, each fixed, committed and
+  re-run on the Pod:
+  - `render_pod` sliced the `splits.json` page dict (`9a0bca6`).
+  - Real CORD receipts: dict-valued menus crashed the mapper; required receipt fields would have
+    dropped ~75% of real receipts (CORD often omits unit price, tax, subtotal); rupiah grouping read
+    "60.000" as 60. Receipt fields are now optional (null when not printed), sub-items flattened,
+    rupiah parsed (`293a2fb`, `27d19ab`). Accepted receipts: 720/96/91 of 800/100/100 with the first
+    fix; the later number formats will raise this in tomorrow's fresh dataset.
+  - transformers 5.17 made `max_pixels` a read-only view of `size["longest_edge"]` (`27d19ab`).
+  - TRL 1.13 requires a Hugging Face `Dataset` (`d7ad2c6`).
+  - `UnslothVisionDataCollator`'s default `resize="min"` shrank pages to 512 px: a silent
+    train/serve mismatch, since evaluation and serving use our own pixel cap (`d7ad2c6`).
+  - Unsloth's default 2,048-token limit cut examples inside the image ("Mismatch in image token
+    count"); now 8,192, matching serving (`ad350e7`).
+  - The stopped Pod `xvj2ohnvkpwa4f` could not restart ("not enough free GPUs on host"); replaced by
+    `fgufhcarsat2sw` on the same volume. Lesson: delete, don't stop; everything lives on the volume.
+- **21:42 — Rehearsal complete** (20 businesses, every stage through `predict-ft`, 3 pages per test
+  set). Smoke 16 min; main 25 min for 108 steps (train loss 0.020, eval loss 0.021; peak GPU memory
+  12.8 GB of 32); prediction stages 24 / 12 / 10 min, mostly model load and compile. Masking
+  preflight passed; merged 16-bit export (8.3 GB) served by vLLM with valid JSON on every page.
+- **21:51 — Bug found in the rehearsal report: base models scored 0%.** Their answers were good JSON
+  but omitted `doc_type`, which has a schema default and so is optional under structured decoding;
+  `predict.py` rejected every one as "Wrong document type". Fixed by filling it from the requested
+  type, as the worker's validation does (`070d419`); re-scoring the saved raw answers fixed all 12
+  statement pages. Smoke-size numbers (3 pages per set; not results): row F1 after balance check on
+  unseen layouts 8B 0.93, 4B 0.59, fine-tuned 4B 0.96. One base-4B receipt returned broken JSON.
+- **22:00 — Volume nearly full** (~89 of 100 GB: HF cache 38 GB, venvs 23 GB, uv cache 9 GB,
+  rehearsal weights 18 GB). Deleted the rehearsal weights and data (kept logs, predictions and
+  report, 25 MB); `run_pod.sh` now deletes the smoke run's merged copy after the export succeeds
+  (`818ac37`). Tomorrow needs ~20 GB. Pod `fgufhcarsat2sw` deleted; no Pods running.
+- **22:00 — Sizes for tomorrow** (400 businesses, seed 7, generated locally): 2,396 train, 289 val,
+  1,790 test pages (1,499 unseen-layout, 291 seen-layout) plus CORD 800/100/100. Train steps
+  ≈ (2,396 + ~720) / 8 ≈ 390.
+
 ### Spend so far
 | Item | Cost |
 |---|---|
 | Network volume (100 GB, prorated) | ~$0.25/day |
 | GPU time (crash loop 16:37–17:10, builds/tests to 17:57) | ~$0.52 total (balance $214.64 → $214.12) |
+| Rehearsal Pods (RTX PRO 4500, $0.72/h, 18:45–22:00) and endpoint tests | ~$2.7 (balance $214.12 → $211.45 at 21:51) |
