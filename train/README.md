@@ -11,7 +11,7 @@ Local tests require neither CUDA nor Unsloth/vLLM. No GPU API was verified offli
   CORD is CC BY 4.0 (naver-clova-ix/cord-v2); retain attribution when distributing.
 - `common.py`: imports the worker system prompt; builds both training and prediction
   conversations; validates and serializes targets using schema field order and
-  `model_dump_json(exclude_none=False)`; shares the image pixel cap (1,003,520).
+  `model_dump_json(exclude_none=False)`; shares the image pixel cap (`ledgerlens.images.DEFAULT_MAX_PIXELS`, 2,000,000).
 - `sft.py`: lazy image loading, language LoRA by default, bf16, validation/checkpointing
   every 50 steps, response-only loss, best eval-loss checkpoint, adapter and merged
   16-bit export, summary including loss history, settings, GPU, memory and duration.
