@@ -37,7 +37,10 @@ why). Only measured numbers appear here; estimates say so.
 - **Model cache for the 8B.** 16.3 GiB loaded in 5.7 s; no download at cold start.
 - **Network volume for the fine-tuned 4B.** The training Pod writes the merged model to the volume
   and the same image serves it via `MODEL_PATH`. Trade-off: a volume pins the endpoint to one data
-  centre (EU-RO-1).
+  centre (EU-RO-1). We saw the cost of that live: one request waited 13.5 min because EU-RO-1 had no
+  free RTX 5090/4090 for Serverless. Two fixes: list more GPU types (we added the 4090 as a
+  fallback), and keep one Active worker when someone is waiting — or bake the weights into the image
+  so any data centre can serve it.
 - **GitHub build from a `deploy` branch.** Runpod rebuilds on every push to the tracked branch, so
   ordinary commits go to `main` and `scripts/release-worker.sh` ships to `deploy` after the tests.
 - **Scaling for cost.** 0 Active workers when idle, max 2, idle timeout 60 s, FlashBoot on. One
@@ -142,7 +145,7 @@ Most serious bugs passed every test and were caught only by looking at the outpu
 | Item | Measured |
 |---|---|
 | Serverless, 8B, warm, one page at a time | 13.7–15.1 s per page ≈ $6.0–6.6 per 1,000 pages |
-| Serverless, fine-tuned 4B, warm, one page at a time | 6.9 s on a heavy page ≈ $3.0 per 1,000 pages |
+| Serverless, fine-tuned 4B, warm, one page at a time | 6.9 s on an RTX 5090, 10.3–11.4 s on an RTX 4090 (cheaper tier) ≈ $3 per 1,000 pages either way |
 | Pod, batched (RTX PRO 4500, $0.72/h) | 8B $0.52, 4B $0.34, fine-tuned 4B **$0.26** per 1,000 pages |
 | Training (one epoch, 86 min on the same Pod) | ≈ $1.0 |
 | Total spent, whole project (to 11 Oct 00:41) | ≈ **$11.2** (balance $214.64 → $203.46) |
