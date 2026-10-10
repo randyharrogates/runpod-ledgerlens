@@ -466,3 +466,31 @@ the bottom of each day.
   GPUs, and one wrong token early in a page changes the rows after it. **One-page live checks are
   smoke tests, not evidence of quality** — the 1,499-page batch is. The ranking (fine-tuned 4B first)
   held in every run.
+- **02:12–02:18 — Live demo dry run on the released build** (app live: `RUNPOD_ENDPOINT_8B`,
+  `RUNPOD_ENDPOINT_FT`; model picker on the fine-tuned 4B; sample business, 5 pages). Screenshots in
+  `../.playwright-mcp/dryrun-*.png`.
+  - Extract: p1 cold (queue 145 s), then p2–p5 warm (queue ~0.1 s), 6.3–7.1 s per statement page,
+    1.7 s for the invoice; ≈ $3 per 1,000 statement pages; RTX 5090 reported on every page.
+  - Review and Results render; Results now shows row precision/recall.
+  - Analysis flagged "unreconciled page p4, off by SGD 499.00". Not planted: p4's printed closing
+    balance equals the true one. On this heavy-damage page the model misread one digit (1,426.01 for
+    1,425.01), row 17's credit and balance, and missed the last row. The balance check caught the
+    model's mistake — a good demo moment ("the arithmetic catches the model; the analyst fixes the
+    row in Review").
+  - Memo (fine-tuned 4B): 50.7 s, $0.0224, 4,538 tokens, GPU reported — the $0 cost and missing GPU
+    are fixed. Three problems found by looking:
+    1. **Citations one row early.** The analysis gives 0-based `row_index`; the model copies it into
+       `[p1:r3]`, but the UI reads r as 1-based (Analysis shows the same cheque at p1:r4).
+    2. Inline `**bold**` and `---` lines shown raw.
+    3. Grouped `[p1:r2; p2:r1]` and range `[p1:r1–r18]` citations not clickable.
+    Sent to Codex (backend: send 1-based `"p1:r4"` strings to the worker, no worker rebuild needed;
+    frontend: inline bold, rules, grouped/range citations, numbered lists).
+  - Spend: balance $202.45, $0.01/h idle.
+- **02:20–02:25 — Memo citation and rendering fix (Codex), reviewed and checked live.** Backend sends
+  the worker 1-based `"p1:r4"` strings instead of `{page_id,row_index}` objects (analysis and the
+  Analysis tab unchanged; checked that every such object in the analysis is a pure citation, so
+  nothing else is collapsed). `MemoContent`: inline bold, `---` rules dropped, grouped and range
+  citations as one button each, numbered lists. 220 tests pass; frontend test run outside the
+  sandbox. Live memo: citations now match the Analysis tab (returned cheque p1:r4, cash deposit
+  p2:r8, unreconciled p4:r17, round trip p3:r17); clicking [p1:r4] lands on "RETURNED CHEQUE
+  1,499.51" (`dryrun-5-memo-fixed.png`, `dryrun-6-citation-jump.png`).

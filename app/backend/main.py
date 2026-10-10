@@ -532,6 +532,16 @@ def memo(s: str, model: Literal["8b", "ft"] = "8b"):
     computed = analysis(s)
     endpoint, key = config(model)
 
+    def memo_analysis(value):
+        # Rebuild the payload so the analysis and cached demo retain zero-based rows.
+        if isinstance(value, dict):
+            if "page_id" in value and "row_index" in value:
+                return f"{value['page_id']}:r{value['row_index'] + 1}"
+            return {name: memo_analysis(item) for name, item in value.items()}
+        if isinstance(value, list):
+            return [memo_analysis(item) for item in value]
+        return value
+
     def generate():
         final = {"usage": {}, "timing": {}}
         try:
@@ -540,7 +550,7 @@ def memo(s: str, model: Literal["8b", "ft"] = "8b"):
                 final["source"] = "cached-demo"
             else:
                 for chunk in memo_chunks(
-                    endpoint, {"task": "memo", "analysis": computed}, key
+                    endpoint, {"task": "memo", "analysis": memo_analysis(computed)}, key
                 ):
                     if chunk.get("error"):
                         raise RuntimeError("Worker failed")
