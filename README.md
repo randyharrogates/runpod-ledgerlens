@@ -64,7 +64,8 @@ flowchart LR
 ## Results: 8B zero-shot vs 4B zero-shot vs 4B fine-tuned
 
 All three on the same GPU (RTX PRO 4500), same prompt, schema and pixel cap. Row F1 = rows read
-exactly right (every field), from the model's own answer; precision and recall are within 1.5 points
+exactly right (statements: date, debit and credit; invoices and receipts: description, quantity,
+unit price and amount), from the model's own answer; precision and recall are within 1.5 points
 of each other on every set, so the models rarely invent or drop rows. Full results, breakdowns and failure analysis:
 [`docs/REPORT.md`](docs/REPORT.md).
 

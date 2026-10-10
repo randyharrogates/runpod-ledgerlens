@@ -445,3 +445,24 @@ the bottom of each day.
   recall are within ~1.5 points on every set and model (fine-tuned 4B, unseen layouts: 0.966 /
   0.963), so the models rarely invent or drop rows; their errors are misread fields. Red flags are
   where they split (fine-tuned 4B recall 0.96, precision 0.51).
+- **02:12 — Corrected what "a correct row" means in the docs.** Checking the scorer
+  (`src/ledgerlens/eval/score.py:row_metrics`) before a live score showed a statement row is matched
+  on **date, debit and credit** only; description and balance are not compared row by row (balance is
+  covered by reconciliation). Invoice/receipt items match on description, quantity, unit price and
+  amount. The report had said "(date, description, amounts, balance)" and the 02:06 edit said "every
+  field" — both overclaimed. README and REPORT now say exactly what is compared.
+- **02:04–02:10 — Live check after the worker release** (`app/sample/biz_0000_p004`, all three
+  endpoints at once, all cold): every reply now names its GPU.
+
+  | Endpoint | GPU reported | Queue delay | Execution | Valid JSON |
+  |---|---|---:|---:|---|
+  | 4B fine-tuned (volume weights) | NVIDIA GeForce RTX 5090 | 148 s | 6.8 s | yes |
+  | 4B base (model cache `ebb281e`) | NVIDIA GeForce RTX 5090 | 218 s | 8.2 s | yes |
+  | 8B (model cache `0c351dd`) | NVIDIA GeForce RTX 5090 | 317 s | 26.0 s | yes |
+
+  Rows on the page (18 in the gold; scored with `score_document`): fine-tuned 4B **15/18**
+  (P 0.88, R 0.83), 8B 11/18, base 4B 7/18; header 8/9 for all three; none reconciles. Same page,
+  temperature 0, yet earlier runs gave 14, 7 and 0: GPU kernels aren't bit-exact across hosts and
+  GPUs, and one wrong token early in a page changes the rows after it. **One-page live checks are
+  smoke tests, not evidence of quality** — the 1,499-page batch is. The ranking (fine-tuned 4B first)
+  held in every run.
