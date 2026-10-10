@@ -519,7 +519,7 @@ the bottom of each day.
   - Lesson: each fix was found by reading the live output against the data, not by
     tests. Give the model every fact it needs (totals, dates) so it has nothing to make up, and
     check what it writes.
-- **02:45 — Number check: gap closed, limit stated.** An automated commit security review flagged an
+- **02:40 — Number check: gap closed, limit stated.** An automated commit security review flagged an
   "integrity check bypass" in `app/backend/main.py` without details. Reviewing the check myself:
   (1) plain whole-number amounts ("SGD 55041") were not checked at all — now they are (4+ digits,
   years 1900–2100 skipped; a number ending a sentence is handled), and a whole number may drop the
