@@ -344,3 +344,18 @@ def test_live_direction_fixes(client, monkeypatch):
     cached = extract(client, s, "p1").json()
     assert cached["direction_fixes"] == []
     assert cached["metrics"]["direction_fixes"] == 0
+
+
+def test_cost_uses_the_reported_gpu_tier(monkeypatch):
+    from app.backend.main import metrics
+
+    monkeypatch.delenv("GPU_PRICE_PER_SEC_FT", raising=False)
+    result = {"executionTime": 10_000}
+    on_4090 = metrics(result, {"gpu": "NVIDIA GeForce RTX 4090"}, "ft")
+    on_5090 = metrics(result, {"gpu": "NVIDIA GeForce RTX 5090"}, "ft")
+    unknown = metrics(result, {"gpu": None}, "ft")
+    assert round(on_4090["cost"], 6) == round(10 * 1.10 / 3600, 6)
+    assert round(on_5090["cost"], 6) == round(10 * 1.58 / 3600, 6)
+    assert unknown["cost"] == on_5090["cost"]
+    monkeypatch.setenv("GPU_PRICE_PER_SEC_FT", "0.001")
+    assert metrics(result, {"gpu": "NVIDIA GeForce RTX 4090"}, "ft")["cost"] == 0.01
