@@ -58,7 +58,7 @@ const headings = new Set(['summary', 'cash flow', 'concentration', 'red flags', 
 
 export function MemoContent({ text, jump, unverified = [] }: { text: string; jump: (citation: Citation) => void; unverified?: string[] }) {
   function highlight(part: string): React.ReactNode[] {
-    return part.split(/(\d+(?:\.\d+)?%|\d{1,3}(?:,\d{3})+(?:\.\d+)?|\d+\.\d+)/g).map((token, i) =>
+    return part.split(/(\d+(?:\.\d+)?%|\d{1,3}(?:,\d{3})+(?:\.\d+)?|\d+\.\d+|(?<![\d:r])\d{4,}(?![\d,]|\.\d))/g).map((token, i) =>
       unverified.includes(token)
         ? <mark key={i} className="unverified" title="Not in the computed analysis — check before use">{token}</mark>
         : token);

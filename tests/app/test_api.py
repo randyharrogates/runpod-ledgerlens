@@ -496,3 +496,12 @@ def test_cash_deposit_finding_gives_the_date_and_bank_text():
     assert main.describe_finding(finding, pages, "SGD") == (
         "Large cash deposit · SGD 12,071.87 · 30 Jan · CASH LODGEMENT · 6.3× the median credit"
     )
+
+
+def test_memo_check_catches_plain_integer_amounts_but_not_years():
+    payload = {"period_totals": {"outflow": 55041.59, "net": 34177.07}}
+    text = (
+        "In 2026 total outflow was SGD 55041 (or 55,041) and net was SGD 34177.07 [p1:r1]. "
+        "Wrong: SGD 54987. Also wrong: 55,040.59."
+    )
+    assert main.unverified_memo_numbers(text, payload) == ["54987", "55,040.59"]

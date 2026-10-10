@@ -528,7 +528,10 @@ def event(kind, data):
     return f"event: {kind}\ndata: {json.dumps(clean(data))}\n\n"
 
 
-MEMO_NUMBER = re.compile(r"\d+(?:\.\d+)?%|\d{1,3}(?:,\d{3})+(?:\.\d+)?|\d+\.\d+")
+# Plain integers of 4+ digits are amounts too ("SGD 55041"); years are skipped below.
+MEMO_NUMBER = re.compile(
+    r"\d+(?:\.\d+)?%|\d{1,3}(?:,\d{3})+(?:\.\d+)?|\d+\.\d+|(?<![\d:r])\d{4,}(?![\d,]|\.\d)"
+)
 MEMO_CITATION = re.compile(r"\[p\d+:r\d+[^\]]*\]")
 
 
@@ -567,8 +570,12 @@ def unverified_memo_numbers(text, payload):
     for match in MEMO_NUMBER.finditer(MEMO_CITATION.sub("", text)):
         token = match.group()
         number = Decimal(token.replace(",", "").rstrip("%"))
+        if token.isdigit() and 1900 <= number <= 2100:
+            continue
+        # A whole number may drop the cents ("55,041" for 55,041.59).
+        tolerance = Decimal("0.005") if "." in token else Decimal("0.995")
         if token not in unverified and not any(
-            abs(number - value) <= Decimal("0.005") for value in allowed
+            abs(number - value) <= tolerance for value in allowed
         ):
             unverified.append(token)
     return unverified
