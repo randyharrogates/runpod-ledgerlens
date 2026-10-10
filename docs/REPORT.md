@@ -149,6 +149,8 @@ Most serious bugs passed every test and were caught only by looking at the outpu
 | Base models scored 0% | Rehearsal report looked wrong | They omitted `doc_type` (a schema default); filled in as the worker does |
 | Every invoice was the same one | Screenshot of the app | Invoice generator with varied items, prices, dates, tax |
 | Runaway zeros ("17500.0000…") until the token limit | Reading invalid answers during the run | Amounts are bounded decimal strings in the schema |
+| The memo's citations pointed one row early | Clicking a memo citation in the live dry run | The model is given 1-based `[p1:r4]` references to copy |
+| The memo model did its own arithmetic and got it wrong (total outflow 54,987.85; true 55,041.59), and invented a date for a cash deposit | Checking the live memo's numbers and dates against the data | Period totals and finding dates are computed in code and given to the model; every number in a live memo is checked against the analysis and any mismatch is highlighted |
 
 ## 6. Cost
 
