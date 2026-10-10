@@ -410,3 +410,10 @@ the bottom of each day.
   and the volume pin is a live demo risk — for the demo, set 1 Active worker on the fine-tuned
   endpoint well before it starts. Results tab rebuilt to show `eval/summary.json` (screenshots
   checked: headline set first, empty rows hidden, best values bold).
+- **01:10–01:18 — Live memo, 8B (demo dry run).** The 8B replaced its FlashBoot-cached worker and
+  cold-started (~5 min end to end), then streamed a full memo: sections, numbers from the computed
+  analysis, row citations that jump to the evidence (e.g. the unreconciled heavy page `p4:r16`,
+  SGD 499.00 off — the fine-tune's misread). 907 output tokens, 106 s in the worker. Two app bugs
+  found by looking, fixed: memo cost showed $0.0000 (Runpod's `/stream` carries no
+  `executionTime`; now read from `/status`), and a bold title line showed its asterisks. Still open
+  (needs a worker rebuild): the memo doesn't report its GPU.
