@@ -3,19 +3,18 @@
 import argparse
 import json
 import random
-from datetime import date
-from decimal import Decimal
 from pathlib import Path
 
 from PIL import Image
 
 from ledgerlens.datagen.business import Business, generate_businesses
 from ledgerlens.datagen.degrade import degrade
+from ledgerlens.datagen.invoice import generate_invoice
 from ledgerlens.datagen.layouts import INVOICE_LAYOUTS, LAYOUTS, render_html
 from ledgerlens.datagen.ledger import generate_ledger
 from ledgerlens.datagen.paginate import paginate
 from ledgerlens.datagen.render import RenderError, render_png
-from ledgerlens.schema import Invoice, InvoiceLine, Statement
+from ledgerlens.schema import Invoice, Statement
 
 
 def assign_business_splits(businesses: list[Business], seed: int) -> dict[str, str]:
@@ -112,27 +111,9 @@ def generate_dataset(
                 layout_id=layout_id, country=business.country, uen=business.uen
             )
             write(page.id, page.statement, page.metadata, split)
-        invoice_scale = Decimal(1000 if business.currency == "IDR" else 1)
+        invoice_rng = random.Random(seed * 7919 + i)
         for j, layout_id in enumerate(INVOICE_LAYOUTS):
-            lines = [
-                InvoiceLine(
-                    description="Office supplies 文具 / Bekalan",
-                    quantity=Decimal(5),
-                    unit_price=Decimal("12.50") * invoice_scale,
-                    amount=Decimal("62.50") * invoice_scale,
-                )
-            ]
-            invoice = Invoice(
-                issuer=business.name,
-                recipient=business.customers[j],
-                invoice_number=f"INV-{business.id}-{j + 1}",
-                date=date(2026, 6, 10 + j),
-                currency=business.currency,
-                line_items=lines,
-                subtotal=Decimal("62.50") * invoice_scale,
-                tax=Decimal("5.00") * invoice_scale,
-                total=Decimal("67.50") * invoice_scale,
-            )
+            invoice = generate_invoice(business, invoice_rng)
             write(
                 f"{business.id}_inv{j + 1}",
                 invoice,

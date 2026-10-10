@@ -120,4 +120,14 @@ def render_html(document: Statement | Invoice, layout_id: str) -> str:
         )
     if layout_id not in INVOICE_LAYOUTS:
         raise ValueError(f"Unknown invoice layout: {layout_id}")
-    return env.get_template(f"{layout_id}.html").render(doc=document)
+    from ledgerlens.datagen.invoice import TAX
+
+    country = {"SGD": "SG", "MYR": "MY", "IDR": "ID"}[document.currency]
+    name, rate = TAX[country]
+    return env.get_template(f"{layout_id}.html").render(
+        doc=document,
+        tax_label=f"{name} {rate * 100:.0f}%",
+        printed_date=format_date(
+            document.date, "%d %b %Y" if layout_id == "invoice_b" else "%Y-%m-%d"
+        ),
+    )

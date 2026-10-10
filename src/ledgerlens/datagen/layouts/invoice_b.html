@@ -1,4 +1,6 @@
 {% extends "base.html" %}
-{% block style %}header {background:#efe8df;padding:35px} table {border:2px solid #785b35}{% endblock %}
-{% block content %}<header><h1>INVOICE / 发票</h1><p>{{ doc.issuer }} → {{ doc.recipient }}</p><p>{{ doc.invoice_number }} · {{ doc.date }} · {{ doc.currency }}</p></header>
-<table><tr><th>Description</th><th>Quantity</th><th>Unit price</th><th>Amount</th></tr>{% for line in doc.line_items %}<tr><td>{{ line.description }}</td><td>{{ line.quantity }}</td><td>{{ line.unit_price|money }}</td><td>{{ line.amount|money }}</td></tr>{% endfor %}</table><p class="totals">Subtotal {{ doc.subtotal|money }}<br>Tax {{ doc.tax|money }}<br>Total {{ doc.total|money }}</p><footer>Fictional synthetic invoice</footer>{% endblock %}
+{% block style %}header {background:#efe8df;padding:35px;display:flex;justify-content:space-between} table {border:2px solid #785b35} .billto {margin:0 0 30px} .totals td {border:0}{% endblock %}
+{% block content %}<header><div><h1>{{ doc.issuer }}</h1><p>TAX INVOICE / FAKTUR</p></div><div style="text-align:right"><p>No: {{ doc.invoice_number }}</p><p>Date / Tarikh: {{ printed_date }}</p></div></header>
+<p class="billto">Bill to / Kepada: <b>{{ doc.recipient }}</b></p>
+<table><tr><th>No.</th><th class="description">Item</th><th>Qty</th><th>Price ({{ doc.currency }})</th><th>Total ({{ doc.currency }})</th></tr>{% for line in doc.line_items %}<tr><td>{{ loop.index }}</td><td class="description">{{ line.description }}</td><td>{{ line.quantity }}</td><td>{{ line.unit_price|money }}</td><td>{{ line.amount|money }}</td></tr>{% endfor %}</table>
+<table class="totals" style="width:45%;margin-left:55%;border:0"><tr><td>Subtotal</td><td>{{ doc.subtotal|money }}</td></tr><tr><td>{{ tax_label }}</td><td>{{ doc.tax|money }}</td></tr><tr><td><b>Amount due</b></td><td><b>{{ doc.total|money }}</b></td></tr></table><footer>Fictional synthetic invoice</footer>{% endblock %}
