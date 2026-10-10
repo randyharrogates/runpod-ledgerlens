@@ -6,6 +6,7 @@ import shutil
 from pathlib import Path
 
 from ledgerlens.insights import (
+    compact_page_index,
     dataset_summary,
     page_index,
     results_breakdown,
@@ -78,20 +79,7 @@ def main():
             for s in ("train", "val", "test")
         },
     )
-    index["total_pages"] = len(pages)
-    if len(json.dumps(index, separators=(",", ":")).encode()) > 600_000:
-        index["note"] = (
-            "Index capped at 600 KB; page details in committed mode are available only for the sample subset."
-        )
-        low, high = 0, len(pages)
-        while low < high:
-            middle = (low + high + 1) // 2
-            index["pages"] = pages[:middle]
-            if len(json.dumps(index, separators=(",", ":")).encode()) <= 599_999:
-                low = middle
-            else:
-                high = middle - 1
-        index["pages"] = pages[:low]
+    index = compact_page_index(index)
     for name, value in [
         ("dataset_summary", dataset_summary(args.data_dir)),
         ("page_index", index),

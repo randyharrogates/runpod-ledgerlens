@@ -11,6 +11,7 @@ import secrets
 import socket
 import threading
 import time
+from contextlib import asynccontextmanager
 from datetime import date
 from decimal import Decimal, InvalidOperation
 from pathlib import Path
@@ -24,7 +25,10 @@ from PIL import Image
 from pydantic import BaseModel, ValidationError
 from starlette.concurrency import run_in_threadpool
 
+from app.backend.datasets import router as datasets_router
 from app.backend.insights import router as insights_router
+from app.backend.training import router as training_router
+from app.backend.training import shutdown_runs
 from ledgerlens.analytics import analyze, payer, payer_key
 from ledgerlens.datagen.layouts import LAYOUTS
 from ledgerlens.direction import check_direction
@@ -38,8 +42,20 @@ LOCK = threading.Lock()
 STATUS_LOCK = threading.Lock()
 STATUS: dict = {"time": 0, "value": {}}
 MAX_BYTES = 15 * 1024 * 1024
-app = FastAPI(title="LedgerLens")
+
+
+@asynccontextmanager
+async def lifespan(app):
+    try:
+        yield
+    finally:
+        shutdown_runs()
+
+
+app = FastAPI(title="LedgerLens", lifespan=lifespan)
 app.include_router(insights_router)
+app.include_router(datasets_router)
+app.include_router(training_router)
 
 
 def config(model):
