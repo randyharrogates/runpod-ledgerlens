@@ -376,3 +376,27 @@ the bottom of each day.
   Header 7/8 (closing balance wrong); rows **14/18** exact (8B zero-shot, same page: 7/18) — one
   digit misread, one reference digit, and one row cut short ("FAST FROM Goust", wrong amount).
   Serverless cost warm ≈ 6.9 s × $0.000439/s ≈ **$3.0 per 1,000 pages**, about half the 8B's.
+- **00:33 — Re-run done; final evaluation (code `9a6450e`, bounded amounts — what is served).**
+  Row F1, raw model answer:
+
+  | Model | A unseen (1,499) | A′ seen (291) | B CORD (98) | Valid JSON A / A′ / B | s/page A | $/1,000 pages A |
+  |---|---:|---:|---:|---|---:|---:|
+  | 8B | 0.578 | 0.823 | 0.396 | 0.998 / 0.997 / 0.990 | 2.58 | 0.52 |
+  | 4B | 0.614 | 0.745 | 0.259 | 0.991 / 0.986 / 1.000 | 1.72 | 0.34 |
+  | 4B fine-tuned | **0.965** | **0.960** | **0.765** | 0.997 / 0.990 / 1.000 | **1.28** | **0.26** |
+
+  Header accuracy A: 0.930 / 0.918 / 0.984. Reconciliation A: 0.30 / 0.20 / 0.75. Anomaly recall A:
+  0.66 / 0.63 / 0.96. Model load 197 / 192 / 169 s. Results copied to `data/eval-final/`
+  (gitignored), with every prediction from both runs.
+- **00:40 — What the schema fix changed (looked at the answers).** Runaway numbers are gone (8B
+  valid JSON on unseen layouts 0.981 → 0.998), but the base models got *worse* on real receipts
+  (8B row F1 0.609 → 0.396, 4B 0.333 → 0.259). Counted over the 98 receipts: with amounts as
+  strings, the 8B copies rupiah as printed — "17.500", which parses as 17.5 — 50 times (old run: 1),
+  and leaves the amount null 53 times (old: 12) when the printed form doesn't fit the pattern. As a
+  JSON number it had normalised them. The prompt says "no thousands separators" but doesn't say that
+  the dot groups thousands in rupiah. The fine-tune writes plain digits as trained (no "x.xxx"
+  amounts, nulls 15 → 18) and is unaffected: 111 of 1,888 of its answers differ between runs, net
+  row F1 change ≤ 0.005 — within what batched GPU decoding varies run to run. Next step (not run,
+  no Pod): a prompt line on rupiah grouping, then re-score the 8B on CORD.
+- **00:41 — Pod `evli8q47at2gm6` deleted** after copying results. Spend now $0.01/h (volume only).
+  Balance $203.46: whole project ≈ **$11.2** of $214.64.
