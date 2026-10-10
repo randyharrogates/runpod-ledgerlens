@@ -243,3 +243,33 @@ the bottom of each day.
 | Network volume (100 GB, prorated) | ~$0.25/day |
 | GPU time (crash loop 16:37–17:10, builds/tests to 17:57) | ~$0.52 total (balance $214.64 → $214.12) |
 | Rehearsal Pods (RTX PRO 4500, $0.72/h, 18:45–22:00) and endpoint tests | ~$2.7 (balance $214.12 → $211.45 at 21:51) |
+
+## Sat 10 Oct 2026
+
+### Training (main run)
+- **14:54 — GPU stock, EU-RO-1:** RTX PRO 4500 High ($0.72/h), RTX 5090 Medium, A100 SXM none.
+- **14:56 — Pod `evli8q47at2gm6`** (RTX PRO 4500 Blackwell, 32 GB, driver 580.159; SSH ready in 25 s)
+  on volume `0kelufi0wo`. Code at `8ba2185` by git bundle; both environments loaded from the volume
+  (TRL 1.13, vLLM 0.31.0), so setup was skipped.
+- **15:00 — Main run started:** `RUN=/workspace/ledgerlens GPU_PRICE=0.72 bash train/run_pod.sh`
+  (400 businesses, seed 7, all stages through the report).
+- **15:02 — Run stopped at `generate`:** Playwright's Chromium and its apt libraries were on the
+  deleted Pod's own disk, while the `setup-train` marker is on the volume, so a fresh Pod skipped the
+  install. The browser now lives on the volume and its libraries install before each render
+  (`3acecdf`). Relaunched 15:09.
+- **15:12 — Stopped again on purpose: every invoice was the same.** A screenshot of the app's invoice
+  sample showed one "Office supplies" line, 5 × 12.50, tax 5.00, total 67.50 — and the generator
+  printed that for every business (~800 identical invoices). The fine-tune would have memorised them
+  and scored falsely well on invoices. Now 1–7 items from the business's trade, varied quantities
+  (some by weight), prices, dates and numbering, the country's tax (GST 9% / SST 8% / PPN 11%,
+  half-up), exact totals, and a structurally different second layout (`80c4471`). Statement pages
+  are byte-identical (the app samples regenerated with only the invoice changing). Relaunched 15:15.
+
+### App (second polish pass, Codex; reviewed with screenshots)
+- **15:30 —** Counterparties keep their printed casing (grouping still case-insensitive, so anomaly
+  detection is unchanged); partial months marked on the chart and in the memo ("3 months (2 full)");
+  memo headings and bullets rendered (plain, `##` or `**` headings from the live model);
+  row-number column no longer wraps; slider styled; a failed live call now shows "Live call failed —
+  showing cached result" with the error, on the document card and in Under the hood. Reviewed the
+  diff; one follow-up fixed directly: the generator's concentration label compares case-insensitive
+  keys. 207 tests; Node render test of the memo, review cell and warning chip.

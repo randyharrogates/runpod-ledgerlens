@@ -143,7 +143,15 @@ def test_failure_fallback(client, monkeypatch):
     monkeypatch.setattr(main.worker_client, "call_endpoint", fail)
     s = create(client)
     sample(client, s)
-    assert extract(client, s, "p1").json()["metrics"]["source"] == "cached-demo"
+    response = extract(client, s, "p1").json()
+    assert response["metrics"]["source"] == "cached-demo"
+    assert response["metrics"]["live_error"] == "RuntimeError: [REDACTED]"
+    payload = client.get(f"/api/sessions/{s}").json()
+    assert (
+        payload["pages"][0]["metrics"]["live_error"]
+        == response["metrics"]["live_error"]
+    )
+    assert payload["requests"][-1]["live_error"] == response["metrics"]["live_error"]
 
 
 def test_memo_sse(client, monkeypatch):
@@ -288,6 +296,8 @@ def test_cached_memo_uses_computed_numbers_and_explained_flags(client):
         "Questions for the applicant",
     ):
         assert heading in text
+    full = sum(not month["partial"] for month in computed["monthly"].values())
+    assert f"cover {len(computed['monthly'])} months ({full} full)" in text
     assert "SGD" in text
     assert " ." not in text
 

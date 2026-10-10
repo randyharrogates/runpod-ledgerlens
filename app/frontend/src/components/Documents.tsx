@@ -63,7 +63,13 @@ export function Documents({
               {page.id}
               <span className={`chip ${page.status === 'error' ? 'bad' : ''}`}>{page.status}</span>
             </div>
-            {page.metrics?.source === 'cached-demo' && (
+            {Boolean(page.metrics?.live_error) && (
+              <details className="live-warning">
+                <summary className="chip warning" title={String(page.metrics?.live_error)}>Live call failed — showing cached result</summary>
+                <small>{String(page.metrics?.live_error)}</small>
+              </details>
+            )}
+            {page.metrics?.source === 'cached-demo' && !page.metrics?.live_error && (
               <strong className="cached">Cached demo · ground truth</strong>
             )}
             <select aria-label={`Document type ${page.id}`}

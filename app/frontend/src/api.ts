@@ -26,7 +26,7 @@ export type Page = {
 export type Citation = { page_id: string; row_index: number };
 export type Analysis = {
   currency: string;
-  monthly: Record<string, { inflow: string; outflow: string; net: string }>;
+  monthly: Record<string, { inflow: string; outflow: string; net: string; partial: boolean; days_observed: number }>;
   average_balance: { value: string | null };
   minimum_balance: { value: string | null };
   top_payer_concentration: { share: string };

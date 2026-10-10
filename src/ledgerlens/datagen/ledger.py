@@ -7,7 +7,7 @@ from datetime import date, timedelta
 from decimal import Decimal
 from statistics import median
 
-from ledgerlens.analytics import payer, top_payer_concentration
+from ledgerlens.analytics import payer_key, top_payer_concentration
 from ledgerlens.datagen.business import Business
 from ledgerlens.datagen.layouts import LAYOUTS
 from ledgerlens.schema import Statement, Transaction
@@ -194,7 +194,8 @@ def generate_ledger(business: Business, seed: int, year: int = 2026) -> Ledger:
                 [
                     row
                     for row in rows
-                    if row.credit and payer(row.description) == concentration["payer"]
+                    if row.credit
+                    and payer_key(row.description) == concentration["payer"].casefold()
                 ],
             )
         )
