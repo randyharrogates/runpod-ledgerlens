@@ -300,3 +300,16 @@ the bottom of each day.
 - **16:10 — Live check after the release** (`app/sample/biz_0000_p002`, cold start, RTX 5090,
   weights from the model cache): valid JSON; rows **17/18** exact (16/18 on 9 Oct), header 7/8;
   queue delay 235.6 s (engine load 209 s), execution 15.8 s.
+- **17:26 — Main training done** (396 steps, one epoch, 86 min on the RTX PRO 4500). Validation loss
+  at each check (every 50 steps): 0.0199, 0.0154, 0.0113, 0.0103, 0.0098, 0.0092, 0.0085, 0.0084 —
+  still falling at the end, so no sign of overtraining. Final train loss 0.0061 (average 0.0136).
+  Peak GPU memory 13.1 GB. Merged 16-bit model (8.3 GB) at `/workspace/ledgerlens/main/merged`.
+  Predictions (8B, 4B, fine-tuned 4B on 1,790 synthetic + 98 CORD test pages) started 17:26.
+- **18:00 — 8B failure mode seen in the predictions: runaway numbers.** 9 of the first 368
+  unseen-layout pages were invalid; 8 of them end in "…0000000…" at ~4,300 characters — the base 8B
+  starts an amount as a JSON number and keeps writing zeros until the 4,096-token limit (mostly
+  rupiah pages). The schema allowed a number of any length. The fine-tuned 4B writes amounts as short
+  strings, as in its training targets. The running evaluation is left as is (all three models use
+  the same schema); the fix is for serving and a follow-up 8B re-run.
+- **18:10 — Fix: amounts are bounded decimal strings in the extraction schema**
+  (`^-?[0-9]{1,15}(\.[0-9]{1,4})?$`); Pydantic still parses them to exact Decimals. 215 tests.

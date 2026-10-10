@@ -82,9 +82,32 @@ Document = Annotated[Statement | Invoice | Receipt, Field(discriminator="doc_typ
 DOCUMENT_ADAPTER = TypeAdapter(Document)
 
 
+# Amounts are written as short decimal strings ("206204.73"), as in the training targets. A free
+# JSON number let the base 8B write "4000000.000000…" until the token limit (10 Oct evaluation).
+AMOUNT = {"type": "string", "pattern": r"^-?[0-9]{1,15}(\.[0-9]{1,4})?$"}
+
+
+def _bound_amounts(node):
+    """Replace every number-or-string choice (pydantic's Decimal) with AMOUNT."""
+    if isinstance(node, list):
+        return [_bound_amounts(item) for item in node]
+    if not isinstance(node, dict):
+        return node
+    node = {key: _bound_amounts(value) for key, value in node.items()}
+    options = node.get("anyOf")
+    if options and {"type": "number"} in options:
+        rest = [o for o in options if o.get("type") not in ("number", "string")]
+        del node["anyOf"]
+        if rest:
+            node["anyOf"] = [AMOUNT, *rest]
+        else:
+            node.update(AMOUNT)
+    return node
+
+
 def json_schema(doc_type: str) -> dict:
-    """Return a document schema for future structured extraction."""
+    """Schema for structured extraction, with amounts as bounded decimal strings."""
     models = {"statement": Statement, "invoice": Invoice, "receipt": Receipt}
     if doc_type not in models:
         raise ValueError(f"Unknown document type: {doc_type}")
-    return models[doc_type].model_json_schema()
+    return _bound_amounts(models[doc_type].model_json_schema())
