@@ -330,3 +330,24 @@ the bottom of each day.
   Batched: 1.63 / 1.69 / 4.22 s per page. Decision: after the run, re-run both base models with the
   bounded schema (~3 h, ~$2) so the comparison matches what is served; the first results are kept
   as "old schema" to show what the fix changed.
+- **21:10 — First full evaluation done (old schema; kept in `oldschema/` on the volume).** Fine-tuned
+  4B predictions 50 min incl. load; report written. Row F1, raw model answer (A = unseen layouts,
+  1,499 pages; A′ = seen layouts, 291; B = CORD, 98):
+
+  | Model | A | A′ | B | Valid JSON A / A′ / B | s/page A | $/1,000 pages A |
+  |---|---:|---:|---:|---|---:|---:|
+  | 8B | 0.592 | 0.842 | 0.609 | 0.981 / 0.997 / 0.959 | 3.06 | 0.61 |
+  | 4B | 0.626 | 0.773 | 0.333 | 0.991 / 0.990 / 0.653 | 1.63 | 0.33 |
+  | 4B fine-tuned | **0.965** | **0.962** | **0.784** | 0.997 / 0.990 / 1.000 | **1.27** | **0.25** |
+
+  Breakdown (scratch script over `results.json` + gold metadata): the 8B's unseen-layout score is
+  dragged down by `stmt_f` (row F1 0.20 — it leaves debit and credit empty), while it reads `stmt_e`
+  well (0.88). The fine-tune is 0.96–0.97 on every layout and 1.00 on clean pages; its weak spot is
+  **heavy photo damage** (0.87 unseen, 0.84 seen). Looked at its failures: all 7 invalid answers are
+  complete JSON with an impossible date (31 Jun, 29 Feb 2026, 31 Feb) on heavy pages; the lowest
+  valid page (`biz_0083_p009`, `stmt_e`, heavy) has every amount right but reads "Jun" as "Jan" on
+  every row — looked at the image: the blur makes them hard to tell apart, and the header prints
+  "1 Jan 2026". Rows are matched by date and amount, so a month misread zeroes the page.
+- **21:11 — Re-run of all three models started** on code `9a6450e` (bounded amounts), same Pod and
+  data, so every reported number comes from the code that is served. Done markers for the three
+  prediction stages and the report removed; train/data stages skipped.
