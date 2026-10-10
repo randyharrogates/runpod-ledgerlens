@@ -109,6 +109,10 @@ we gave up. The full timeline, with times and costs, is in `BUILD_LOG.md`.
   photos where it reads "Jun" as "Jan" (we looked: the blur makes them hard to tell apart). Because
   rows are matched by date and amount, one wrong month makes a whole page score zero, even when every
   amount is right.
+- **The served schema is the headline, and we show what it cost.** After the fix, the base models got
+  worse on real receipts: asked for an amount as text, they copy rupiah as printed ("17.500", which
+  means 17.5) or leave it empty. We report the final run as the result (it is what is served) and the
+  first run next to it, rather than picking the better-looking number for each model.
 
 ## 7. Serving on Runpod
 
