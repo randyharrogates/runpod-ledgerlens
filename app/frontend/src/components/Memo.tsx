@@ -93,7 +93,7 @@ export function MemoContent({ text, jump, unverified = [] }: { text: string; jum
         if (whole.test(part)) {
           return <React.Fragment key={i}>{part.replace(/^[[(]|[\])]$/g, '').split(/\s*[;,]\s*/).map((item, j) => {
             const match = item.match(/^(p\d+):r(\d+)/);
-            return match ? <button key={j} onClick={() => jump({
+            return match ? <button key={j} title={`${match[1]} · line ${match[2]}`} onClick={() => jump({
               page_id: match[1], row_index: Number(match[2]) - 1,
             })}>[{item}]</button> : item;
           })}</React.Fragment>;

@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { layoutName, metadata, groupName } from './format';
 import { Term } from './Term';
 import { models as modelChoices } from '../models';
 import { Example, getJSON, LineTable, scoreKey } from './Compare';
@@ -11,9 +12,9 @@ export type Summary = {
   split_notes?: Record<string, string>;
 };
 const models = [
+  ['4b-ft', 'Trained small model'],
   ['8b', 'Big model'],
   ['4b', 'Small model'],
-  ['4b-ft', 'Trained small model'],
 ];
 const metrics = [
   ['row_f1', 'Lines read right (row F1)', 'rate'],
@@ -22,7 +23,7 @@ const metrics = [
   ['row_f1_checked', 'Lines read right after the balance check', 'rate'],
   ['header_accuracy', 'Header fields right', 'rate'],
   ['reconciliation', 'Page adds up', 'rate'],
-  ['valid_json', 'Valid JSON', 'rate'],
+  ['valid_json', 'Answer in the right format (valid JSON)', 'rate'],
   ['anomaly_recall', 'Red flags found (recall)', 'rate'],
   ['anomaly_precision', 'Red-flag precision', 'rate'],
   ['seconds_per_page', 'Seconds per page', 'seconds'],
@@ -38,7 +39,7 @@ export function ResultTable({ value }: { value: unknown }): React.ReactElement {
     (order.indexOf(a) + 1 || order.length + 1) - (order.indexOf(b) + 1 || order.length + 1)
   ));
   const any = Object.values(summary.splits ?? {})
-    .flatMap(entries => models.map(([model]) => entries?.[model])).find(Boolean);
+    .flatMap(entries => models.map(([model]) => entries?.[model])).find(v => v?.gpu_name != null) || Object.values(summary.splits ?? {}).flatMap(entries => models.map(([model]) => entries?.[model])).find(Boolean);
   return <div className="evaluation-results">
     {any && <p className="evaluation-note">Unless a set says otherwise, all three models ran on the same GPU ({any.gpu_name ?? '—'}), batched, same prompt and schema. Row F1 is the model&apos;s own answer. Cost at ${typeof any.price_per_hour === 'number' ? any.price_per_hour.toFixed(2) : '—'}/h.</p>}
     {labels.map(([split, label]) => {
@@ -83,8 +84,8 @@ export function ResultsHeadline({summary}: {summary: Summary}) {
 }
 function GroupChart({breakdown, field, title}: {breakdown: Breakdown; field: 'by_strength' | 'by_layout_id'; title: string}) {
   const outputs = breakdown.splits.test_unseen_layout?.models || {};
-  const groups = [...new Set(Object.values(outputs).flatMap(v => Object.keys(v[field] || {})))];
-  return <article><h2>{title}</h2><p>Unseen layouts · <Term name="average per page" /></p>{groups.map(group => <section className="chart-group" key={group}><h3>{group.replaceAll('_', ' ')}</h3><ScoreBars values={Object.fromEntries(modelChoices.map(m => [scoreKey(m.key),outputs[scoreKey(m.key)]?.[field]?.[group]?.row_f1]))} /></section>)}</article>;
+  const groups = [...new Set(Object.values(outputs).flatMap(v => Object.keys(v[field] || {})))].sort((a,b) => field === 'by_strength' ? ['clean','light','medium','heavy'].indexOf(a)-['clean','light','medium','heavy'].indexOf(b) : a.localeCompare(b));
+  return <article><h2>{title}</h2><p>Unseen layouts · <Term name="average per page" /></p>{groups.map(group => <section className="chart-group" key={group}><h3>{field === 'by_layout_id' ? layoutName(group) : group}</h3><ScoreBars values={Object.fromEntries(modelChoices.map(m => [scoreKey(m.key),outputs[scoreKey(m.key)]?.[field]?.[group]?.row_f1]))} /></section>)}</article>;
 }
 export function Results() {
   const [summary,setSummary] = useState<Summary | null>(null);
@@ -97,5 +98,5 @@ export function Results() {
   useEffect(() => {setDetail(null);setNote('');if (!selected) return;let active = true;void getJSON<Example>(`/api/results/examples/${selected.id}`).then(v => {if(active) setDetail(v);}).catch(() => {if(active) setNote("The per-line outputs aren't bundled for this page.");});return () => {active = false;};}, [selected]);
   if (error) return <p role="alert" className="error">{error}</p>;
   if (!summary || !breakdown) return <p role="status">Loading recorded results…</p>;
-  return <div className="page-stack"><ResultsHeadline summary={summary} /><ResultTable value={summary} /><article className="findings"><h2>What the test tells us</h2><p>Precision and recall are within about 1.5 points everywhere, so the models rarely invent or drop lines. Their mistakes are misread fields: money in versus money out, and digits.</p><p>The trained model finds 96% of planted red flags, but half of what it flags is not a planted flag (precision 51%). Treat a flag as a reason to investigate.</p></article><div className="two-tiles"><GroupChart breakdown={breakdown} field="by_strength" title="Lines read right, by photo damage" /><GroupChart breakdown={breakdown} field="by_layout_id" title="Lines read right, by layout" /></div><article><h2>Where it fails: the hardest pages</h2><div className="gallery">{Object.entries(breakdown.splits).flatMap(([split,b]) => b.hardest_pages.map(p => <section key={`${split}-${p.id}`}><h3>{p.id}</h3><p>{split.replaceAll('_',' ')} · {String(p.meta?.layout_id || 'layout not reported')} · {String(p.meta?.strength || 'damage not reported')}</p><ScoreBars values={p.row_f1} /><button aria-expanded={selected?.id === p.id} onClick={() => setSelected(p)}>Open page and lines →</button></section>))}</div></article>{selected && <article className="detail-panel"><button onClick={() => setSelected(null)}>Close detail</button><h2>{selected.id}</h2><p>Lines read right (row F1)</p><ScoreBars values={selected.row_f1} />{detail ? <LineTable example={detail} /> : <p>{note || 'Loading line outputs…'}</p>}</article>}<p>All three models graded in one batch on the same GPU (RTX PRO 4500, $0.72/h) with the same instructions.</p></div>;
+  return <div className="page-stack"><ResultsHeadline summary={summary} /><ResultTable value={summary} /><article className="findings"><h2>What the test tells us</h2><p>Precision and recall are within about 1.5 points everywhere, so the models rarely invent or drop lines. Their mistakes are misread fields: money in versus money out, and digits.</p><p>The trained model finds 96% of planted red flags, but half of what it flags is not a planted flag (precision 51%). Treat a flag as a reason to investigate.</p></article><div className="two-tiles"><GroupChart breakdown={breakdown} field="by_strength" title="Lines read right, by photo damage" /><GroupChart breakdown={breakdown} field="by_layout_id" title="Lines read right, by layout" /></div><article><h2>Where it fails: the hardest pages</h2><div className="gallery">{Object.entries(breakdown.splits).flatMap(([split,b]) => b.hardest_pages.map(p => <section key={`${split}-${p.id}`}><h3>{p.id}</h3><p>{groupName(split)} · {metadata(p.meta || {})}</p><ScoreBars values={p.row_f1} /><button aria-expanded={selected?.id === p.id} onClick={() => setSelected(p)}>Open page and lines →</button></section>))}</div></article>{selected && <article className="detail-panel"><button onClick={() => setSelected(null)}>Close detail</button><h2>{selected.id}</h2><p>Lines read right (row F1)</p><ScoreBars values={selected.row_f1} />{detail ? <LineTable example={detail} /> : <p>{note || 'Loading line outputs…'}</p>}</article>}<p>All three models graded in one batch on the same GPU (RTX PRO 4500, $0.72/h) with the same instructions.</p></div>;
 }

@@ -139,7 +139,7 @@ export function Review({ pages, selected, row, analysis, save }: ReviewProps) {
                 <th>#</th>
                 {fields.map(field => (
                   <th key={field} className={numericFields.includes(field) ? 'numeric' : ''}>
-                    {field.replaceAll('_', ' ')}
+                    {field === 'debit' ? 'Money out' : field === 'credit' ? 'Money in' : field[0].toUpperCase() + field.slice(1).replaceAll('_', ' ')}
                   </th>
                 ))}
                 {!invoice && <th style={{whiteSpace: 'nowrap'}}>Adds up</th>}

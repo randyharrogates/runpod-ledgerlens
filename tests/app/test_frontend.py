@@ -60,7 +60,8 @@ for (const heading of ['Summary', '## Summary', '**Summary**']) {
     text: heading + '\nText [p3:r17] .\n• First\n- Second\n* Third', jump
   }));
   assert(html.includes('<h3>Summary</h3>'));
-  assert(html.includes('[p3:r17]</button>.'));
+  assert(html.includes('[p3:r17]'));
+  assert(html.includes('p3 · line 17</span></button>.'));
   assert.equal((html.match(/<li>/g) || []).length, 3);
 }
 // An incomplete stream chunk stays readable, then becomes a cited heading/list.
@@ -198,6 +199,70 @@ const {Memo} = require('./src/components/Memo.tsx');
 const memo = render(React.createElement(Memo,{session:'s',model:'ft',jump:()=>{}}));
 assert(memo.includes('Generate a credit memo from the checked rows'));
 assert(memo.indexOf('class="memo"') < memo.indexOf('Generate memo'));
+"""
+    result = subprocess.run(
+        ["node", "-e", script], cwd=FRONTEND, capture_output=True, text=True
+    )
+    assert result.returncode == 0, result.stderr
+
+
+def test_cycle_three_data_training_and_formatting():
+    if not shutil.which("node") or not (FRONTEND / "node_modules/typescript").exists():
+        pytest.skip("Frontend node_modules and Node are required")
+    script = r"""
+const fs = require('fs'), assert = require('assert'), ts = require('typescript');
+require.extensions['.tsx'] = require.extensions['.ts'] = (module, filename) => {
+  module._compile(ts.transpileModule(fs.readFileSync(filename, 'utf8'), {
+    compilerOptions: {target:ts.ScriptTarget.ES2022, esModuleInterop:true, module:ts.ModuleKind.CommonJS, jsx:ts.JsxEmit.ReactJSX}
+  }).outputText, filename);
+};
+const React = require('react'), {renderToStaticMarkup:render} = require('react-dom/server');
+const {DatasetTiles,ValidationReport,AnswerKey,amountBins} = require('./src/components/Data.tsx');
+const fixture = JSON.parse(fs.readFileSync('../../eval/dataset_summary.json', 'utf8'));
+const data = render(React.createElement(DatasetTiles,{summary:fixture}));
+for(const text of ['4,475','400','3,675','800','No business appears in more than one group','Statement E (held back)','Statement F (held back)','57%','One customer dominates','Bounced cheque','Indonesian rupiah','1 Jan 2026','30 Jun 2026']) assert(data.includes(text),text);
+const bins = amountBins({...fixture,transaction_amount_distribution:{money_in:{'2':'8413'},money_out:{'2':'6732'}}});
+assert.deepEqual(bins,[{range:'100s',moneyIn:8413,moneyOut:6732}]);
+const blocked = render(React.createElement(ValidationReport,{report:{valid:false,pages:3,businesses:2,entries:9,problems:[{file:'p1.meta.json',problem:'Missing business'}],leakage:{businesses:{count:1,examples:['biz']},counterparties:[]}}}));
+for(const text of ['Blocked','p1.meta.json','Missing business','1 businesses appear in more than one group','CORD v2']) assert(blocked.includes(text),text);
+const warning = render(React.createElement(ValidationReport,{report:{valid:true,pages:3,problems:[],leakage:{businesses:{count:0,examples:[]},counterparties:[{count:2,examples:['Fictional shop'],splits:['train','test']}]}}}));
+for(const text of ['OK','No business appears in more than one group','Warning: 2','does not block training','Learn from','Final test']) assert(warning.includes(text),text);
+const key = render(React.createElement(AnswerKey,{document:{currency:'IDR',transactions:[{date:'2026-04-06',description:'ATM WITHDRAWAL',debit:'114800',credit:null,balance:'500000'}]}}));
+for(const text of ['Money out','Money in','6 Apr 2026','114,800']) assert(key.includes(text),text);
+const {TrainingPlanView,PodAlert,ReportedTraining,RunView,runLabel} = require('./src/components/Training.tsx');
+const plan = {simulated:true,confirm_token:'do-not-render',gpu:'Test GPU',price_per_hour:0.72,stock:'Stock unavailable',stock_verified:false,estimate:{total_minutes:180,total_cost:2.7},cap_usd:5,dataset:'default',steps:['Train','Delete Pod'],warning:'Volume must be free'};
+const simulated = render(React.createElement(TrainingPlanView,{plan}));
+for(const text of ['SIMULATED','simulated, no GPU used','Stock unavailable','Volume must be free','$2.7','$5','CORD v2']) assert(simulated.includes(text),text);
+assert(!simulated.includes('do-not-render'));
+const real = render(React.createElement(TrainingPlanView,{plan:{...plan,simulated:false}}));
+assert(real.includes('REAL'));assert(!real.includes('SIMULATED'));
+const alert = render(React.createElement(PodAlert,{runs:[{id:'abc',pod_id:'pod123',status:'POD MAY STILL BE RUNNING: failed deletion'}]}));
+for(const text of ['role="alert"','pod-alert','pod123','delete it in the Runpod console']) assert(alert.includes(text),text);
+assert.equal(render(React.createElement(PodAlert,{runs:[{status:'done'}]})), '');
+const training = JSON.parse(fs.readFileSync('../../eval/training_summary.json','utf8'));
+const reported = render(React.createElement(ReportedTraining,{summary:training}));
+for(const text of ['Qwen3-VL-4B','396','rank 16','86 min','13.1 GB','$1.03 = 86 min × $0.72/h','Whole-run stages','105 min']) assert(reported.includes(text),text);
+const quick = {id:'abc',created:'2026-10-11',preset:'quick',dataset:'default',simulated:true,status:'done',stage:'predict-ft',elapsed:60,spend:1,cap_usd:5,result_summary:{quick_check:true}};
+const quickHtml = render(React.createElement(RunView,{run:quick}));
+assert(quickHtml.includes('Quick check passed, no scores'));assert(quickHtml.includes('simulated, no GPU used'));assert(quickHtml.includes('Simulated Pod deleted'));
+assert(runLabel(quick).includes('simulated, no GPU used'));
+const f = require('./src/components/format.ts');
+assert.equal(f.number('50000'),'50,000');assert.equal(f.dollars(300),'$300');assert.equal(f.money('114800','IDR'),'114,800');assert.equal(f.printedDate('2026-04-06'),'6 Apr 2026');assert.equal(f.monthName('2026-01'),'Jan 2026');
+assert.equal(f.metadata({layout_id:'stmt_e',strength:'medium'},'IDR'),'Statement E (held back) · medium photo damage · Indonesian rupiah');
+assert.equal(f.groupName('test_unseen_layout'),'final test, unseen layout');
+const {models} = require('./src/models.ts');
+assert.deepEqual(models.map(m=>m.name),['Trained small model','Big model','Small model']);
+const {ResultTable} = require('./src/components/Results.tsx');
+const scores = render(React.createElement(ResultTable,{value:JSON.parse(fs.readFileSync('../../eval/summary.json','utf8'))}));
+assert(scores.indexOf('<th scope="col">Trained small model') < scores.indexOf('<th scope="col">Big model'));
+assert(scores.indexOf('<th scope="col">Big model') < scores.indexOf('<th scope="col">Small model'));
+assert(scores.includes('Answer in the right format (valid JSON)'));
+const {LineTable} = require('./src/components/Compare.tsx');
+const lines = render(React.createElement(LineTable,{example:{id:'p',doc_type:'statement',gold_rows:[{date:'2026-04-06',description:'ATM WITHDRAWAL',debit:'114800',credit:'0'}],models:{}}}));
+assert(lines.includes('6 Apr · ATM WITHDRAWAL · out 114,800'));assert(!lines.includes('money in 0'));
+const {Cost} = require('./src/components/Cost.tsx');
+const cost = render(React.createElement(Cost,{history:[]}));
+assert(cost.includes('value="50,000"'));assert.equal((cost.match(/warm on RTX 5090/g)||[]).length,1);assert(cost.includes('$300 to $330'));
 """
     result = subprocess.run(
         ["node", "-e", script], cwd=FRONTEND, capture_output=True, text=True
