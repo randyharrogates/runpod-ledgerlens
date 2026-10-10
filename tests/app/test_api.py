@@ -177,6 +177,58 @@ def test_memo_sse(client, monkeypatch):
     assert response.text.index("Hello") < response.text.index("event: final")
 
 
+def test_memo_payload_citations(client, monkeypatch):
+    monkeypatch.setenv("DEMO_MODE", "0")
+    monkeypatch.setenv("RUNPOD_ENDPOINT_8B", "endpoint")
+    computed = {
+        "citations": [{"page_id": "p1", "row_index": 0}],
+        "monthly": [{"findings": {"citation": {"page_id": "p2", "row_index": 7}}}],
+    }
+    original = json.dumps(computed)
+    monkeypatch.setattr(main, "analysis", lambda _: computed)
+    payloads = []
+
+    class FakeHTTP:
+        def __init__(self, **kwargs):
+            pass
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *args):
+            pass
+
+        def post(self, url, **kwargs):
+            payloads.append(kwargs["json"]["input"])
+            return self.response({"id": "job"})
+
+        def get(self, url):
+            return self.response({"status": "COMPLETED"})
+
+        def response(self, data):
+            import httpx
+
+            return httpx.Response(
+                200, json=data, request=httpx.Request("GET", "https://example.invalid")
+            )
+
+    monkeypatch.setattr(main.httpx, "Client", FakeHTTP)
+    response = client.get(f"/api/sessions/{create(client)}/memo")
+    assert "event: error" not in response.text
+    assert payloads == [
+        {
+            "task": "memo",
+            "analysis": {
+                "citations": ["p1:r1"],
+                "monthly": [{"findings": {"citation": "p2:r8"}}],
+            },
+        }
+    ]
+    assert "row_index" not in json.dumps(payloads)
+    assert "page_id" not in json.dumps(payloads)
+    assert json.dumps(computed) == original
+
+
 def test_status_cache(client, monkeypatch):
     monkeypatch.setenv("DEMO_MODE", "0")
     monkeypatch.setenv("RUNPOD_ENDPOINT_8B", "endpoint")

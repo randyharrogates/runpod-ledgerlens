@@ -52,20 +52,30 @@ export function Memo({ session, model, jump }: {
 const headings = new Set(['summary', 'cash flow', 'concentration', 'red flags', 'questions for the applicant']);
 
 export function MemoContent({ text, jump }: { text: string; jump: (citation: Citation) => void }) {
-  function inline(line: string) {
-    return line.replace(/(\[p\d+:r\d+\])[^\S\n]+([.,;:!?])/g, '$1$2')
-      .split(/(\[p\d+:r\d+\])/g).map((part, i) => {
-        const match = part.match(/^\[(p\d+):r(\d+)\]$/);
-        return match ? <button key={i} onClick={() => jump({
-          page_id: match[1], row_index: Number(match[2]) - 1,
-        })}>{part}</button> : <React.Fragment key={i}>{part}</React.Fragment>;
+  function inline(line: string): React.ReactNode[] {
+    return line.replace(/(\[p\d+:r\d+(?:[–-]r\d+)?(?:\s*[;,]\s*p\d+:r\d+(?:[–-]r\d+)?)*\])[^\S\n]+([.,;:!?])/g, '$1$2')
+      .split(/(\*\*[^*]+\*\*|\[p\d+:r\d+(?:[–-]r\d+)?(?:\s*[;,]\s*p\d+:r\d+(?:[–-]r\d+)?)*\])/g).map((part, i) => {
+        if (part.startsWith('**') && part.endsWith('**')) {
+          return <strong key={i}>{inline(part.slice(2, -2))}</strong>;
+        }
+        if (/^\[p\d+:r\d+(?:[–-]r\d+)?(?:\s*[;,]\s*p\d+:r\d+(?:[–-]r\d+)?)*\]$/.test(part)) {
+          return <React.Fragment key={i}>{part.slice(1, -1).split(/\s*[;,]\s*/).map((ref, j) => {
+            const match = ref.match(/^(p\d+):r(\d+)(?:[–-]r\d+)?$/);
+            return match ? <button key={j} onClick={() => jump({
+              page_id: match[1], row_index: Number(match[2]) - 1,
+            })}>[{ref}]</button> : ref;
+          })}</React.Fragment>;
+        }
+        return <React.Fragment key={i}>{part}</React.Fragment>;
       });
   }
   const blocks: React.ReactNode[] = [];
   let items: React.ReactNode[] = [];
+  let listType: 'ul' | 'ol' = 'ul';
   function flush() {
     if (items.length) {
-      blocks.push(<ul key={`list-${blocks.length}`}>{items}</ul>);
+      const List = listType;
+      blocks.push(<List key={`list-${blocks.length}`}>{items}</List>);
       items = [];
     }
   }
@@ -73,11 +83,16 @@ export function MemoContent({ text, jump }: { text: string; jump: (citation: Cit
     const trimmed = line.trim();
     const heading = trimmed.replace(/^#{1,6}\s+/, '').replace(/^\*\*(.*?)\*\*$/, '$1');
     const bullet = trimmed.match(/^[•*-]\s+(.*)$/);
-    if (bullet) {
-      items.push(<li key={i}>{inline(bullet[1])}</li>);
+    const numbered = trimmed.match(/^\d+\.\s+(.*)$/);
+    if (bullet || numbered) {
+      const nextType = numbered ? 'ol' : 'ul';
+      if (nextType !== listType) flush();
+      listType = nextType;
+      items.push(<li key={i}>{inline((numbered || bullet)![1])}</li>);
       return;
     }
     flush();
+    if (/^(?:---|\*\*\*|___)$/.test(trimmed)) return;
     // Known sections, and a whole line in bold (e.g. "**Credit Memo**"); "## Summ" mid-stream stays text.
     if (headings.has(heading.toLowerCase()) || /^\*\*[^*]+\*\*$/.test(trimmed)) blocks.push(<h3 key={i}>{heading}</h3>);
     else if (trimmed) blocks.push(<p key={i}>{inline(line)}</p>);

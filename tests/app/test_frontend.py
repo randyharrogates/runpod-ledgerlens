@@ -54,6 +54,41 @@ for (const heading of ['Summary', '## Summary', '**Summary**']) {
 // An incomplete stream chunk stays readable, then becomes a cited heading/list.
 assert(render(React.createElement(MemoContent, {text: '## Summ', jump})).includes('## Summ'));
 assert(render(React.createElement(MemoContent, {text: '**Credit Memo**', jump})).includes('<h3>Credit Memo</h3>'));
+const clicked = [];
+const memo = MemoContent({text: `**Credit Memo**
+---
+**Summary**
+- **Average Balance**: SGD 72,289.51 (observed running balances) [p1:r1]
+- **Top Payer**: Senja Hijau contributed SGD 17,898.73 [p1:r2; p2:r1; p2:r8]
+- **Jan 2026**: Inflow SGD 46,285.38 [p1:r1–r18]
+---
+1. Please explain the SGD 499.00 discrepancy on page 4 [p4:r17].`, jump: value => clicked.push(value)});
+const memoHtml = render(memo);
+for (const label of ['Average Balance', 'Top Payer', 'Jan 2026']) assert(memoHtml.includes(`<strong>${label}</strong>`));
+assert(!memoHtml.includes('**'));
+assert(!memoHtml.includes('---'));
+assert(memoHtml.includes('<ul>'));
+assert(memoHtml.includes('<ol><li>Please explain'));
+for (const ref of ['p1:r2', 'p2:r1', 'p2:r8', 'p1:r1–r18']) assert(memoHtml.includes(`[${ref}]</button>`));
+const buttons = [];
+function visit(node) {
+  React.Children.forEach(node, child => {
+    if (!React.isValidElement(child)) return;
+    if (child.type === 'button') buttons.push(child);
+    visit(child.props.children);
+  });
+}
+visit(memo);
+buttons.find(button => button.props.children.join('') === '[p2:r8]').props.onClick();
+assert.deepStrictEqual(clicked.pop(), {page_id: 'p2', row_index: 7});
+buttons.find(button => button.props.children.join('') === '[p1:r1–r18]').props.onClick();
+assert.deepStrictEqual(clicked.pop(), {page_id: 'p1', row_index: 0});
+const variants = render(React.createElement(MemoContent, {text: '***\n___\nText **bold** [p1:r1-r18, p2:r8] <img src=x>', jump}));
+assert(!variants.includes('***') && !variants.includes('___'));
+assert(variants.includes('<strong>bold</strong>'));
+assert(variants.includes('[p1:r1-r18]</button>'));
+assert(variants.includes('[p2:r8]</button>'));
+assert(variants.includes('&lt;img src=x&gt;'));
 const {Cell} = require('./src/components/Review.tsx');
 const cell = render(React.createElement(Cell, {
   value: '100', display: '100.00', edited: false, directionTitle: 'Moved to credit',
