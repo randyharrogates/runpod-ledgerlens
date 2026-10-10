@@ -22,7 +22,7 @@ from PIL import Image
 from pydantic import BaseModel, ValidationError
 from starlette.concurrency import run_in_threadpool
 
-from ledgerlens.analytics import analyze, payer
+from ledgerlens.analytics import analyze, payer, payer_key
 from ledgerlens.datagen.layouts import LAYOUTS
 from ledgerlens.direction import check_direction
 from ledgerlens.schema import DOCUMENT_ADAPTER, Statement
@@ -377,7 +377,17 @@ def describe_finding(finding, pages, currency):
     if kind == "returned_cheque":
         return f"Returned cheque · {amount(row.get('debit') or row.get('credit'), currency)} · {when(row)} · {row['description']}"
     if kind == "round_trip":
-        return f"Round trip · {amount(finding['amount'], currency)} out to {payer(row['description'])} on {when(row)}, back on {when(rows[1])}"
+        name = next(
+            (
+                payer(transaction["description"])
+                for page in pages.values()
+                for transaction in (page.get("document") or {}).get("transactions", [])
+                if payer_key(transaction["description"])
+                == payer_key(row["description"])
+            ),
+            payer(row["description"]),
+        )
+        return f"Round trip · {amount(finding['amount'], currency)} out to {name} on {when(row)}, back on {when(rows[1])}"
     if kind == "large_cash_deposit":
         ratio = Decimal(finding["amount"]) / Decimal(finding["median_inflow"])
         return f"Large cash deposit · {amount(finding['amount'], currency)} · {ratio:.1f}× the median credit"
@@ -432,7 +442,7 @@ def cached_memo(computed):
             "Cached demo memo — no model call",
             "Summary\n"
             + (
-                f"The supplied statements cover {len(monthly)} observed months. Net cash flow is {amount(inflow - outflow, currency)}. Verify the evidence and resolve the questions below before a credit decision."
+                f"The supplied statements cover {len(monthly)} months ({sum(not v['partial'] for v in monthly.values())} full). Net cash flow is {amount(inflow - outflow, currency)}. Verify the evidence and resolve the questions below before a credit decision."
                 if monthly
                 else "No statements have been extracted. Extract the evidence before assessing the applicant."
             ),

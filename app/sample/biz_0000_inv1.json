@@ -2,18 +2,36 @@
   "doc_type": "invoice",
   "issuer": "Cedar Petal Reed Trading",
   "recipient": "Bintang Damai Indah Makanan",
-  "invoice_number": "INV-biz_0000-1",
-  "date": "2026-06-10",
+  "invoice_number": "INV-2026-5501",
+  "date": "2026-03-01",
   "currency": "SGD",
   "line_items": [
     {
-      "description": "Office supplies 文具 / Bekalan",
-      "quantity": "5",
-      "unit_price": "12.50",
-      "amount": "62.50"
+      "description": "Palm sugar 1kg / Gula melaka",
+      "quantity": "20",
+      "unit_price": "5.10",
+      "amount": "102.00"
+    },
+    {
+      "description": "Frozen prawns 1kg / Udang beku",
+      "quantity": "50",
+      "unit_price": "16.50",
+      "amount": "825.00"
+    },
+    {
+      "description": "Shallots (kg) / Bawang merah",
+      "quantity": "9.6",
+      "unit_price": "3.55",
+      "amount": "34.08"
+    },
+    {
+      "description": "Instant noodles carton 40 pcs",
+      "quantity": "1",
+      "unit_price": "19.10",
+      "amount": "19.10"
     }
   ],
-  "subtotal": "62.50",
-  "tax": "5.00",
-  "total": "67.50"
+  "subtotal": "980.18",
+  "tax": "88.22",
+  "total": "1068.40"
 }

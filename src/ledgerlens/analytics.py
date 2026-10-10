@@ -1,7 +1,9 @@
 """Decimal cash-flow calculations and cited anomaly rules, without an LLM."""
 
 import re
+from calendar import monthrange
 from collections import defaultdict
+from datetime import date
 from decimal import Decimal
 from statistics import median
 from typing import TypedDict
@@ -19,17 +21,20 @@ class Citation(TypedDict):
     row_index: int
 
 
+def payer_key(description: str) -> str:
+    """Return the case-insensitive grouping key."""
+    return payer(description).casefold()
+
+
 def payer(description: str) -> str:
     """Extract a counterparty from pipe-separated descriptions or plain text."""
     parts = description.split("|")
     if len(parts) > 1:
-        return parts[1].strip().casefold()
+        return parts[1].strip()
     match = re.search(
         r"(?:FROM|TO)\s+(.+?)(?:\s+(?:REF|REFERENCE)\s+\S+)?$", description, re.I
     )
-    return (
-        match.group(1).strip().casefold() if match else description.strip().casefold()
-    )
+    return match.group(1).strip() if match else description.strip()
 
 
 def cited_rows(
@@ -119,7 +124,7 @@ def detect_anomalies(
                 <= incoming.credit
                 <= outgoing.debit
                 and 0 < gap <= 10
-                and payer(incoming.description) == payer(outgoing.description)
+                and payer_key(incoming.description) == payer_key(outgoing.description)
             ):
                 findings.append(
                     {
@@ -164,9 +169,11 @@ def top_payer_concentration(
     totals: dict[str, Decimal] = defaultdict(lambda: ZERO)
     citations: dict[str, list[Citation]] = defaultdict(list)
     total = ZERO
+    names = {}
     for row, citation in cited_rows(statements, page_ids):
+        names.setdefault(payer_key(row.description), payer(row.description))
         if row.credit and row.credit > ZERO:
-            name = payer(row.description)
+            name = payer_key(row.description)
             totals[name] += row.credit
             total += row.credit
             citations[name].append(citation)
@@ -180,7 +187,7 @@ def top_payer_concentration(
         }
     name = max(totals, key=lambda key: totals[key])
     return {
-        "payer": name,
+        "payer": names[name],
         "amount": totals[name],
         "total_inflow": total,
         "share": totals[name] / total,
@@ -205,6 +212,15 @@ def analyze(statements: list[Statement], page_ids: list[str] | None = None) -> d
         bucket["outflow"] += row.debit or ZERO
         bucket["net"] = bucket["inflow"] - bucket["outflow"]
         bucket["citations"].append(citation)
+    if rows:
+        first = min(row.date for row, _ in rows)
+        last = max(row.date for row, _ in rows)
+        for month, bucket in monthly.items():
+            year, number = map(int, month.split("-"))
+            start = date(year, number, 1)
+            end = date(year, number, monthrange(year, number)[1])
+            bucket["partial"] = first > start or last < end
+            bucket["days_observed"] = (min(last, end) - max(first, start)).days + 1
     balances = [
         (row.balance, citation) for row, citation in rows if row.balance is not None
     ]

@@ -101,3 +101,63 @@ def test_round_trip_uses_flows_and_counterparties(ledger, ratio, gap, expected):
         any(f["type"] == "round_trip" for f in detect_anomalies([statement]))
         == expected
     )
+
+
+def test_counterparty_casing_and_grouping(ledger):
+    from datetime import date
+
+    from ledgerlens.schema import Transaction
+
+    statement = ledger.statement.model_copy(deep=True)
+    statement.transactions = [
+        Transaction(date=date(2026, 1, 1), description="TO ABC Foods", debit="100"),
+        Transaction(date=date(2026, 1, 2), description="FROM abc foods", credit="100"),
+        Transaction(
+            date=date(2026, 1, 3), description="FAST | ABC Foods | ref", credit="50"
+        ),
+    ]
+    report = analyze([statement], ["p1"])
+    assert report["top_payer_concentration"]["payer"] == "ABC Foods"
+    assert report["top_payer_concentration"]["amount"] == Decimal("150")
+    finding = next(f for f in report["findings"] if f["type"] == "round_trip")
+    assert finding["amount"] == Decimal("100")
+    assert finding["citations"] == [
+        {"page_id": "p1", "row_index": 0},
+        {"page_id": "p1", "row_index": 1},
+    ]
+    from app.backend.main import describe_finding
+
+    description = describe_finding(
+        finding, {"p1": {"document": statement.model_dump(mode="json")}}, "SGD"
+    )
+    assert "out to ABC Foods" in description
+
+
+@pytest.mark.parametrize("start_day, end_day, first_days", [(1, 15, 31), (10, 31, 22)])
+def test_month_coverage_uses_global_transaction_range(
+    ledger, start_day, end_day, first_days
+):
+    from datetime import date
+
+    from ledgerlens.schema import Transaction
+
+    first = ledger.statement.model_copy(deep=True)
+    last = ledger.statement.model_copy(deep=True)
+    first.transactions = [
+        Transaction(
+            date=date(2024, 1, start_day), description="FROM ABC Foods", credit="1"
+        ),
+        Transaction(date=date(2024, 2, 10), description="FROM ABC Foods", credit="1"),
+    ]
+    last.transactions = [
+        Transaction(
+            date=date(2024, 3, end_day), description="FROM ABC Foods", credit="1"
+        )
+    ]
+    months = analyze([last, first])["monthly"]
+    assert months["2024-01"]["partial"] is (start_day != 1)
+    assert months["2024-01"]["days_observed"] == first_days
+    assert months["2024-02"]["partial"] is False
+    assert months["2024-02"]["days_observed"] == 29
+    assert months["2024-03"]["partial"] is (end_day != 31)
+    assert months["2024-03"]["days_observed"] == end_day

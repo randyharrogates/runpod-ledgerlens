@@ -14,7 +14,7 @@ type CellProps = {
   save: (value: string | null) => Promise<void>;
 };
 
-function Cell({ value, display, edited, directionTitle, numeric, label, save }: CellProps) {
+export function Cell({ value, display, edited, directionTitle, numeric, label, save }: CellProps) {
   const [draft, setDraft] = useState(value || '');
   const [editing, setEditing] = useState(false);
   const [error, setError] = useState('');
@@ -35,27 +35,29 @@ function Cell({ value, display, edited, directionTitle, numeric, label, save }: 
 
   return (
     <td className={`${edited ? 'edited' : ''} ${numeric ? 'numeric' : ''}`}>
-      {directionTitle && <span className="direction-marker" title={directionTitle}>↔</span>}
-      {edited && <span className="edit-marker" title="corrected by analyst">●</span>}
-      {editing ? (
-        <textarea
-          autoFocus
-          aria-label={label}
-          value={draft}
-          onChange={e => setDraft(e.target.value)}
-          onBlur={() => void finish()}
-          onKeyDown={e => {
-            if (e.key === 'Enter' && !e.shiftKey) {
-              e.preventDefault();
-              e.currentTarget.blur();
-            }
-          }}
-        />
-      ) : (
-        <button className="cell-value" aria-label={label} onClick={() => setEditing(true)}>
-          {display || '—'}
-        </button>
-      )}
+      <span className="cell-content">
+        {directionTitle && <span className="direction-marker" title={directionTitle}>↔</span>}
+        {edited && <span className="edit-marker" title="corrected by analyst">●</span>}
+        {editing ? (
+          <textarea
+            autoFocus
+            aria-label={label}
+            value={draft}
+            onChange={e => setDraft(e.target.value)}
+            onBlur={() => void finish()}
+            onKeyDown={e => {
+              if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                e.currentTarget.blur();
+              }
+            }}
+          />
+        ) : (
+          <button className="cell-value" aria-label={label} onClick={() => setEditing(true)}>
+            {display || '—'}
+          </button>
+        )}
+      </span>
       {error && <small className="error">{error}</small>}
     </td>
   );
@@ -103,7 +105,7 @@ export function Review({ pages, selected, row, choose, analysis, save }: ReviewP
       )}
       <div className="review">
         <div className="image-pane">
-          <label>
+          <label className="zoom-control">
             Zoom · {zoom === 1 ? 'Fit width' : `${Math.round(zoom * 100)}%`}
             <input type="range" min="1" max="3" step=".1" value={zoom}
               onChange={e => setZoom(Number(e.target.value))} />
@@ -121,7 +123,7 @@ export function Review({ pages, selected, row, choose, analysis, save }: ReviewP
           )}
           <table>
             <colgroup>
-              <col style={{ width: '4%' }} />
+              <col style={{ width: '44px' }} />
               {widths.map((width, i) => <col key={i} style={{ width }} />)}
             </colgroup>
             <thead>

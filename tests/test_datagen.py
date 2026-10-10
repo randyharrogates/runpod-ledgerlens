@@ -308,9 +308,7 @@ def test_country_amounts_rails_and_names(seed):
                 assert rail in rails[business.country]
                 observed_rails[business.country].add(rail)
                 expected = row.description.split(f" {directions[0]} ", 1)[1]
-                assert (
-                    payer(row.description) == expected.rsplit(" REF ", 1)[0].casefold()
-                )
+                assert payer(row.description) == expected.rsplit(" REF ", 1)[0]
             for rail in set.union(*rails.values()):
                 if rail in row.description.split():
                     assert rail in rails[business.country]

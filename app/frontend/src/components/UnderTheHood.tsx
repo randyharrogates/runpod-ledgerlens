@@ -25,7 +25,12 @@ function RequestRow({ request }: { request: Request }) {
       <td>{String(request.page_id || 'Session')}</td>
       <td>{String(request.task)}</td>
       <td>{String(request.model || 'Unknown')}</td>
-      {cached ? <td colSpan={6}>cached — no GPU used</td> : (
+      {cached ? <td colSpan={6}>cached — no GPU used
+        {Boolean(request.live_error) && <details className="live-warning">
+          <summary className="chip warning" title={String(request.live_error)}>Live call failed — showing cached result</summary>
+          <small>{String(request.live_error)}</small>
+        </details>}
+      </td> : (
         <>
           <td>{String(request.gpu || 'Not reported')}</td>
           <td>{temperature}</td>
