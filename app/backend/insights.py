@@ -173,3 +173,23 @@ def breakdown():
     if source == "local-data" and path.is_file():
         return {**results_breakdown(path, root), "source": source}
     return {**summary_file("breakdown"), "source": "committed-summary"}
+
+
+@router.get("/api/results/examples")
+def examples():
+    bundled = summary_file("compare_examples")
+    return {
+        **bundled,
+        "examples": [
+            {k: v for k, v in page.items() if k not in ("gold_rows", "models")}
+            for page in bundled.get("examples", [])
+        ],
+    }
+
+
+@router.get("/api/results/examples/{example_id}")
+def example(example_id: str):
+    for page in summary_file("compare_examples").get("examples", []):
+        if page["id"] == example_id:
+            return {**page, "source": "committed-final-test"}
+    raise HTTPException(404, "Example not found")

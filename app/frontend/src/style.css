@@ -764,3 +764,48 @@ h1 {
 }
 
 .unverified { background: #fff0bd; }
+.page-stack {display:grid;gap:var(--gap)}
+.two-tiles,.two-inputs {display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:var(--gap)}
+.model-cards {display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:var(--gap)}
+.page-stack label {display:grid;gap:8px}
+.page-stack select {width:100%}
+.page-switcher {display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:10px}
+.page-switcher .actions {margin:0}
+.add-pages {min-width:0}
+.add-pages .drop {padding:18px}
+.add-pages .qr {width:110px;height:110px}
+.evaluation-results {display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:var(--gap)}
+.evaluation-results .evaluation-note {grid-column:1/-1}
+.evaluation-results article:first-of-type {grid-column:1/-1}
+.score-bars {display:grid;gap:14px}
+.score-bar {display:grid;grid-template-columns:155px minmax(40px,1fr) 60px;gap:12px;align-items:center;font-size:12px}
+.bar-track {display:block;background:#1A2430;height:14px;border-radius:10px;overflow:hidden;flex:1}
+.bar-track>span {display:block;height:100%;background:var(--muted);border-radius:10px}
+.model-ft .bar-track>span {background:var(--sky)}
+.model-8b .bar-track>span {background:var(--violet)}
+.headline .bar-track {height:24px}
+.headline {padding:24px}
+.chart-group {margin:24px 0}
+.gallery {display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:var(--gap);max-height:650px;overflow:auto}
+.gallery>section {border:1px solid var(--hairline);border-radius:14px;padding:18px}
+.gallery .score-bar {grid-template-columns:105px minmax(35px,1fr) 50px}
+.gallery button {margin-top:18px}
+.detail-panel {border-color:var(--sky)}
+.compare-table {min-width:800px}
+.compare-table td:nth-child(2) {width:38%}
+pre {white-space:pre-wrap;overflow-wrap:anywhere;font-size:12px}
+.cost-top {display:grid;grid-template-columns:minmax(0,2fr) minmax(280px,1fr);gap:var(--gap)}
+.two-inputs {margin-bottom:24px}
+.two-inputs input {width:100%;background:var(--ground);border:1px solid var(--hairline);border-radius:12px;color:var(--text);padding:12px;font-size:20px}
+.cost-row {padding:16px 0}
+.cost-row>div {display:flex;align-items:center;gap:20px;margin:8px 0;justify-content:space-between;font-size:13px}
+.cost-row .bar-track {height:22px}
+.cost-row.chosen {color:var(--sky)}
+.estimate {background:var(--sky);color:var(--ground)}
+.estimate>strong {font-size:48px;font-family:'IBM Plex Mono',monospace}
+.estimate p {color:var(--ground)}
+.estimate button {background:var(--ground);color:var(--sky)}
+@media(min-width:761px) {.image-pane {position:sticky;top:20px}}
+@media(max-width:900px) {.cost-top,.two-tiles,.evaluation-results {grid-template-columns:1fr}.model-cards {grid-template-columns:1fr}.score-bar {grid-template-columns:110px minmax(30px,1fr) 55px}}
+/* The rail's 22px SVG rule must not shrink the chart drawing surface. */
+.recharts-wrapper > svg.recharts-surface {width:100%;height:100%}

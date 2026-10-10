@@ -125,3 +125,30 @@ def test_local_training_and_results(tiny, monkeypatch):
     assert result["source"] == "local-data"
     assert result["splits"]["test"]["hardest_pages"][0]["id"] == "c"
     assert training_summary(training)["eval_loss"] == [{"step": 10, "loss": 0.2}]
+
+
+@pytest.mark.parametrize("local", [True, False])
+def test_committed_compare_examples(tiny, monkeypatch, local):
+    if local:
+        monkeypatch.setenv("LEDGERLENS_DATA", str(tiny))
+    else:
+        monkeypatch.delenv("LEDGERLENS_DATA", raising=False)
+    client = TestClient(main.app)
+    listing = client.get("/api/results/examples")
+    assert listing.status_code == 200
+    body = listing.json()
+    assert body["source"] == "committed-final-test"
+    assert len(body["examples"]) == 5
+    assert "gold_rows" not in body["examples"][0]
+    assert any("gold not available" in note for note in body["skipped"])
+    detail = client.get("/api/results/examples/biz_0007_p006")
+    assert detail.status_code == 200
+    page = detail.json()
+    assert page["source"] == "committed-final-test"
+    assert len(page["gold_rows"]) == 18
+    assert sum(page["models"]["4b-ft"]["matched"]) == 18
+    for model in ("8b", "4b"):
+        assert sum(page["models"][model]["matched"]) == 11
+        assert page["models"][model]["row_f1"] == pytest.approx(11 / 18)
+    assert client.get("/api/results/examples/unknown").status_code == 404
+    assert (insights.ROOT / "eval/compare_examples.json").stat().st_size < 300_000
