@@ -417,3 +417,12 @@ the bottom of each day.
   found by looking, fixed: memo cost showed $0.0000 (Runpod's `/stream` carries no
   `executionTime`; now read from `/status`), and a bold title line showed its asterisks. Still open
   (needs a worker rebuild): the memo doesn't report its GPU.
+- **01:30–01:45 — Third endpoint, base 4B, approved by Randy** (so the app can compare all three
+  models live): **`cuvgn5z2av09my`** `ledgerlens-4b-base`, created in the console from the GitHub
+  repo (`deploy`, `worker/Dockerfile`, same build `bf3053a`); template `nygdqtrllt`
+  (`MODEL_NAME=Qwen/Qwen3-VL-4B-Instruct`, 40 GB disk); model cache pinned to `ebb281e`; no volume,
+  so any data centre; GPUs 32 GB PRO then 24 GB PRO (RTX 5090/4090); workers 0/2, idle 60 s,
+  FlashBoot, queue delay 4 s, timeout 600 s, CUDA 12.9–13.4. App env var: `RUNPOD_ENDPOINT_4B`.
+  Also: the fine-tuned endpoint's max workers had become 5 (account ceiling is 10 workers across
+  endpoints; the console warned "only 3 remain") — set back to 2. The 8B endpoint was "waiting for
+  GPU" (RTX 5090/3090 none free): added the RTX 4090 tier as a third choice.
