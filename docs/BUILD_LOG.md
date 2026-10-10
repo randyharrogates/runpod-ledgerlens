@@ -311,5 +311,12 @@ the bottom of each day.
   rupiah pages). The schema allowed a number of any length. The fine-tuned 4B writes amounts as short
   strings, as in its training targets. The running evaluation is left as is (all three models use
   the same schema); the fix is for serving and a follow-up 8B re-run.
-- **18:10 — Fix: amounts are bounded decimal strings in the extraction schema**
+- **18:03 — Fix: amounts are bounded decimal strings in the extraction schema**
   (`^-?[0-9]{1,15}(\.[0-9]{1,4})?$`); Pydantic still parses them to exact Decimals. 215 tests.
+- **18:25 — Released `bf3053a` and checked live (8B, RTX 5090).** Lesson: the first two test calls
+  (18:10) ran on workers still holding the old image — Runpod was still pulling the new one at
+  18:15 (worker logs: "Downloading … Extracting"); a raw answer with JSON numbers gave it away. On a
+  new-image worker: the page that had run away (`biz_0096_p004`, rupiah, held-out `stmt_f`) now
+  returns valid JSON in 14 s (1,157 tokens instead of 4,096); the clean sample page still gets
+  17/18 rows. On `stmt_f` pages the zero-shot 8B leaves debit and credit empty — it did the same
+  with the old schema — a reading failure on that unseen layout, not caused by the fix.
