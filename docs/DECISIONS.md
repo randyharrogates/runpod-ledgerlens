@@ -99,6 +99,16 @@ we gave up. The full timeline, with times and costs, is in `BUILD_LOG.md`.
   JSON, red flags found, seconds per page, cost per 1,000 pages.
 - **All three models run on the same GPU** for the comparison, so speed and cost differences come from
   the models, not the hardware.
+- **All three re-run on the fixed code.** During the first run we found the base models sometimes wrote
+  an amount as a number and kept adding zeros until they ran out of space. We fixed the schema (amounts
+  are now short text in a fixed shape) and re-ran all three models, not only the two that were hurt:
+  the fine-tuned model's raw answers were not saved, so we couldn't prove the fix left it unchanged,
+  and every reported number should come from the code that is actually served. Cost: about 3.5 h and
+  $2.70 of Pod time. The first run is kept to show what the fix changed.
+- **We read the failures, not just the scores.** The fine-tuned model's worst pages are heavily damaged
+  photos where it reads "Jun" as "Jan" (we looked: the blur makes them hard to tell apart). Because
+  rows are matched by date and amount, one wrong month makes a whole page score zero, even when every
+  amount is right.
 
 ## 7. Serving on Runpod
 
@@ -110,6 +120,11 @@ we gave up. The full timeline, with times and costs, is in `BUILD_LOG.md`.
   cost: the endpoint is tied to that one data centre.
 - **Zero workers when idle;** one always-on worker only for the demo hour. Max 2.
 - **A `deploy` branch** for the image, so ordinary pushes don't trigger a rebuild.
+- **The fine-tuned model gets its own endpoint** (same code, `MODEL_PATH` pointing at the volume), so
+  the app can send the same page to both models and show speed and cost side by side. It has to be
+  created in the console from the GitHub repo: a template made by hand can't pull the image Runpod
+  built from GitHub (we tried; workers failed with a registry error and did not bill).
+- **No Japan endpoint.** Decided 10 Oct: the data-residency answer is explained, not demonstrated.
 
 ## 8. Where it runs
 
