@@ -78,7 +78,8 @@ export function MemoContent({ text, jump }: { text: string; jump: (citation: Cit
       return;
     }
     flush();
-    if (headings.has(heading.toLowerCase())) blocks.push(<h3 key={i}>{heading}</h3>);
+    // Known sections, and a whole line in bold (e.g. "**Credit Memo**"); "## Summ" mid-stream stays text.
+    if (headings.has(heading.toLowerCase()) || /^\*\*[^*]+\*\*$/.test(trimmed)) blocks.push(<h3 key={i}>{heading}</h3>);
     else if (trimmed) blocks.push(<p key={i}>{inline(line)}</p>);
   });
   flush();

@@ -53,6 +53,7 @@ for (const heading of ['Summary', '## Summary', '**Summary**']) {
 }
 // An incomplete stream chunk stays readable, then becomes a cited heading/list.
 assert(render(React.createElement(MemoContent, {text: '## Summ', jump})).includes('## Summ'));
+assert(render(React.createElement(MemoContent, {text: '**Credit Memo**', jump})).includes('<h3>Credit Memo</h3>'));
 const {Cell} = require('./src/components/Review.tsx');
 const cell = render(React.createElement(Cell, {
   value: '100', display: '100.00', edited: false, directionTitle: 'Moved to credit',
