@@ -12,6 +12,8 @@ set -euo pipefail
 cd /workspace/runpod-ledgerlens
 # Model weights and Python packages are cached on the network volume, so a second run reuses them.
 export HF_HOME=/workspace/hf-cache UV_CACHE_DIR=/workspace/uv-cache
+# The Chromium build is kept on the volume too; its system libraries live on the Pod's own disk.
+export PLAYWRIGHT_BROWSERS_PATH=/workspace/ms-playwright
 RUN=${RUN:-/workspace/ledgerlens}
 N_BUSINESSES=${N_BUSINESSES:-400}
 STOP_AFTER=${STOP_AFTER:-}
@@ -54,6 +56,8 @@ setup_infer() {
     uv pip freeze --python .venv-infer/bin/python > "$RUN/logs/infer-packages.txt"
 }
 generate() {
+    # Every new Pod needs Chromium's system libraries (apt); the browser download is reused.
+    .venv-train/bin/python -m playwright install --with-deps chromium
     # Remove only an incomplete stage's generated data: datagen refuses existing splits.
     if [[ -d "$RUN/synth" ]]; then mv "$RUN/synth" "$RUN/synth-incomplete-$(date +%s)"; fi
     .venv-train/bin/python -m ledgerlens.datagen --out "$RUN/synth" --n-businesses "$N_BUSINESSES" --seed 7 --no-render
