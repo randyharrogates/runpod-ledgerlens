@@ -293,3 +293,10 @@ the bottom of each day.
   over 30 steps; eval loss 0.039 (388 validation pages, 136 s); peak GPU memory 13.1 GB of 32;
   merged export succeeded and was deleted as designed. **Main training started 15:56** — about
   396 steps for one epoch (batch 2 × accumulation 4), evaluation every 50 steps.
+- **15:58 — Worker released `af39be4`** (`scripts/release-worker.sh`; first release since `a0bb907`):
+  optional receipt fields in the extraction schema (now matching training), health reports
+  volume-loaded weights as `volume`. Runpod's GitHub build finished in 5 min (template image
+  `…:af39be437` at 16:03). Live check on the 8B endpoint follows.
+- **16:10 — Live check after the release** (`app/sample/biz_0000_p002`, cold start, RTX 5090,
+  weights from the model cache): valid JSON; rows **17/18** exact (16/18 on 9 Oct), header 7/8;
+  queue delay 235.6 s (engine load 209 s), execution 15.8 s.

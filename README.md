@@ -114,5 +114,5 @@ src/ledgerlens/  schema, datagen, analytics, direction (balance check), eval/sco
 worker/          Serverless handler, Dockerfile, prompts, REST client
 train/           dataset builder (+CORD), Unsloth LoRA SFT, vLLM batch predict, report, run_pod.sh
 app/             FastAPI backend + React/Vite frontend
-docs/            BUILD_LOG (every step, decision and dollar)
+docs/            DECISIONS (what we chose and why), BUILD_LOG (every step and dollar), REPORT (results)
 ```
