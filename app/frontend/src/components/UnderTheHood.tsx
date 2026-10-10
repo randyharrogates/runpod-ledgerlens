@@ -93,7 +93,7 @@ export function UnderTheHood({ history, status }: {
       {!history.length && <p>No requests yet.</p>}
       {usage && <p className="hood-note">Memo usage: {usage}</p>}
       <p><Term name="cold start" /></p><h3>Model status</h3>
-      {['8b', 'ft', '4b'].map(model => <EndpointStatus key={model} model={model} status={status} />)}
+      {['ft', '8b', '4b'].map(model => <EndpointStatus key={model} model={model} status={status} />)}
     </details>
   );
 }

@@ -2,7 +2,7 @@ import {
   Bar, Cell, CartesianGrid, ComposedChart, Legend, Line, ResponsiveContainer, Tooltip, XAxis, YAxis,
 } from 'recharts';
 import { Analysis, Citation } from '../api';
-import { money } from './format';
+import { money, monthName } from './format';
 
 export function monthlyPoints(monthly: Analysis['monthly']) {
   return Object.entries(monthly).map(([month, value]) => ({
@@ -25,7 +25,7 @@ export function Cashflow({ data, jump }: {
   const kpis = [
     ['Average observed balance', money(data.average_balance.value, currency, true)],
     ['Minimum observed balance', money(data.minimum_balance.value, currency, true)],
-    ['Top payer share', `${(Number(data.top_payer_concentration.share) * 100).toFixed(1)}%`],
+    ["Biggest customer's share of money in", `${(Number(data.top_payer_concentration.share) * 100).toFixed(1)}%`],
   ];
   return (
     <>
@@ -38,7 +38,7 @@ export function Cashflow({ data, jump }: {
         <ResponsiveContainer width="100%" height={320}>
           <ComposedChart data={points} margin={{ left: 20, right: 20 }}>
             <CartesianGrid strokeDasharray="3 3" />
-            <XAxis dataKey="month" tickFormatter={month => `${month}${data.monthly[month].partial ? " · partial" : ""}`} />
+            <XAxis dataKey="month" tickFormatter={month => `${monthName(month)}${data.monthly[month].partial ? " · partial" : ""}`} />
             <YAxis width={65} tickFormatter={value => Intl.NumberFormat('en', { notation: 'compact' }).format(Number(value))} label={{ value: currency, angle: -90, position: 'insideLeft' }} />
             <Tooltip formatter={value => money(value, currency, true)} />
             <Legend />
@@ -63,7 +63,7 @@ export function Cashflow({ data, jump }: {
           <span className="citations">
             {finding.citations.map((citation, j) => (
               <button key={j} onClick={() => jump(citation)}>
-                {citation.page_id}:r{citation.row_index + 1}
+                {citation.page_id} · line {citation.row_index + 1}
               </button>
             ))}
           </span>

@@ -13,6 +13,9 @@ import { PageToolbar } from './components/PageToolbar';
 import { Compare } from './components/Compare';
 import { Results } from './components/Results';
 import { Cost } from './components/Cost';
+import { Data } from './components/Data';
+import { Training, TrainingRun, PodAlert } from './components/Training';
+import { getJSON } from './components/Compare';
 import './style.css';
 
 function App() {
@@ -34,6 +37,9 @@ function App() {
   const [status, setStatus] = useState<Record<string, unknown>>({});
   const [started, setStarted] = useState(0);
   const [elapsed, setElapsed] = useState(0);
+  const [runs, setRuns] = useState<TrainingRun[]>([]);
+  async function refreshRuns() { setRuns(await getJSON<TrainingRun[]>('/api/training/runs')); }
+  useEffect(() => { const poll = () => { void refreshRuns().catch(() => {}); }; poll(); const timer = setInterval(poll, 5000); return () => clearInterval(timer); }, []);
   const [presenter, setPresenter] = useState(false);
   useEffect(() => {
     if (!busy) return;
@@ -138,7 +144,7 @@ function App() {
         <nav aria-label="Workspace">
           {routes.map(([href, label, title, icon]) => <RouterLink key={href} href={href}
             aria-label={title} aria-current={path === href ? 'page' : undefined}>
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true"><path d={icon} /></svg><span>{label}</span>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true"><path d={icon} /></svg><span>{label}</span>{href === "/training" && runs.some(r => r.status.startsWith("POD MAY STILL BE RUNNING")) && <span className="pod-badge" aria-label="Pod may still be running">!</span>}
           </RouterLink>)}
         </nav>
         <button className="presenter" aria-pressed={presenter} onClick={() => {setPresenter(!presenter); navigate('/'); setTab('Documents');}}>
@@ -146,12 +152,13 @@ function App() {
         </button>
       </aside>
       <main>
+        <PodAlert runs={runs} />
         <header>
-          <div><h1>{route?.[2] || 'Page not found'}</h1><p>{path === '/' ? 'Add photos of statements, check what was read, and fix any cell that is wrong.' : path === '/compare' ? 'See which lines each model reads right.' : path === '/results' ? 'Every score, including where the models fail.' : path === '/cost' ? 'Estimate the cost of reading your pages.' : 'This page is coming next.'}</p></div>
+          <div><h1>{route?.[2] || 'Page not found'}</h1><p>{path === '/' ? 'Add photos of statements, check what was read, and fix any cell that is wrong.' : path === '/compare' ? 'See which lines each model reads right.' : path === '/results' ? 'Every score, including where the models fail.' : path === '/cost' ? 'Estimate the cost of reading your pages.' : path === '/data' ? 'Browse the practice documents the models learned from and were tested on.' : path === '/training' ? 'Replay the reported run or set up a new one. Nothing is rented until you confirm.' : 'Page not found.'}</p></div>
           <div className="model-status" aria-label="Model status">{models.map(m => <span key={m.key} className={modelState(status, m.key) === 'ready' ? 'ready' : ''}>{m.name} · {modelState(status, m.key)}</span>)}</div>
         </header>
         {error && <p role="alert" className="error">{error}</p>}
-        {path === '/compare' ? <Compare session={session} pages={pages} status={status} /> : path === '/results' ? <Results /> : path === '/cost' ? <Cost history={history} /> : path !== '/' ? <article className="placeholder"><h2>{route ? 'Coming next' : 'Page not found'}</h2><RouterLink href="/">Read statements →</RouterLink></article> : <>
+        {path === '/data' ? <Data /> : path === '/training' ? <Training runs={runs} refresh={refreshRuns} /> : path === '/compare' ? <Compare session={session} pages={pages} status={status} /> : path === '/results' ? <Results /> : path === '/cost' ? <Cost history={history} /> : path !== '/' ? <article className="placeholder"><h2>{route ? 'Coming next' : 'Page not found'}</h2><RouterLink href="/">Read statements →</RouterLink></article> : <>
         {presenter && <article className="tour">Three-minute tour: add pages (35s), check rows (40s), cash flow (45s), credit memo (35s), timing and cost (25s).</article>}
         <nav className="steps" aria-label="Read statements steps">{['Documents', 'Review', 'Analysis', 'Memo'].map((value, i) => <button key={value} aria-current={tab === value ? 'step' : undefined} onClick={() => setTab(value)}>{i + 1} {['Add pages', 'Check rows', 'Cash flow and red flags', 'Credit memo'][i]}</button>)}</nav>
         <div className="read-controls">
