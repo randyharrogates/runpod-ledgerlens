@@ -18,6 +18,8 @@
         "reconciliation": null,
         "row_f1": 0.2587,
         "row_f1_checked": 0.2587,
+        "row_precision": 0.262,
+        "row_recall": 0.2554,
         "seconds_per_page": 0.532,
         "valid_json": 1.0
       },
@@ -32,6 +34,8 @@
         "reconciliation": null,
         "row_f1": 0.7653,
         "row_f1_checked": 0.7653,
+        "row_precision": 0.7681,
+        "row_recall": 0.7626,
         "seconds_per_page": 0.4538,
         "valid_json": 1.0
       },
@@ -46,6 +50,8 @@
         "reconciliation": null,
         "row_f1": 0.3956,
         "row_f1_checked": 0.3956,
+        "row_precision": 0.403,
+        "row_recall": 0.3885,
         "seconds_per_page": 1.5867,
         "valid_json": 0.9898
       }
@@ -62,6 +68,8 @@
         "reconciliation": 0.3975,
         "row_f1": 0.7447,
         "row_f1_checked": 0.7989,
+        "row_precision": 0.7509,
+        "row_recall": 0.7386,
         "seconds_per_page": 1.7863,
         "valid_json": 0.9863
       },
@@ -76,6 +84,8 @@
         "reconciliation": 0.7615,
         "row_f1": 0.9595,
         "row_f1_checked": 0.9595,
+        "row_precision": 0.9657,
+        "row_recall": 0.9534,
         "seconds_per_page": 1.3219,
         "valid_json": 0.9897
       },
@@ -90,6 +100,8 @@
         "reconciliation": 0.5021,
         "row_f1": 0.8234,
         "row_f1_checked": 0.8548,
+        "row_precision": 0.8258,
+        "row_recall": 0.821,
         "seconds_per_page": 2.9079,
         "valid_json": 0.9966
       }
@@ -106,6 +118,8 @@
         "reconciliation": 0.2015,
         "row_f1": 0.6142,
         "row_f1_checked": 0.6465,
+        "row_precision": 0.6169,
+        "row_recall": 0.6115,
         "seconds_per_page": 1.7189,
         "valid_json": 0.9907
       },
@@ -120,6 +134,8 @@
         "reconciliation": 0.7498,
         "row_f1": 0.9645,
         "row_f1_checked": 0.9664,
+        "row_precision": 0.9658,
+        "row_recall": 0.9632,
         "seconds_per_page": 1.2766,
         "valid_json": 0.9973
       },
@@ -134,6 +150,8 @@
         "reconciliation": 0.3014,
         "row_f1": 0.5775,
         "row_f1_checked": 0.6214,
+        "row_precision": 0.5781,
+        "row_recall": 0.5768,
         "seconds_per_page": 2.584,
         "valid_json": 0.998
       }

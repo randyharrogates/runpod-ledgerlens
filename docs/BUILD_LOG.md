@@ -433,3 +433,15 @@ the bottom of each day.
   (fine-tuned 4B on the same page: 14/18; 8B zero-shot: 7/18). Weights from the model cache
   (snapshot `ebb281e`). The worker reported no GPU name on this host (neither `RUNPOD_GPU_TYPE` nor
   `nvidia-smi` answered); noted for the next worker fix.
+- **01:55–02:04 — Worker GPU-name fix released** (`82efa15`): when neither `RUNPOD_GPU_TYPE` nor
+  `nvidia-smi` answers, the worker reads the model name from `/proc/driver/nvidia/gpus/*/information`;
+  the memo's final chunk now carries `gpu` too. `release-worker.sh` → `deploy`; all three templates
+  showed the new image at 02:04. Handoff notes rewritten for the current state.
+- **02:10 — Row precision and recall shown, not just F1.** Randy asked whether we only measure
+  accuracy. The headline was already row F1 (precision and recall combined), but only F1 was shown,
+  and the docs said "rows read right", which sounds like accuracy. Added row precision and recall to
+  `eval/summary.json` (regenerated from the same `results.json`; only the two fields were added), the
+  Results tab and `docs/REPORT.md`; README and report now say "row F1". Finding: precision and
+  recall are within ~1.5 points on every set and model (fine-tuned 4B, unseen layouts: 0.966 /
+  0.963), so the models rarely invent or drop rows; their errors are misread fields. Red flags are
+  where they split (fine-tuned 4B recall 0.96, precision 0.51).
