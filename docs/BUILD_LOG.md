@@ -437,7 +437,7 @@ the bottom of each day.
   `nvidia-smi` answers, the worker reads the model name from `/proc/driver/nvidia/gpus/*/information`;
   the memo's final chunk now carries `gpu` too. `release-worker.sh` → `deploy`; all three templates
   showed the new image at 02:04. Handoff notes rewritten for the current state.
-- **02:10 — Row precision and recall shown, not just F1.** Randy asked whether we only measure
+- **02:06 — Row precision and recall shown, not just F1.** Randy asked whether we only measure
   accuracy. The headline was already row F1 (precision and recall combined), but only F1 was shown,
   and the docs said "rows read right", which sounds like accuracy. Added row precision and recall to
   `eval/summary.json` (regenerated from the same `results.json`; only the two fields were added), the
