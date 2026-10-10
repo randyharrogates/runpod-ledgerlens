@@ -63,7 +63,22 @@ flowchart LR
 
 ## Results: 8B zero-shot vs 4B zero-shot vs 4B fine-tuned
 
-_Filled in from `eval/results.md` after the training run (Sat 10 Oct)._
+All three on the same GPU (RTX PRO 4500), same prompt, schema and pixel cap. Row F1 = rows read
+exactly right, from the model's own answer. Full results, breakdowns and failure analysis:
+[`docs/REPORT.md`](docs/REPORT.md).
+
+| | 8B, no training | 4B, no training | **4B fine-tuned** |
+|---|---:|---:|---:|
+| Unseen statement layouts (1,499 pages) | 0.578 | 0.614 | **0.965** |
+| Seen layouts, new businesses (291) | 0.823 | 0.745 | **0.960** |
+| Real CORD receipts (98) | 0.396 | 0.259 | **0.765** |
+| Red flags found (unseen layouts) | 0.66 | 0.63 | **0.96** |
+| Seconds per page, batched | 2.58 | 1.72 | **1.28** |
+| $ per 1,000 pages, batched ($0.72/h) | 0.52 | 0.34 | **0.26** |
+
+Served live on Serverless (warm, one page at a time): 8B ~14 s per page (≈ $6 per 1,000), fine-tuned
+4B ~7 s (≈ $3 per 1,000). The fine-tune's weak spot is heavy photo damage (row F1 0.87). Phone photos
+of printed pages (the third test set) are pending.
 
 ## Data
 
@@ -78,9 +93,9 @@ _Filled in from `eval/results.md` after the training run (Sat 10 Oct)._
 
 | Split | Synthetic | CORD | Total |
 |---|---|---|---|
-| Train | 2,396 | see results | |
-| Validation | 289 | see results | |
-| Test | 1,790 (1,499 unseen-layout, 291 seen-layout) | see results | scored separately |
+| Train | 2,396 | 771 | 3,167 |
+| Validation | 289 | 99 | 388 |
+| Test | 1,790 (1,499 unseen-layout, 291 seen-layout) | 98 | scored separately |
 
 ## Run it
 
