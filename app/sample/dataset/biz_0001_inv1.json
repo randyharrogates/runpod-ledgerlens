@@ -1,0 +1,25 @@
+{
+  "doc_type": "invoice",
+  "issuer": "Bukit Sentosa Emas Tekstil",
+  "recipient": "Cedar Cloud Petal Foods",
+  "invoice_number": "BUK/2606/7415",
+  "date": "2026-06-23",
+  "currency": "SGD",
+  "line_items": [
+    {
+      "description": "Polyester lining 150cm (m)",
+      "quantity": "12",
+      "unit_price": "3.25",
+      "amount": "39.00"
+    },
+    {
+      "description": "Dyeing service per kg / Upah celup",
+      "quantity": "37.2",
+      "unit_price": "5.20",
+      "amount": "193.44"
+    }
+  ],
+  "subtotal": "232.44",
+  "tax": "20.92",
+  "total": "253.36"
+}

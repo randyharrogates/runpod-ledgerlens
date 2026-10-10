@@ -1,0 +1,139 @@
+{
+  "doc_type": "statement",
+  "bank_name": "星露 Bank",
+  "account_holder": "Fern Cove Ridge Commerce",
+  "account_number_masked": "****2811",
+  "period_start": "2026-01-01",
+  "period_end": "2026-06-30",
+  "currency": "SGD",
+  "opening_balance": "13195.69",
+  "closing_balance": "19956.77",
+  "transactions": [
+    {
+      "date": "2026-01-23",
+      "description": "BANK FEES",
+      "debit": "13.82",
+      "credit": null,
+      "balance": "13181.87"
+    },
+    {
+      "date": "2026-01-24",
+      "description": "PayNow FROM Cedar Cloud Cove Commerce REF 328946",
+      "debit": null,
+      "credit": "1074.21",
+      "balance": "14256.08"
+    },
+    {
+      "date": "2026-01-27",
+      "description": "GIRO FROM Cedar Cloud Cove Commerce REF 111535",
+      "debit": null,
+      "credit": "1084.74",
+      "balance": "15340.82"
+    },
+    {
+      "date": "2026-01-29",
+      "description": "FAST FROM Cedar Cloud Cove Commerce REF 598608",
+      "debit": null,
+      "credit": "1103.91",
+      "balance": "16444.73"
+    },
+    {
+      "date": "2026-02-01",
+      "description": "PayNow FROM Cedar Cloud Cove Commerce REF 496531",
+      "debit": null,
+      "credit": "669.47",
+      "balance": "17114.20"
+    },
+    {
+      "date": "2026-02-01",
+      "description": "LOAN REPAYMENT",
+      "debit": "454.02",
+      "credit": null,
+      "balance": "16660.18"
+    },
+    {
+      "date": "2026-02-02",
+      "description": "FAST FROM Cedar Cloud Cove Commerce REF 842887",
+      "debit": null,
+      "credit": "599.60",
+      "balance": "17259.78"
+    },
+    {
+      "date": "2026-02-03",
+      "description": "GIRO FROM Cedar Cloud Cove Commerce REF 724149",
+      "debit": null,
+      "credit": "706.60",
+      "balance": "17966.38"
+    },
+    {
+      "date": "2026-02-04",
+      "description": "PayNow FROM Cedar Cloud Cove Commerce REF 273883",
+      "debit": null,
+      "credit": "700.51",
+      "balance": "18666.89"
+    },
+    {
+      "date": "2026-02-04",
+      "description": "RENT Sewa 租金",
+      "debit": "789.00",
+      "credit": null,
+      "balance": "17877.89"
+    },
+    {
+      "date": "2026-02-05",
+      "description": "PayNow FROM Cedar Cloud Cove Commerce REF 204386",
+      "debit": null,
+      "credit": "531.76",
+      "balance": "18409.65"
+    },
+    {
+      "date": "2026-02-05",
+      "description": "PayNow FROM Pelangi Indah Sentosa Usaha REF 622209",
+      "debit": null,
+      "credit": "706.67",
+      "balance": "19116.32"
+    },
+    {
+      "date": "2026-02-05",
+      "description": "GIRO FROM Pelangi Indah Sentosa Usaha REF 955527",
+      "debit": null,
+      "credit": "669.92",
+      "balance": "19786.24"
+    },
+    {
+      "date": "2026-02-06",
+      "description": "PayNow TO Bukit Damai Sentosa Bekalan REF 811077",
+      "debit": "925.59",
+      "credit": null,
+      "balance": "18860.65"
+    },
+    {
+      "date": "2026-02-07",
+      "description": "FX CONVERSION USD",
+      "debit": "115.30",
+      "credit": null,
+      "balance": "18745.35"
+    },
+    {
+      "date": "2026-02-08",
+      "description": "CUSTOMER REFUND",
+      "debit": "41.70",
+      "credit": null,
+      "balance": "18703.65"
+    },
+    {
+      "date": "2026-02-09",
+      "description": "GIRO FROM Cedar Cloud Cove Commerce REF 825316",
+      "debit": null,
+      "credit": "633.51",
+      "balance": "19337.16"
+    },
+    {
+      "date": "2026-02-10",
+      "description": "FAST FROM Cedar Cloud Cove Commerce REF 476841",
+      "debit": null,
+      "credit": "619.61",
+      "balance": "19956.77"
+    }
+  ]
+}

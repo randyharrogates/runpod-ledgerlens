@@ -1,0 +1,139 @@
+{
+  "doc_type": "statement",
+  "bank_name": "Cloudpetal Bank",
+  "account_holder": "秋河桥商贸",
+  "account_number_masked": "****5600",
+  "period_start": "2026-01-01",
+  "period_end": "2026-06-30",
+  "currency": "IDR",
+  "opening_balance": "226858649",
+  "closing_balance": "268573478",
+  "transactions": [
+    {
+      "date": "2026-02-23",
+      "description": "GST TAX Cukai",
+      "debit": "4142374",
+      "credit": null,
+      "balance": "222716275"
+    },
+    {
+      "date": "2026-02-24",
+      "description": "SKN FROM Jade Petal Brook Supplies REF 446361",
+      "debit": null,
+      "credit": "7297147",
+      "balance": "230013422"
+    },
+    {
+      "date": "2026-02-24",
+      "description": "RTGS FROM Jade Meadow Reed Trading REF 289486",
+      "debit": null,
+      "credit": "8149542",
+      "balance": "238162964"
+    },
+    {
+      "date": "2026-02-24",
+      "description": "RTGS FROM Rimba Hijau Permai Tekstil REF 407146",
+      "debit": null,
+      "credit": "8688978",
+      "balance": "246851942"
+    },
+    {
+      "date": "2026-02-24",
+      "description": "FX CONVERSION USD",
+      "debit": "1416558",
+      "credit": null,
+      "balance": "245435384"
+    },
+    {
+      "date": "2026-02-25",
+      "description": "SKN FROM 竹泉河材料 REF 956753",
+      "debit": null,
+      "credit": "7990333",
+      "balance": "253425717"
+    },
+    {
+      "date": "2026-02-27",
+      "description": "SKN FROM 春桥峰纺织 REF 246162",
+      "debit": null,
+      "credit": "8090587",
+      "balance": "261516304"
+    },
+    {
+      "date": "2026-02-27",
+      "description": "BI-FAST TO Bintang Murni Emas Tekstil REF 152263",
+      "debit": "11497144",
+      "credit": null,
+      "balance": "250019160"
+    },
+    {
+      "date": "2026-02-28",
+      "description": "LOAN REPAYMENT",
+      "debit": "6362228",
+      "credit": null,
+      "balance": "243656932"
+    },
+    {
+      "date": "2026-03-01",
+      "description": "BANK FEES",
+      "debit": "112616",
+      "credit": null,
+      "balance": "243544316"
+    },
+    {
+      "date": "2026-03-02",
+      "description": "RTGS FROM 春桥峰纺织 REF 924502",
+      "debit": null,
+      "credit": "10797936",
+      "balance": "254342252"
+    },
+    {
+      "date": "2026-03-04",
+      "description": "INTEREST CREDIT",
+      "debit": null,
+      "credit": "31517",
+      "balance": "254373769"
+    },
+    {
+      "date": "2026-03-06",
+      "description": "SKN TO Awan Jaya Emas Dagang REF 148537",
+      "debit": "16829649",
+      "credit": null,
+      "balance": "237544120"
+    },
+    {
+      "date": "2026-03-06",
+      "description": "CARD SETTLEMENT BATCH 94702",
+      "debit": null,
+      "credit": "4688538",
+      "balance": "242232658"
+    },
+    {
+      "date": "2026-03-07",
+      "description": "RTGS FROM Rimba Hijau Permai Tekstil REF 965767",
+      "debit": null,
+      "credit": "9584722",
+      "balance": "251817380"
+    },
+    {
+      "date": "2026-03-08",
+      "description": "CUSTOMER REFUND",
+      "debit": "322670",
+      "credit": null,
+      "balance": "251494710"
+    },
+    {
+      "date": "2026-03-09",
+      "description": "RTGS FROM Cahaya Makmur Jaya Dagang REF 941253",
+      "debit": null,
+      "credit": "8547612",
+      "balance": "260042322"
+    },
+    {
+      "date": "2026-03-10",
+      "description": "RTGS FROM Jade Petal Brook Supplies REF 264208",
+      "debit": null,
+      "credit": "8531156",
+      "balance": "268573478"
+    }
+  ]
+}

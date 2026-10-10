@@ -1,0 +1,18 @@
+{
+  "business_id": "biz_0001",
+  "page_number": 3,
+  "transaction_offset": 36,
+  "true_closing_balance": "92787.85",
+  "printed_closing_balance": "92787.85",
+  "anomalies": [],
+  "layout_id": "stmt_c",
+  "country": "SG",
+  "uen": "202600001O",
+  "strength": "light",
+  "seed": 2283721058,
+  "rendered": false,
+  "degradation": {
+    "operations": [],
+    "status": "not_applied_no_render"
+  }
+}

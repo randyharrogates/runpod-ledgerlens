@@ -1,0 +1,139 @@
+{
+  "doc_type": "statement",
+  "bank_name": "Cloudpetal Bank",
+  "account_holder": "秋河桥商贸",
+  "account_number_masked": "****5600",
+  "period_start": "2026-01-01",
+  "period_end": "2026-06-30",
+  "currency": "IDR",
+  "opening_balance": "162246979",
+  "closing_balance": "191996496",
+  "transactions": [
+    {
+      "date": "2026-01-21",
+      "description": "RTGS FROM 春桥峰纺织 REF 646652",
+      "debit": null,
+      "credit": "8085857",
+      "balance": "170332836"
+    },
+    {
+      "date": "2026-01-21",
+      "description": "RTGS TO Bintang Murni Emas Tekstil REF 857385",
+      "debit": "13571918",
+      "credit": null,
+      "balance": "156760918"
+    },
+    {
+      "date": "2026-01-22",
+      "description": "PAYROLL RTGS Gaji",
+      "debit": "23956319",
+      "credit": null,
+      "balance": "132804599"
+    },
+    {
+      "date": "2026-01-22",
+      "description": "CUSTOMER REFUND",
+      "debit": "389996",
+      "credit": null,
+      "balance": "132414603"
+    },
+    {
+      "date": "2026-01-24",
+      "description": "RTGS FROM Jade Petal Brook Supplies REF 492685",
+      "debit": null,
+      "credit": "8669053",
+      "balance": "141083656"
+    },
+    {
+      "date": "2026-01-25",
+      "description": "SKN FROM Fern Reed Grove Services REF 915162",
+      "debit": null,
+      "credit": "7947748",
+      "balance": "149031404"
+    },
+    {
+      "date": "2026-01-26",
+      "description": "BI-FAST FROM Jade Meadow Reed Trading REF 835196",
+      "debit": null,
+      "credit": "8954699",
+      "balance": "157986103"
+    },
+    {
+      "date": "2026-01-26",
+      "description": "RTGS FROM 竹泉河材料 REF 911355",
+      "debit": null,
+      "credit": "8295700",
+      "balance": "166281803"
+    },
+    {
+      "date": "2026-01-27",
+      "description": "RTGS FROM 春桥峰纺织 REF 684901",
+      "debit": null,
+      "credit": "9625545",
+      "balance": "175907348"
+    },
+    {
+      "date": "2026-01-28",
+      "description": "BI-FAST FROM Jade Petal Brook Supplies REF 469059",
+      "debit": null,
+      "credit": "8656831",
+      "balance": "184564179"
+    },
+    {
+      "date": "2026-01-30",
+      "description": "SKN FROM Amber Cove Reed Services REF 386083",
+      "debit": null,
+      "credit": "7782267",
+      "balance": "192346446"
+    },
+    {
+      "date": "2026-01-31",
+      "description": "BI-FAST TO Silver Cloud Brook Services REF 975086",
+      "debit": "16631866",
+      "credit": null,
+      "balance": "175714580"
+    },
+    {
+      "date": "2026-02-03",
+      "description": "BI-FAST FROM Amber Cove Reed Services REF 669226",
+      "debit": null,
+      "credit": "9324898",
+      "balance": "185039478"
+    },
+    {
+      "date": "2026-02-03",
+      "description": "RTGS FROM Jade Petal Brook Supplies REF 165667",
+      "debit": null,
+      "credit": "9235589",
+      "balance": "194275067"
+    },
+    {
+      "date": "2026-02-04",
+      "description": "INTEREST CREDIT",
+      "debit": null,
+      "credit": "26456",
+      "balance": "194301523"
+    },
+    {
+      "date": "2026-02-06",
+      "description": "CUSTOMER REFUND",
+      "debit": "449531",
+      "credit": null,
+      "balance": "193851992"
+    },
+    {
+      "date": "2026-02-07",
+      "description": "BI-FAST FROM 春桥峰纺织 REF 182129",
+      "debit": null,
+      "credit": "9405857",
+      "balance": "203257849"
+    },
+    {
+      "date": "2026-02-07",
+      "description": "BI-FAST TO Awan Jaya Emas Dagang REF 545670",
+      "debit": "11261353",
+      "credit": null,
+      "balance": "191996496"
+    }
+  ]
+}

@@ -1,0 +1,139 @@
+{
+  "doc_type": "statement",
+  "bank_name": "Senja Awan Bank",
+  "account_holder": "Bayu Hijau Indah Dagang",
+  "account_number_masked": "****6775",
+  "period_start": "2026-01-01",
+  "period_end": "2026-06-30",
+  "currency": "IDR",
+  "opening_balance": "13266559",
+  "closing_balance": "21676192",
+  "transactions": [
+    {
+      "date": "2026-01-03",
+      "description": "BI-FAST TO Jade Reed Petal Foods REF 180082",
+      "debit": "2283754",
+      "credit": null,
+      "balance": "10982805"
+    },
+    {
+      "date": "2026-01-03",
+      "description": "RENT Sewa 租金",
+      "debit": "1466455",
+      "credit": null,
+      "balance": "9516350"
+    },
+    {
+      "date": "2026-01-04",
+      "description": "ATM WITHDRAWAL",
+      "debit": "91451",
+      "credit": null,
+      "balance": "9424899"
+    },
+    {
+      "date": "2026-01-06",
+      "description": "SKN FROM Seri Makmur Emas Tekstil REF 181727",
+      "debit": null,
+      "credit": "3909280",
+      "balance": "13334179"
+    },
+    {
+      "date": "2026-01-08",
+      "description": "SKN FROM 银桥山材料 REF 540240",
+      "debit": null,
+      "credit": "3919290",
+      "balance": "17253469"
+    },
+    {
+      "date": "2026-01-10",
+      "description": "SKN FROM Seri Makmur Emas Tekstil REF 171492",
+      "debit": null,
+      "credit": "4335866",
+      "balance": "21589335"
+    },
+    {
+      "date": "2026-01-12",
+      "description": "CARD SETTLEMENT BATCH 85084",
+      "debit": null,
+      "credit": "1491254",
+      "balance": "23080589"
+    },
+    {
+      "date": "2026-01-13",
+      "description": "RTGS TO Coral Petal Cloud Commerce REF 338554",
+      "debit": "1740143",
+      "credit": null,
+      "balance": "21340446"
+    },
+    {
+      "date": "2026-01-13",
+      "description": "CUSTOMER REFUND",
+      "debit": "48511",
+      "credit": null,
+      "balance": "21291935"
+    },
+    {
+      "date": "2026-01-13",
+      "description": "INTEREST CREDIT",
+      "debit": null,
+      "credit": "1936",
+      "balance": "21293871"
+    },
+    {
+      "date": "2026-01-18",
+      "description": "BANK FEES",
+      "debit": "13861",
+      "credit": null,
+      "balance": "21280010"
+    },
+    {
+      "date": "2026-01-19",
+      "description": "BI-FAST FROM 银桥山材料 REF 399888",
+      "debit": null,
+      "credit": "4532833",
+      "balance": "25812843"
+    },
+    {
+      "date": "2026-01-20",
+      "description": "PAYROLL RTGS Gaji",
+      "debit": "3972766",
+      "credit": null,
+      "balance": "21840077"
+    },
+    {
+      "date": "2026-01-20",
+      "description": "GST TAX Cukai",
+      "debit": "536087",
+      "credit": null,
+      "balance": "21303990"
+    },
+    {
+      "date": "2026-01-20",
+      "description": "LOAN REPAYMENT",
+      "debit": "773448",
+      "credit": null,
+      "balance": "20530542"
+    },
+    {
+      "date": "2026-01-22",
+      "description": "FX CONVERSION USD",
+      "debit": "118696",
+      "credit": null,
+      "balance": "20411846"
+    },
+    {
+      "date": "2026-01-23",
+      "description": "RTGS TO Jade Reed Petal Foods REF 441446",
+      "debit": "1283107",
+      "credit": null,
+      "balance": "19128739"
+    },
+    {
+      "date": "2026-02-02",
+      "description": "RTGS FROM Seri Makmur Emas Tekstil REF 994799",
+      "debit": null,
+      "credit": "2547453",
+      "balance": "21676192"
+    }
+  ]
+}

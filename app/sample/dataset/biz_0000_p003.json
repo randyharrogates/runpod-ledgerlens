@@ -1,0 +1,139 @@
+{
+  "doc_type": "statement",
+  "bank_name": "Ferncomet Bank",
+  "account_holder": "海桥林商贸",
+  "account_number_masked": "****6844",
+  "period_start": "2026-01-01",
+  "period_end": "2026-06-30",
+  "currency": "MYR",
+  "opening_balance": "9059.64",
+  "closing_balance": "9849.62",
+  "transactions": [
+    {
+      "date": "2026-02-13",
+      "description": "CARD SETTLEMENT BATCH 61658",
+      "debit": null,
+      "credit": "80.42",
+      "balance": "9140.06"
+    },
+    {
+      "date": "2026-02-14",
+      "description": "JomPAY FROM Rimba Makmur Indah Tekstil REF 476198",
+      "debit": null,
+      "credit": "270.90",
+      "balance": "9410.96"
+    },
+    {
+      "date": "2026-02-15",
+      "description": "DuitNow FROM 云林山服务 REF 172103",
+      "debit": null,
+      "credit": "275.31",
+      "balance": "9686.27"
+    },
+    {
+      "date": "2026-02-15",
+      "description": "DuitNow FROM Rimba Makmur Indah Tekstil REF 472731",
+      "debit": null,
+      "credit": "250.99",
+      "balance": "9937.26"
+    },
+    {
+      "date": "2026-02-16",
+      "description": "JomPAY FROM Rimba Makmur Indah Tekstil REF 830901",
+      "debit": null,
+      "credit": "211.21",
+      "balance": "10148.47"
+    },
+    {
+      "date": "2026-02-16",
+      "description": "DuitNow FROM 云林山服务 REF 161818",
+      "debit": null,
+      "credit": "262.45",
+      "balance": "10410.92"
+    },
+    {
+      "date": "2026-02-16",
+      "description": "DuitNow TO 青桥山服务 REF 395625",
+      "debit": "246.34",
+      "credit": null,
+      "balance": "10164.58"
+    },
+    {
+      "date": "2026-02-18",
+      "description": "CUSTOMER REFUND",
+      "debit": "9.85",
+      "credit": null,
+      "balance": "10154.73"
+    },
+    {
+      "date": "2026-02-19",
+      "description": "PAYROLL JomPAY Gaji",
+      "debit": "627.03",
+      "credit": null,
+      "balance": "9527.70"
+    },
+    {
+      "date": "2026-02-20",
+      "description": "LOAN REPAYMENT",
+      "debit": "153.42",
+      "credit": null,
+      "balance": "9374.28"
+    },
+    {
+      "date": "2026-02-21",
+      "description": "INTEREST CREDIT",
+      "debit": null,
+      "credit": "0.63",
+      "balance": "9374.91"
+    },
+    {
+      "date": "2026-02-22",
+      "description": "IBG FROM Rimba Makmur Indah Tekstil REF 961850",
+      "debit": null,
+      "credit": "227.21",
+      "balance": "9602.12"
+    },
+    {
+      "date": "2026-02-23",
+      "description": "IBG TO Cedar Ridge Petal Services REF 660559",
+      "debit": "360.36",
+      "credit": null,
+      "balance": "9241.76"
+    },
+    {
+      "date": "2026-02-24",
+      "description": "IBG FROM 云林山服务 REF 835567",
+      "debit": null,
+      "credit": "253.63",
+      "balance": "9495.39"
+    },
+    {
+      "date": "2026-02-24",
+      "description": "BANK FEES",
+      "debit": "2.57",
+      "credit": null,
+      "balance": "9492.82"
+    },
+    {
+      "date": "2026-02-27",
+      "description": "JomPAY FROM 云林山服务 REF 551434",
+      "debit": null,
+      "credit": "226.76",
+      "balance": "9719.58"
+    },
+    {
+      "date": "2026-02-28",
+      "description": "DuitNow FROM 云林山服务 REF 620625",
+      "debit": null,
+      "credit": "218.59",
+      "balance": "9938.17"
+    },
+    {
+      "date": "2026-02-28",
+      "description": "GST TAX Cukai",
+      "debit": "88.55",
+      "credit": null,
+      "balance": "9849.62"
+    }
+  ]
+}

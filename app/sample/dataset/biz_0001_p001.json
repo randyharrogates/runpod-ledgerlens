@@ -1,0 +1,139 @@
+{
+  "doc_type": "statement",
+  "bank_name": "Rimba Bintang Bank",
+  "account_holder": "Bukit Sentosa Emas Tekstil",
+  "account_number_masked": "****9215",
+  "period_start": "2026-01-01",
+  "period_end": "2026-06-30",
+  "currency": "SGD",
+  "opening_balance": "35209.70",
+  "closing_balance": "58974.23",
+  "transactions": [
+    {
+      "date": "2026-01-01",
+      "description": "LOAN REPAYMENT",
+      "debit": "2495.80",
+      "credit": null,
+      "balance": "32713.90"
+    },
+    {
+      "date": "2026-01-01",
+      "description": "INTEREST CREDIT",
+      "debit": null,
+      "credit": "8.30",
+      "balance": "32722.20"
+    },
+    {
+      "date": "2026-01-03",
+      "description": "FAST FROM 金山叶商贸 REF 793924",
+      "debit": null,
+      "credit": "7150.90",
+      "balance": "39873.10"
+    },
+    {
+      "date": "2026-01-04",
+      "description": "FAST TO 云光桥服务 REF 135506",
+      "debit": "5670.07",
+      "credit": null,
+      "balance": "34203.03"
+    },
+    {
+      "date": "2026-01-04",
+      "description": "FX CONVERSION USD",
+      "debit": "502.36",
+      "credit": null,
+      "balance": "33700.67"
+    },
+    {
+      "date": "2026-01-06",
+      "description": "GIRO FROM Cahaya Utama Damai Niaga REF 311823",
+      "debit": null,
+      "credit": "7403.01",
+      "balance": "41103.68"
+    },
+    {
+      "date": "2026-01-06",
+      "description": "CUSTOMER REFUND",
+      "debit": "185.10",
+      "credit": null,
+      "balance": "40918.58"
+    },
+    {
+      "date": "2026-01-07",
+      "description": "PayNow FROM Cedar Cloud Petal Foods REF 217395",
+      "debit": null,
+      "credit": "5858.65",
+      "balance": "46777.23"
+    },
+    {
+      "date": "2026-01-08",
+      "description": "CARD SETTLEMENT BATCH 67507",
+      "debit": null,
+      "credit": "3480.02",
+      "balance": "50257.25"
+    },
+    {
+      "date": "2026-01-11",
+      "description": "RENT Sewa 租金",
+      "debit": "3423.73",
+      "credit": null,
+      "balance": "46833.52"
+    },
+    {
+      "date": "2026-01-13",
+      "description": "PayNow FROM Bayu Damai Sentosa Dagang REF 305396",
+      "debit": null,
+      "credit": "6289.90",
+      "balance": "53123.42"
+    },
+    {
+      "date": "2026-01-16",
+      "description": "GST TAX Cukai",
+      "debit": "1007.57",
+      "credit": null,
+      "balance": "52115.85"
+    },
+    {
+      "date": "2026-01-16",
+      "description": "BANK FEES",
+      "debit": "60.85",
+      "credit": null,
+      "balance": "52055.00"
+    },
+    {
+      "date": "2026-01-18",
+      "description": "PayNow FROM 金山叶商贸 REF 542822",
+      "debit": null,
+      "credit": "6759.82",
+      "balance": "58814.82"
+    },
+    {
+      "date": "2026-01-18",
+      "description": "GIRO TO Bukit Hijau Permai Makanan REF 447920",
+      "debit": "6129.92",
+      "credit": null,
+      "balance": "52684.90"
+    },
+    {
+      "date": "2026-01-22",
+      "description": "PayNow FROM Bayu Damai Sentosa Dagang REF 509506",
+      "debit": null,
+      "credit": "6948.84",
+      "balance": "59633.74"
+    },
+    {
+      "date": "2026-01-22",
+      "description": "PAYROLL GIRO Gaji",
+      "debit": "8181.29",
+      "credit": null,
+      "balance": "51452.45"
+    },
+    {
+      "date": "2026-01-23",
+      "description": "GIRO FROM Cahaya Utama Damai Niaga REF 742628",
+      "debit": null,
+      "credit": "7521.78",
+      "balance": "58974.23"
+    }
+  ]
+}

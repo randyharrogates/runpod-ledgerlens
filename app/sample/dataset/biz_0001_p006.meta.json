@@ -1,0 +1,29 @@
+{
+  "business_id": "biz_0001",
+  "page_number": 6,
+  "transaction_offset": 90,
+  "true_closing_balance": "179156.66",
+  "printed_closing_balance": "179156.66",
+  "anomalies": [
+    {
+      "type": "returned_cheque",
+      "transaction_indices": [
+        0
+      ],
+      "label_id": 0,
+      "global_transaction_indices": [
+        90
+      ]
+    }
+  ],
+  "layout_id": "stmt_c",
+  "country": "SG",
+  "uen": "202600001O",
+  "strength": "light",
+  "seed": 1048386555,
+  "rendered": false,
+  "degradation": {
+    "operations": [],
+    "status": "not_applied_no_render"
+  }
+}

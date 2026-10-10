@@ -1,0 +1,12 @@
+{
+  "business_id": "biz_0004",
+  "layout_id": "invoice_a",
+  "anomalies": [],
+  "strength": "heavy",
+  "seed": 1564070056,
+  "rendered": false,
+  "degradation": {
+    "operations": [],
+    "status": "not_applied_no_render"
+  }
+}
