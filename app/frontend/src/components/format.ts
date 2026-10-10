@@ -18,7 +18,7 @@ export function printedDate(value: string | null, pattern?: string | null): stri
 export function number(value: unknown): string {
   return value == null ? '—' : Number(value).toLocaleString('en-US', {maximumFractionDigits: 2});
 }
-export const dollars = (value: number) => `$${number(value)}`;
+export const dollars = (value: number) => `$${value.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
 export function layoutName(value: string): string {
   return (value || 'Layout not reported').replace(/^stmt_([a-z])$/i, (_, letter: string) => `Statement ${letter.toUpperCase()}`).replace(/^invoice_([a-z])$/i, (_, letter: string) => `Invoice ${letter.toUpperCase()}`);
 }

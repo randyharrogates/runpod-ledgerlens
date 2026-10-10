@@ -6,11 +6,8 @@ import { Term } from './Term';
 export const scoreKey = (key: string) => key === 'ft' ? '4b-ft' : key;
 export type ModelOutput = {rows: Row[]; matched?: (boolean | null)[]; matched_indices?: (number | null)[]; row_f1?: number; status: string; error?: string; metrics?: Record<string, unknown>; source?: string};
 export type Example = {id: string; currency?: string; doc_type: string; meta: Record<string, unknown>; gold_rows: Row[]; models: Record<string, ModelOutput>};
-export async function getJSON<T>(path: string, options?: RequestInit): Promise<T> {
-  const response = await fetch(path, options);
-  if (!response.ok) { const body = await response.json().catch(() => ({})); throw new Error(typeof body.detail === 'string' ? body.detail : `Request failed (${response.status})`); }
-  return response.json();
-}
+export { getJSON } from '../request';
+import { getJSON } from '../request';
 const n = (v: unknown) => Number(v || 0);
 export function verdict(gold: Row, rows: Row[], matched?: boolean | null, invoice = false): string {
   if (matched === true) return '✓ right';
@@ -25,7 +22,7 @@ export function verdict(gold: Row, rows: Row[], matched?: boolean | null, invoic
 }
 export function LineTable({example}: {example: Example}) {
   const invoice = example.doc_type !== 'statement';
-  return <article><h2>Line by line, side by side</h2><p><Term name="row F1" label="Lines read right (row F1)" /> · {example.currency || 'Currency not reported'}</p><div className="table-scroll"><table className="compare-table"><thead><tr><th>Line</th><th>What the page says</th>{models.map(m => <th key={m.key}>{m.name}</th>)}</tr></thead><tbody>{example.gold_rows.map((gold, i) => <tr key={i}><td>{i + 1}</td><td>{invoice ? Object.entries(gold).map(([k,v]) => `${k.replaceAll('_',' ')}: ${['quantity','unit_price','amount'].includes(k) && v != null ? number(v) : v ?? '—'}`).join(' · ') : `${printedDate(gold.date).replace(/ \d{4}$/, '')} · ${gold.description}${Number(gold.debit) ? ` · out ${number(gold.debit)}` : ''}${Number(gold.credit) ? ` · in ${number(gold.credit)}` : ''}`}</td>{models.map(m => {const output = example.models[scoreKey(m.key)]; const flag = output?.matched?.[i]; return <td key={m.key} className={flag === true ? 'good' : flag === false ? 'orange' : ''}>{verdict(gold, output?.rows || [], flag, invoice)}</td>;})}</tr>)}</tbody></table></div>{!example.gold_rows.length && <p>No known answers for this page. The outputs below are ungraded.</p>}</article>;
+  return <article><h2>Line by line, side by side</h2><p><Term name="row F1" label="Lines read right (row F1)" /> · {example.currency || 'Currency not reported'}</p><div className="table-scroll"><table className="compare-table" data-tour="compare"><thead><tr><th>Line</th><th>What the page says</th>{models.map(m => <th key={m.key}>{m.name}</th>)}</tr></thead><tbody>{example.gold_rows.map((gold, i) => <tr key={i}><td>{i + 1}</td><td>{invoice ? Object.entries(gold).map(([k,v]) => `${k.replaceAll('_',' ')}: ${['quantity','unit_price','amount'].includes(k) && v != null ? number(v) : v ?? '—'}`).join(' · ') : `${printedDate(gold.date).replace(/ \d{4}$/, '')} · ${gold.description}${Number(gold.debit) ? ` · out ${number(gold.debit)}` : ''}${Number(gold.credit) ? ` · in ${number(gold.credit)}` : ''}`}</td>{models.map(m => {const output = example.models[scoreKey(m.key)]; const flag = output?.matched?.[i]; return <td key={m.key} className={flag === true ? 'good' : flag === false ? 'orange' : ''}>{verdict(gold, output?.rows || [], flag, invoice)}</td>;})}</tr>)}</tbody></table></div>{!example.gold_rows.length && <p>No known answers for this page. The outputs below are ungraded.</p>}</article>;
 }
 export function Compare({session, pages, status}: {session: string; pages: Page[]; status: Record<string, unknown>}) {
   const [mode, setMode] = useState(pages.length ? 'live' : 'recorded');

@@ -40,11 +40,11 @@ export function Documents({
       <div className="pages">
         {pages.map(page => (
           <article key={page.id}>
-            <img src={page.thumbnail_url} alt={`Page ${page.id}`} onClick={() => {
+            <button className="page-thumbnail" aria-label={`Check rows from ${page.id}`} onClick={() => {
               setSelected(page.id);
               setRow(-1);
               setTab('Review');
-            }} />
+            }}><img src={page.thumbnail_url} alt={`Page ${page.id}`} /></button>
             <div>
               {page.id}
               <span className={`chip ${page.status === 'error' ? 'bad' : ''}`}>{page.status}</span>

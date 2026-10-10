@@ -247,7 +247,7 @@ const quickHtml = render(React.createElement(RunView,{run:quick}));
 assert(quickHtml.includes('Quick check passed, no scores'));assert(quickHtml.includes('simulated, no GPU used'));assert(quickHtml.includes('Simulated Pod deleted'));
 assert(runLabel(quick).includes('simulated, no GPU used'));
 const f = require('./src/components/format.ts');
-assert.equal(f.number('50000'),'50,000');assert.equal(f.dollars(300),'$300');assert.equal(f.money('114800','IDR'),'114,800');assert.equal(f.printedDate('2026-04-06'),'6 Apr 2026');assert.equal(f.monthName('2026-01'),'Jan 2026');
+assert.equal(f.number('50000'),'50,000');assert.equal(f.dollars(300),'$300.00');assert.equal(f.money('114800','IDR'),'114,800');assert.equal(f.printedDate('2026-04-06'),'6 Apr 2026');assert.equal(f.monthName('2026-01'),'Jan 2026');
 assert.equal(f.metadata({layout_id:'stmt_e',strength:'medium'},'IDR'),'Statement E (held back) · medium photo damage · Indonesian rupiah');
 assert.equal(f.groupName('test_unseen_layout'),'final test, unseen layout');
 const {models} = require('./src/models.ts');
@@ -262,7 +262,54 @@ const lines = render(React.createElement(LineTable,{example:{id:'p',doc_type:'st
 assert(lines.includes('6 Apr · ATM WITHDRAWAL · out 114,800'));assert(!lines.includes('money in 0'));
 const {Cost} = require('./src/components/Cost.tsx');
 const cost = render(React.createElement(Cost,{history:[]}));
-assert(cost.includes('value="50,000"'));assert.equal((cost.match(/warm on RTX 5090/g)||[]).length,1);assert(cost.includes('$300 to $330'));
+assert(cost.includes('value="50,000"'));assert.equal((cost.match(/warm on RTX 5090/g)||[]).length,1);assert(cost.includes('$300.00 to $330.00'));
+"""
+    result = subprocess.run(
+        ["node", "-e", script], cwd=FRONTEND, capture_output=True, text=True
+    )
+    assert result.returncode == 0, result.stderr
+
+
+def test_final_cycle_presenter_exports_and_reported_run():
+    if not shutil.which("node") or not (FRONTEND / "node_modules/typescript").exists():
+        pytest.skip("Frontend node_modules and Node are required")
+    script = r"""
+const fs=require('fs'), assert=require('assert'), ts=require('typescript');
+require.extensions['.tsx']=require.extensions['.ts']=(module,filename)=>module._compile(ts.transpileModule(fs.readFileSync(filename,'utf8'),{compilerOptions:{target:ts.ScriptTarget.ES2022,esModuleInterop:true,module:ts.ModuleKind.CommonJS,jsx:ts.JsxEmit.ReactJSX}}).outputText,filename);
+const React=require('react'), {renderToStaticMarkup:render}=require('react-dom/server');
+const {tour}=require('./src/tour.ts');
+assert.equal(tour.length,7);assert(tour.every(s=>s.route.startsWith('/') && s.words && s.title && s.end>s.start));assert(tour[6].end<=180);assert.equal(tour.reduce((sum,s)=>sum+s.end-s.start,0),180);
+const source=fs.readFileSync('../../docs/ui-mockups/tour-script.md','utf8');
+const words=[...source.matchAll(/\n"(.*?)"/g)].map(m=>m[1]);assert.deepEqual(tour.map(s=>s.words),words);
+assert.deepEqual(tour.map(s=>s.route),['/','/','/','/compare','/results','/cost','/training']);assert.deepEqual(tour.slice(0,3).map(s=>s.readStep),[2,2,3]);assert.deepEqual(tour[2].readSteps,[3,4]);
+const {Presenter,clockText}=require('./src/components/Presenter.tsx');
+const panel=render(React.createElement(Presenter,{index:0,go:()=>{},exit:()=>{},readMemo:()=>{}}));
+for(const text of ['Step 1 of 7','Back','Next','Exit','Collapse','3:00','0:00–0:40','Presenter tour'])assert(panel.includes(text),text);
+assert(panel.includes(tour[0].words.replaceAll("'",'&#x27;')));
+assert.equal(clockText(180),'3:00');assert.equal(clockText(9),'0:09');
+assert(render(React.createElement(Presenter,{index:2,go:()=>{},exit:()=>{},readMemo:()=>{}})).includes('Open credit memo (Read step 4)'));
+const f=require('./src/components/format.ts');assert.equal(f.dollars(2.7),'$2.70');assert.equal(f.number(50000),'50,000');assert.equal(f.printedDate('2026-04-06'),'6 Apr 2026');
+const {RunView,StageTimeline,stageWidth,TrainingPlanView}=require('./src/components/Training.tsx');
+const summary=JSON.parse(fs.readFileSync('../../eval/summary.json','utf8'));
+const reported=render(React.createElement(RunView,{run:{id:'reported',created:'2026-10-10',dataset:'default',status:'done',stage:'report',result_summary:{evaluation:summary}}}));
+for(const text of ['10 Oct 2026','Same practice pages','RTX PRO 4500','$0.72/h','5 h 46 min','$1.03','96.5%','57.8%','href="/results"'])assert(reported.includes(text),text);
+for(const text of ['Stage:','Spend so far','Elapsed:','No log lines','Pod deletion','progress','Answer in the right format'])assert(!reported.includes(text),text);
+assert.equal(stageWidth(86,346),86/346*100);assert.equal(stageWidth(0,0),0);assert.equal(stageWidth(-1,10),0);assert.equal(stageWidth(20,10),100);
+const timeline=render(React.createElement(StageTimeline,{}));assert(timeline.includes('background:var(--sky)'));assert(!timeline.includes('var(--accent)'));assert(timeline.includes('width:'+String(stageWidth(86,346))+'%'));
+const plan=render(React.createElement(TrainingPlanView,{plan:{simulated:true,gpu:null,price_per_hour:0.72,estimate:{total_minutes:180,total_cost:2.7},cap_usd:5,dataset:'default',steps:[],stock:'Neither supported GPU is available in EU-RO-1'}}));assert(plan.includes('No GPU of the right type is free in Romania right now. A simulation can still run; a real run would wait or fail.'));assert(plan.includes('$2.70'));assert(!plan.includes('Neither supported'));
+const {PageToolbar}=require('./src/components/PageToolbar.tsx');assert(render(React.createElement(PageToolbar,{pages:[{id:'p1',document:{transactions:[]}}],label:()=>'',choose:()=>{},read:()=>{}})).includes('Download all pages (CSV)'));
+const {csvText}=require('./src/components/export.ts');assert.equal(csvText([['a,b','"quoted"','a\nb','=SUM(A1)']]),'"a,b","\"\"quoted\"\"","a\nb","\'=SUM(A1)"');
+const {scoresCSV}=require('./src/components/Results.tsx');const csv=scoresCSV(summary);assert(csv.some(row=>row.includes('Lines read right (row F1)')));assert.equal(csv[0][2],'Trained small model');assert(csvText(csv).includes('0.965'));
+const {DatasetPreview}=require('./src/components/Data.tsx');const preview=render(React.createElement(DatasetPreview,{id:'page',query:'',kind:'html'}));assert(preview.includes('sandbox=""'));assert(preview.includes('width:1240px;height:1754px'));assert(render(React.createElement(DatasetPreview,{id:'page',query:'',kind:'image'})).includes('/image?'));assert(render(React.createElement(DatasetPreview,{id:'page',query:'',kind:null})).includes('No preview available'));
+const css=fs.readFileSync('./src/style.css','utf8');assert(!css.includes('text-transform:capitalize'));assert(css.includes('@media print'));assert(css.includes('.memo .raw-citation {display:inline}'));
+// Clipboard export sends the chosen estimate through the real click handler.
+let states=[50000,'ft',summary,'',''];let idx=0;const original=React.useState;React.useState=()=>[states[idx++],()=>{}];
+let copied='';Object.defineProperty(global,'navigator',{value:{clipboard:{writeText:async value=>{copied=value;}}},configurable:true});
+delete require.cache[require.resolve('./src/components/Cost.tsx')];const {Cost}=require('./src/components/Cost.tsx');
+function findButton(node){if(!node||typeof node!=='object')return null;if(node.type==='button'&&node.props.children==='Copy this estimate')return node;for(const child of [node.props?.children].flat(Infinity)){const result=findButton(child);if(result)return result;}return null;}
+// Call the component with effects disabled to inspect its real click handler.
+const effect=React.useEffect;React.useEffect=()=>{};const tree=Cost({history:[]});React.useEffect=effect;React.useState=original;
+findButton(tree).props.onClick();setImmediate(()=>{assert(copied.includes('50,000 pages/month'));assert(copied.includes('Trained small model'));assert(copied.includes('RTX PRO 4500'));});
 """
     result = subprocess.run(
         ["node", "-e", script], cwd=FRONTEND, capture_output=True, text=True
