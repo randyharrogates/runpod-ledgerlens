@@ -426,3 +426,10 @@ the bottom of each day.
   Also: the fine-tuned endpoint's max workers had become 5 (account ceiling is 10 workers across
   endpoints; the console warned "only 3 remain") — set back to 2. The 8B endpoint was "waiting for
   GPU" (RTX 5090/3090 none free): added the RTX 4090 tier as a third choice.
+- **01:52 — Live check, base 4B** (`app/sample/biz_0000_p004`, heavy, cold start on fresh hosts):
+  queue delay 612 s (image pull on new machines, then engine load 295 s), execution 26.1 s
+  (inference 11.1 s). Valid JSON, header 7/8, rows **0/18** exact: it files incoming payments as
+  debits and leaves the balance empty — the accounting-convention failure the fine-tune fixed
+  (fine-tuned 4B on the same page: 14/18; 8B zero-shot: 7/18). Weights from the model cache
+  (snapshot `ebb281e`). The worker reported no GPU name on this host (neither `RUNPOD_GPU_TYPE` nor
+  `nvidia-smi` answered); noted for the next worker fix.
