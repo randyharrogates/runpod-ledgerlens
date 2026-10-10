@@ -2,7 +2,7 @@ export function money(value: unknown, currency = 'SGD', code = false): string {
   if (value == null || value === '') return '—';
   const digits = currency === 'IDR' ? 0 : 2;
   const number = Number(value).toLocaleString('en-SG', {
-    minimumFractionDigits: 0,
+    minimumFractionDigits: digits,
     maximumFractionDigits: digits,
   });
   return code ? `${currency} ${number}` : number;

@@ -25,9 +25,10 @@ export function LineTable({example}: {example: Example}) {
   return <article><h2>Line by line, side by side</h2><p><Term name="row F1" label="Lines read right (row F1)" /> · {example.currency || 'Currency not reported'}</p><div className="table-scroll"><table className="compare-table" data-tour="compare"><thead><tr><th>Line</th><th>What the page says</th>{models.map(m => <th key={m.key}>{m.name}</th>)}</tr></thead><tbody>{example.gold_rows.map((gold, i) => <tr key={i}><td>{i + 1}</td><td>{invoice ? Object.entries(gold).map(([k,v]) => `${k.replaceAll('_',' ')}: ${['quantity','unit_price','amount'].includes(k) && v != null ? number(v) : v ?? '—'}`).join(' · ') : `${printedDate(gold.date).replace(/ \d{4}$/, '')} · ${gold.description}${Number(gold.debit) ? ` · out ${number(gold.debit)}` : ''}${Number(gold.credit) ? ` · in ${number(gold.credit)}` : ''}`}</td>{models.map(m => {const output = example.models[scoreKey(m.key)]; const flag = output?.matched?.[i]; return <td key={m.key} className={flag === true ? 'good' : flag === false ? 'orange' : ''}>{verdict(gold, output?.rows || [], flag, invoice)}</td>;})}</tr>)}</tbody></table></div>{!example.gold_rows.length && <p>No known answers for this page. The outputs below are ungraded.</p>}</article>;
 }
 export function Compare({session, pages, status}: {session: string; pages: Page[]; status: Record<string, unknown>}) {
-  const [mode, setMode] = useState(pages.length ? 'live' : 'recorded');
+  const requested = typeof location === 'undefined' ? null : new URLSearchParams(location.search).get('example');
+  const [mode, setMode] = useState(requested || !pages.length ? 'recorded' : 'live');
   const [list, setList] = useState<{id: string}[]>([]);
-  const [recorded, setRecorded] = useState('biz_0007_p006');
+  const [recorded, setRecorded] = useState(requested || 'biz_0007_p006');
   const [pageId, setPageId] = useState(pages[0]?.id || '');
   const [example, setExample] = useState<Example | null>(null);
   const [error, setError] = useState('');

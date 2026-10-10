@@ -45,7 +45,7 @@ function App() {
   useEffect(() => { const poll = () => { void refreshRuns().catch(() => {}); }; poll(); const timer = setInterval(poll, 5000); return () => clearInterval(timer); }, []);
   const [presenter, setPresenter] = useState(false);
   const [tourIndex, setTourIndex] = useState(0);
-  function tourGo(index: number) { setTourIndex(index); navigate(tour[index].route); if (tour[index].readStep) setTab(['Documents','Review','Analysis','Memo'][tour[index].readStep! - 1]); }
+  function tourGo(index: number) { setTourIndex(index); navigate(tour[index].route + ((tour[index] as {query?: string}).query || '')); if (tour[index].readStep) setTab(['Documents','Review','Analysis','Memo'][tour[index].readStep! - 1]); }
 
   useEffect(() => {
     if (!busy) return;
