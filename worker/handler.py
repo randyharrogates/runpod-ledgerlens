@@ -44,7 +44,8 @@ def resolve_model(cache_root=Path("/runpod-volume/huggingface-cache/hub")):
     if path := os.getenv("MODEL_PATH"):
         if not Path(path).is_dir():
             raise ValueError(f"MODEL_PATH is not a local directory: {path}")
-        return path, "baked"
+        # A path on the network volume is reported as such; anything else was baked into the image.
+        return path, "volume" if path.startswith("/runpod-volume/") else "baked"
     name = os.getenv("MODEL_NAME", "Qwen/Qwen3-VL-8B-Instruct")
     snapshots = Path(cache_root) / ("models--" + name.replace("/", "--")) / "snapshots"
     candidates = (

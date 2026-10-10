@@ -177,6 +177,10 @@ def test_resolve_model(tmp_path, monkeypatch, caplog):
     assert worker.resolve_model(tmp_path) == (str(second), "cache")
     monkeypatch.setenv("MODEL_PATH", str(tmp_path))
     assert worker.resolve_model(tmp_path) == (str(tmp_path), "baked")
+    # Weights on the network volume are reported as "volume" (the directory check is faked).
+    monkeypatch.setenv("MODEL_PATH", "/runpod-volume/ledgerlens/main/merged")
+    monkeypatch.setattr(type(tmp_path), "is_dir", lambda self: True)
+    assert worker.resolve_model(tmp_path)[1] == "volume"
 
 
 def test_engine_launch(monkeypatch, tmp_path):
