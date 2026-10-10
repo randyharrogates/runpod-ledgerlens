@@ -60,15 +60,13 @@ pass the HF identifier to vLLM for download. Baked weights use MODEL_PATH.
   served from Runpod's model cache (`--model-reference
   https://huggingface.co/Qwen/Qwen3-VL-8B-Instruct:main`, pinned commit); container disk 40 GB;
   workers 0/2, idle 60 s, FlashBoot, queue-delay scaling 4 s, execution timeout 600 s, CUDA ≥ 12.9.
-- **Fine-tuned 4B endpoint:** same template, created with the CLI:
-
-  ```sh
-  runpodctl serverless create --name ledgerlens-4b-ft --template-id ej6398fg30 \
-    --gpu-id "NVIDIA RTX PRO 4500 Blackwell" --data-center-ids EU-RO-1 \
-    --network-volume-id 0kelufi0wo --env MODEL_PATH=/runpod-volume/ledgerlens/main/merged \
-    --workers-min 0 --workers-max 2 --idle-timeout 60 --min-cuda-version 12.9
-  ```
-
+- **Fine-tuned 4B endpoint** `5078uudfkeaw2v` (template `avnw8y6zs7`, created 11 Oct): same repo,
+  branch and Dockerfile, created in the console (New endpoint → GitHub repository), so it reuses the
+  same build. Env `MODEL_PATH=/runpod-volume/ledgerlens/main/merged`, `MAX_MODEL_LEN=8192`,
+  `GPU_MEM_UTIL=0.92`; network volume `0kelufi0wo` (pins EU-RO-1); GPUs 32 GB PRO then 24 GB PRO
+  (RTX 5090, RTX 4090); the rest as the 8B. Two things that don't work: one template can't serve two
+  endpoints (`runpodctl serverless create --template-id` refuses), and a hand-made template can't
+  pull an image built by the GitHub integration (workers loop on "Failed to get Hub registry auth").
   The merged weights stay on the network volume the training Pod wrote them to, so swapping models
   needs no rebuild or upload; the cost is that the endpoint is pinned to the volume's data centre.
 - **Calling it:** `python worker/client.py extract --endpoint-id ID --image page.png --doc-type
