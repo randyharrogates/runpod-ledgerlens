@@ -5,12 +5,13 @@ import io
 import json
 import logging
 import os
+import re
 import secrets
 import socket
 import threading
 import time
 from datetime import date
-from decimal import Decimal
+from decimal import Decimal, InvalidOperation
 from pathlib import Path
 from typing import Literal
 
@@ -409,7 +410,7 @@ def describe_finding(finding, pages, currency):
         return f"Round trip · {amount(finding['amount'], currency)} out to {name} on {when(row)}, back on {when(rows[1])}"
     if kind == "large_cash_deposit":
         ratio = Decimal(finding["amount"]) / Decimal(finding["median_inflow"])
-        return f"Large cash deposit · {amount(finding['amount'], currency)} · {ratio:.1f}× the median credit"
+        return f"Large cash deposit · {amount(finding['amount'], currency)} · {when(row)} · {row['description']} · {ratio:.1f}× the median credit"
     if kind == "unreconciled_page":
         return f"Unreconciled page · printed closing balance off by {amount(abs(Decimal(finding['difference'])), currency)}"
     if kind == "customer_concentration":
@@ -527,6 +528,52 @@ def event(kind, data):
     return f"event: {kind}\ndata: {json.dumps(clean(data))}\n\n"
 
 
+MEMO_NUMBER = re.compile(r"\d+(?:\.\d+)?%|\d{1,3}(?:,\d{3})+(?:\.\d+)?|\d+\.\d+")
+MEMO_CITATION = re.compile(r"\[p\d+:r\d+[^\]]*\]")
+
+
+def unverified_memo_numbers(text, payload):
+    """Compare memo figures with supplied analysis values, including rounded forms."""
+    allowed = set()
+
+    def add(value, share=False):
+        number = Decimal(str(value).replace(",", "").rstrip("%"))
+        if not number.is_finite():
+            return
+        allowed.add(number)
+        allowed.update(round(number, places) for places in (0, 1, 2))
+        if share and 0 <= number <= 1:
+            allowed.update(round(number * 100, places) for places in (0, 1, 2))
+
+    def collect(value, name=""):
+        if isinstance(value, dict):
+            for key, item in value.items():
+                collect(item, key)
+        elif isinstance(value, (list, tuple)):
+            for item in value:
+                collect(item, name)
+        elif isinstance(value, (int, float, Decimal)) and not isinstance(value, bool):
+            add(value, name == "share")
+        elif isinstance(value, str):
+            try:
+                add(value, name == "share")
+            except InvalidOperation:
+                pass
+            for match in MEMO_NUMBER.finditer(MEMO_CITATION.sub("", value)):
+                add(match.group())
+
+    collect(payload)
+    unverified = []
+    for match in MEMO_NUMBER.finditer(MEMO_CITATION.sub("", text)):
+        token = match.group()
+        number = Decimal(token.replace(",", "").rstrip("%"))
+        if token not in unverified and not any(
+            abs(number - value) <= Decimal("0.005") for value in allowed
+        ):
+            unverified.append(token)
+    return unverified
+
+
 @app.get("/api/sessions/{s}/memo")
 def memo(s: str, model: Literal["8b", "ft"] = "8b"):
     computed = analysis(s)
@@ -536,7 +583,7 @@ def memo(s: str, model: Literal["8b", "ft"] = "8b"):
         # Rebuild the payload so the analysis and cached demo retain zero-based rows.
         if isinstance(value, dict):
             if "page_id" in value and "row_index" in value:
-                return f"{value['page_id']}:r{value['row_index'] + 1}"
+                return f"[{value['page_id']}:r{value['row_index'] + 1}]"
             return {name: memo_analysis(item) for name, item in value.items()}
         if isinstance(value, list):
             return [memo_analysis(item) for item in value]
@@ -549,16 +596,20 @@ def memo(s: str, model: Literal["8b", "ft"] = "8b"):
                 yield event("chunk", {"delta": cached_memo(computed)})
                 final["source"] = "cached-demo"
             else:
+                payload = memo_analysis(computed)
+                deltas = []
                 for chunk in memo_chunks(
-                    endpoint, {"task": "memo", "analysis": memo_analysis(computed)}, key
+                    endpoint, {"task": "memo", "analysis": payload}, key
                 ):
                     if chunk.get("error"):
                         raise RuntimeError("Worker failed")
                     if chunk.get("delta"):
+                        deltas.append(chunk["delta"])
                         yield event("chunk", {"delta": chunk["delta"]})
                     if chunk.get("done"):
                         final.update({k: v for k, v in chunk.items() if k != "done"})
                 final["source"] = "runpod"
+                final["unverified"] = unverified_memo_numbers("".join(deltas), payload)
         except Exception:
             yield event(
                 "error",

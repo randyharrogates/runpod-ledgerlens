@@ -494,3 +494,28 @@ the bottom of each day.
   sandbox. Live memo: citations now match the Analysis tab (returned cheque p1:r4, cash deposit
   p2:r8, unreconciled p4:r17, round trip p3:r17); clicking [p1:r4] lands on "RETURNED CHEQUE
   1,499.51" (`dryrun-5-memo-fixed.png`, `dryrun-6-citation-jump.png`).
+- **02:27 — The memo model does arithmetic, and gets it wrong.** Checking the live memo's numbers by
+  hand: "Total Outflow SGD 54,987.85" — the three months sum to 55,041.59 (the 02:17 memo said
+  54,539.59, also wrong), and its net was derived from it. The analysis has no period totals, so the
+  model added them despite "Do not calculate". The UI's "the model only writes the prose" was not
+  true. Fix sent to Codex: period totals computed in `analytics.py`; after a live memo the backend
+  checks every money-like number and percentage against the analysis it was given, and the UI
+  highlights any that don't match. No worker rebuild (prompt unchanged).
+- **02:28–02:40 — Number check reviewed and verified live; two more model slips fixed.**
+  - Codex's change reviewed: `period_totals` in `analytics.py` (Decimal); `unverified_memo_numbers()`
+    compares every money-like number and percentage in a live memo (citations ignored) with the
+    values and finding texts the model was given, rounded forms allowed; the UI highlights misses
+    and shows a warning. 224 tests pass; frontend test and type check run outside the sandbox.
+  - Live (02:30): totals now right (outflow 55,041.59, net 34,177.07), nothing flagged. The check run
+    on the live memo text returns `[]`; on the old wrong total it returns `['54,987.85']`.
+  - New slip 1: that memo wrote citations as `(p1:r2)` and `(p1:r1–p1:r18)`, not clickable. Fixed
+    directly: the payload now carries `"[p1:r4]"` (brackets, which the model copies) and the renderer
+    also accepts round brackets, bare refs and page-qualified ranges. Live (02:36): all citations
+    are buttons.
+  - New slip 2: the 02:36 memo dated the large cash deposit "6 Mar"; the row is 30 Jan (CASH
+    LODGEMENT). The finding gave no date, so the model invented one; the number check covers
+    amounts, not dates. Fixed: the finding now reads "SGD 12,071.87 · 30 Jan · CASH LODGEMENT ·
+    6.3× the median credit", and the median is rounded to cents (the memo had copied "1,929.095").
+  - Lesson: each fix was found by reading the live output against the data, not by
+    tests. Give the model every fact it needs (totals, dates) so it has nothing to make up, and
+    check what it writes.

@@ -150,7 +150,7 @@ def detect_anomalies(
                 {
                     "type": "large_cash_deposit",
                     "amount": row.credit,
-                    "median_inflow": reference,
+                    "median_inflow": reference.quantize(Decimal("0.01")),
                     "citations": [citation],
                 }
             )
@@ -230,8 +230,17 @@ def analyze(statements: list[Statement], page_ids: list[str] | None = None) -> d
         else None
     )
     minimum = min((value for value, _ in balances), default=None)
+    inflow = sum((bucket["inflow"] for bucket in monthly.values()), ZERO)
+    outflow = sum((bucket["outflow"] for bucket in monthly.values()), ZERO)
     return {
         "monthly": dict(sorted(monthly.items())),
+        "period_totals": {
+            "inflow": inflow,
+            "outflow": outflow,
+            "net": inflow - outflow,
+            "months": len(monthly),
+            "full_months": sum(not bucket["partial"] for bucket in monthly.values()),
+        },
         "average_balance": {
             "value": average,
             "citations": [citation for _, citation in balances],

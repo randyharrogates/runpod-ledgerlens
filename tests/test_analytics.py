@@ -161,3 +161,39 @@ def test_month_coverage_uses_global_transaction_range(
     assert months["2024-02"]["days_observed"] == 29
     assert months["2024-03"]["partial"] is (end_day != 31)
     assert months["2024-03"]["days_observed"] == end_day
+
+
+def test_period_totals_two_months(ledger):
+    from datetime import date
+
+    from ledgerlens.schema import Transaction
+
+    statement = ledger.statement.model_copy(deep=True)
+    statement.transactions = [
+        Transaction(
+            date=date(2026, 1, 1), description="FROM Cedar Foods", credit="100.25"
+        ),
+        Transaction(
+            date=date(2026, 1, 31), description="TO Cedar Foods", debit="20.15"
+        ),
+        Transaction(
+            date=date(2026, 2, 10), description="FROM Cedar Foods", credit="50.10"
+        ),
+        Transaction(
+            date=date(2026, 2, 15), description="TO Cedar Foods", debit="10.05"
+        ),
+    ]
+    assert analyze([statement])["period_totals"] == {
+        "inflow": Decimal("150.35"),
+        "outflow": Decimal("30.20"),
+        "net": Decimal("120.15"),
+        "months": 2,
+        "full_months": 1,
+    }
+    assert analyze([])["period_totals"] == {
+        "inflow": Decimal(0),
+        "outflow": Decimal(0),
+        "net": Decimal(0),
+        "months": 0,
+        "full_months": 0,
+    }

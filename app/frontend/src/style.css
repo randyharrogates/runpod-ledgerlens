@@ -527,3 +527,5 @@ progress {
 .evaluation-results th {
   text-transform: none;
 }
+
+.unverified { background: #fff0bd; }
