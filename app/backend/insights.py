@@ -10,6 +10,7 @@ from fastapi.responses import FileResponse
 from ledgerlens.insights import (
     STRENGTHS,
     dataset_summary,
+    expand_page_index,
     page_index,
     read_json,
     results_breakdown,
@@ -20,7 +21,11 @@ ROOT = Path(__file__).resolve().parents[2]
 router = APIRouter()
 
 
-def data_source():
+def data_source(dataset=None):
+    if dataset and dataset != "default":
+        from app.backend.datasets import upload_path
+
+        return upload_path(dataset), "uploaded-data"
     value = os.getenv("LEDGERLENS_DATA")
     if value and Path(value).is_dir():
         return Path(value), "local-data"
@@ -33,12 +38,12 @@ def summary_file(name):
 
 
 @router.get("/api/dataset/summary")
-def summary():
-    root, source = data_source()
+def summary(dataset: str | None = None):
+    root, source = data_source(dataset)
     return {
         **(
             dataset_summary(root)
-            if source == "local-data"
+            if source in ("local-data", "uploaded-data")
             else summary_file("dataset_summary")
         ),
         "source": source,
@@ -47,6 +52,7 @@ def summary():
 
 @router.get("/api/dataset/pages")
 def pages(
+    dataset: str | None = None,
     split: str | None = None,
     layout: str | None = None,
     doc_type: str | None = None,
@@ -56,8 +62,13 @@ def pages(
     limit: int = Query(50, ge=1, le=100),
     offset: int = Query(0, ge=0),
 ):
-    root, source = data_source()
-    index = page_index(root) if source == "local-data" else summary_file("page_index")
+    root, source = data_source(dataset)
+    index = (
+        page_index(root)
+        if source in ("local-data", "uploaded-data")
+        else summary_file("page_index")
+    )
+    index = expand_page_index(index)
     selected = []
     for p in index.get("pages", []):
         strength = (
@@ -91,7 +102,7 @@ def pages(
         selected.append(
             {
                 **p,
-                "detail_available": source == "local-data"
+                "detail_available": source in ("local-data", "uploaded-data")
                 or (root / (p["id"] + ".json")).is_file(),
             }
         )
@@ -104,8 +115,8 @@ def pages(
     }
 
 
-def page_path(page_id, suffix):
-    root, source = data_source()
+def page_path(page_id, suffix, dataset=None):
+    root, source = data_source(dataset)
     path = (root / (page_id + suffix)).resolve()
     if (
         not re.fullmatch(r"[A-Za-z0-9_]+", page_id)
@@ -117,15 +128,24 @@ def page_path(page_id, suffix):
 
 
 @router.get("/api/dataset/pages/{page_id}")
-def detail(page_id: str):
-    gold, source = page_path(page_id, ".json")
-    meta, _ = page_path(page_id, ".meta.json")
+def detail(page_id: str, dataset: str | None = None):
+    gold, source = page_path(page_id, ".json", dataset)
+    meta, _ = page_path(page_id, ".meta.json", dataset)
     return {"document": read_json(gold), "meta": read_json(meta), "source": source}
 
 
 @router.get("/api/dataset/pages/{page_id}/preview")
-def preview(page_id: str):
-    path, source = page_path(page_id, ".html")
+def preview(page_id: str, dataset: str | None = None):
+    try:
+        path, source = page_path(page_id, ".html", dataset)
+    except HTTPException:
+        for suffix in (".png", ".jpg", ".jpeg", ".webp"):
+            try:
+                path, source = page_path(page_id, suffix, dataset)
+                return FileResponse(path, headers={"X-Content-Type-Options": "nosniff"})
+            except HTTPException:
+                pass
+        raise
     return FileResponse(
         path,
         media_type="text/html",

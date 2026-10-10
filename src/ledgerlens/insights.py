@@ -223,3 +223,23 @@ def results_breakdown(results_path, data_dir):
         "splits": output,
         "aggregation": "Per-page macro averages; reconciliation excludes non-statements.",
     }
+
+
+def compact_page_index(index):
+    columns = list(index["pages"][0]) if index["pages"] else []
+    return {
+        "columns": columns,
+        "rows": [[p[k] for k in columns] for p in index["pages"]],
+        "total_pages": len(index["pages"]),
+    }
+
+
+def expand_page_index(index):
+    if "columns" in index:
+        return {
+            "pages": [
+                dict(zip(index["columns"], row, strict=True)) for row in index["rows"]
+            ],
+            "total_pages": index["total_pages"],
+        }
+    return index
