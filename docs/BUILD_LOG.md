@@ -361,3 +361,18 @@ the bottom of each day.
   account spend stayed at the Pod's $0.74/h, so the stuck workers did not bill. Fix: create the
   endpoint in the console from the GitHub repo (`deploy` branch), the way the 8B endpoint was made
   — there is no CLI/API for GitHub-built endpoints — then set `MODEL_PATH` and the volume.
+- **00:20 — Fine-tuned 4B endpoint created in the console** (Claude drove the console in Randy's
+  browser at his request): **`5078uudfkeaw2v`** `ledgerlens-4b-ft`, GitHub repo, branch `deploy`,
+  `worker/Dockerfile` — it reused the existing build (`bf3053a`), no rebuild. Template `avnw8y6zs7`:
+  `MODEL_PATH=/runpod-volume/ledgerlens/main/merged`, `MAX_MODEL_LEN=8192`, `GPU_MEM_UTIL=0.92`,
+  container disk 40 GB. Volume `0kelufi0wo` (pins EU-RO-1). GPUs: 32 GB PRO first (only RTX 5090
+  offered there, Low supply), 24 GB PRO second (RTX 4090) — the 8.3 GB model fits 24 GB. Workers
+  0/2, idle 60 s, FlashBoot, queue delay 4 s, timeout 600 s, CUDA 12.9–13.4; checked with
+  `runpodctl serverless get` / `template get`. Deleted the failed `dckc0m4e4tjgk2` and template
+  `lj49qs9fw3`.
+- **00:31 — Live check, fine-tuned 4B** (`app/sample/biz_0000_p004`, heavy damage, cold start,
+  RTX 5090, weights from the volume — `model` reported as the volume path): valid JSON; execution
+  **6.9 s** (8B on the same page, 9 Oct: 14.0 s); queue delay 214 s, of which engine load 151 s.
+  Header 7/8 (closing balance wrong); rows **14/18** exact (8B zero-shot, same page: 7/18) — one
+  digit misread, one reference digit, and one row cut short ("FAST FROM Goust", wrong amount).
+  Serverless cost warm ≈ 6.9 s × $0.000439/s ≈ **$3.0 per 1,000 pages**, about half the 8B's.
