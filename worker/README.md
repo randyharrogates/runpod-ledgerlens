@@ -25,7 +25,7 @@ Successful extraction has a validated `document`, `valid: true`, a null
 `validation_error`, and no `raw`. Missing required printed fields can fail the
 shared schema; the model is told to return null rather than guess. Memo yields
 `{"delta":"..."}` chunks followed by `{"done":true,"usage":{},"timing":{...}}`.
-Health returns engine status, resolved model, model source (`cache`, `baked`, or
+Health returns engine status, resolved model, model source (`cache`, `volume`, `baked`, or
 `download`), and `engine_load_seconds`. Cold start is true only for the first job,
 including health or invalid jobs. Engine time is load/readiness time; inference
 time excludes Runpod queueing. Runpod supplies its own job timing metadata.

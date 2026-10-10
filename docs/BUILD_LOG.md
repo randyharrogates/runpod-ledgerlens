@@ -282,3 +282,14 @@ the bottom of each day.
   cost. Review fixes: key from `runpodctl` config, a failed call counts as a failed page instead of
   aborting, errors shown. Prepared locally from an identical seed-7 dataset (gold JSON hashes match
   the Pod's): `data/phone/print.pdf` (gitignored). 214 tests.
+- **15:35 — Japan endpoint attempted, not created.** AP-JP-1 stock: H100 SXM and H200 only (both
+  Low). `runpodctl serverless create` from the same template (H100, model cache, 0/1 workers)
+  returned nothing on the first try and a retry was blocked by the session's permission policy for
+  creating shared resources; `serverless list` shows only `szucrtrufff80a`. Needs Randy's go-ahead.
+- **15:39 — Dataset built** (10 min). Real CORD receipts accepted: **771 / 99 / 98** of
+  800 / 100 / 100 (rehearsal: 720 / 96 / 91), after the extra number formats. Train is therefore
+  2,396 synthetic + 771 real = 3,167 examples (24% real); validation 289 + 99.
+- **15:56 — Smoke passed** (16 min): masking preflight 1,040 supervised tokens; loss 0.114 → 0.024
+  over 30 steps; eval loss 0.039 (388 validation pages, 136 s); peak GPU memory 13.1 GB of 32;
+  merged export succeeded and was deleted as designed. **Main training started 15:56** — about
+  396 steps for one epoch (batch 2 × accumulation 4), evaluation every 50 steps.
