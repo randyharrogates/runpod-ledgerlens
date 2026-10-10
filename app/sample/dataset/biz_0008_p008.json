@@ -1,0 +1,125 @@
+{
+  "doc_type": "statement",
+  "bank_name": "Moonreed Bank",
+  "account_holder": "Coral Meadow Pine Foods",
+  "account_number_masked": "****1152",
+  "period_start": "2026-01-01",
+  "period_end": "2026-06-30",
+  "currency": "SGD",
+  "opening_balance": "25431.53",
+  "closing_balance": "26808.83",
+  "transactions": [
+    {
+      "date": "2026-06-14",
+      "description": "ATM WITHDRAWAL",
+      "debit": "27.79",
+      "credit": null,
+      "balance": "25403.74"
+    },
+    {
+      "date": "2026-06-15",
+      "description": "GIRO FROM Dawn Cloud Pine Textiles REF 812372",
+      "debit": null,
+      "credit": "467.37",
+      "balance": "25871.11"
+    },
+    {
+      "date": "2026-06-15",
+      "description": "GIRO FROM Dawn Cloud Pine Textiles REF 173333",
+      "debit": null,
+      "credit": "455.15",
+      "balance": "26326.26"
+    },
+    {
+      "date": "2026-06-16",
+      "description": "PayNow FROM 银叶光纺织 REF 834742",
+      "debit": null,
+      "credit": "436.41",
+      "balance": "26762.67"
+    },
+    {
+      "date": "2026-06-16",
+      "description": "GST TAX Cukai",
+      "debit": "224.13",
+      "credit": null,
+      "balance": "26538.54"
+    },
+    {
+      "date": "2026-06-16",
+      "description": "BANK FEES",
+      "debit": "6.12",
+      "credit": null,
+      "balance": "26532.42"
+    },
+    {
+      "date": "2026-06-18",
+      "description": "PayNow FROM Pelangi Hijau Jaya Niaga REF 937851",
+      "debit": null,
+      "credit": "395.41",
+      "balance": "26927.83"
+    },
+    {
+      "date": "2026-06-18",
+      "description": "GIRO FROM Dawn Cloud Pine Textiles REF 697895",
+      "debit": null,
+      "credit": "446.97",
+      "balance": "27374.80"
+    },
+    {
+      "date": "2026-06-18",
+      "description": "PAYROLL GIRO Gaji",
+      "debit": "1463.76",
+      "credit": null,
+      "balance": "25911.04"
+    },
+    {
+      "date": "2026-06-19",
+      "description": "CUSTOMER REFUND",
+      "debit": "28.38",
+      "credit": null,
+      "balance": "25882.66"
+    },
+    {
+      "date": "2026-06-22",
+      "description": "GIRO FROM 银叶光纺织 REF 741022",
+      "debit": null,
+      "credit": "420.34",
+      "balance": "26303.00"
+    },
+    {
+      "date": "2026-06-23",
+      "description": "GIRO TO Fern Ridge Meadow Trading REF 297238",
+      "debit": "607.62",
+      "credit": null,
+      "balance": "25695.38"
+    },
+    {
+      "date": "2026-06-23",
+      "description": "LOAN REPAYMENT",
+      "debit": "271.09",
+      "credit": null,
+      "balance": "25424.29"
+    },
+    {
+      "date": "2026-06-24",
+      "description": "PayNow FROM 银叶光纺织 REF 337361",
+      "debit": null,
+      "credit": "441.99",
+      "balance": "25866.28"
+    },
+    {
+      "date": "2026-06-25",
+      "description": "GIRO FROM 银叶光纺织 REF 861784",
+      "debit": null,
+      "credit": "460.16",
+      "balance": "26326.44"
+    },
+    {
+      "date": "2026-06-27",
+      "description": "FAST FROM Pelangi Hijau Jaya Niaga REF 389259",
+      "debit": null,
+      "credit": "482.39",
+      "balance": "26808.83"
+    }
+  ]
+}

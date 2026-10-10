@@ -1,0 +1,37 @@
+{
+  "business_id": "biz_0004",
+  "page_number": 1,
+  "transaction_offset": 0,
+  "true_closing_balance": "13195.69",
+  "printed_closing_balance": "13195.69",
+  "anomalies": [
+    {
+      "type": "customer_concentration",
+      "transaction_indices": [
+        1,
+        3,
+        7,
+        9,
+        16
+      ],
+      "label_id": 2,
+      "global_transaction_indices": [
+        1,
+        3,
+        7,
+        9,
+        16
+      ]
+    }
+  ],
+  "layout_id": "stmt_d",
+  "country": "SG",
+  "uen": "202600004Q",
+  "strength": "clean",
+  "seed": 2402053832,
+  "rendered": false,
+  "degradation": {
+    "operations": [],
+    "status": "not_applied_no_render"
+  }
+}

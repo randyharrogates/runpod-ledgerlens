@@ -1,0 +1,19 @@
+{
+  "doc_type": "invoice",
+  "issuer": "海桥林商贸",
+  "recipient": "云林山服务",
+  "invoice_number": "SI/2604/4859",
+  "date": "2026-04-19",
+  "currency": "MYR",
+  "line_items": [
+    {
+      "description": "Dyeing service per kg / Upah celup",
+      "quantity": "18.7",
+      "unit_price": "22.00",
+      "amount": "411.40"
+    }
+  ],
+  "subtotal": "411.40",
+  "tax": "32.91",
+  "total": "444.31"
+}

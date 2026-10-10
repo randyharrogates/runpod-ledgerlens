@@ -1,0 +1,37 @@
+{
+  "doc_type": "invoice",
+  "issuer": "Fern Cove Ridge Commerce",
+  "recipient": "Cedar Cloud Cove Commerce",
+  "invoice_number": "FER/2601/8951",
+  "date": "2026-01-27",
+  "currency": "SGD",
+  "line_items": [
+    {
+      "description": "Delivery charge 运费",
+      "quantity": "12",
+      "unit_price": "42.15",
+      "amount": "505.80"
+    },
+    {
+      "description": "Chicken thigh (kg) 鸡腿肉",
+      "quantity": "34.5",
+      "unit_price": "8.05",
+      "amount": "277.73"
+    },
+    {
+      "description": "Kecap manis 600ml",
+      "quantity": "1",
+      "unit_price": "3.05",
+      "amount": "3.05"
+    },
+    {
+      "description": "Instant noodles carton 40 pcs",
+      "quantity": "12",
+      "unit_price": "22.20",
+      "amount": "266.40"
+    }
+  ],
+  "subtotal": "1052.98",
+  "tax": "94.77",
+  "total": "1147.75"
+}

@@ -1,0 +1,29 @@
+{
+  "business_id": "biz_0002",
+  "page_number": 3,
+  "transaction_offset": 36,
+  "true_closing_balance": "32587779",
+  "printed_closing_balance": "32587779",
+  "anomalies": [
+    {
+      "type": "round_trip",
+      "transaction_indices": [
+        13
+      ],
+      "label_id": 0,
+      "global_transaction_indices": [
+        49
+      ]
+    }
+  ],
+  "layout_id": "stmt_f",
+  "country": "ID",
+  "uen": "202600002T",
+  "strength": "medium",
+  "seed": 2552799181,
+  "rendered": false,
+  "degradation": {
+    "operations": [],
+    "status": "not_applied_no_render"
+  }
+}

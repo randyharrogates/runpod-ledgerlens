@@ -505,3 +505,77 @@ def test_memo_check_catches_plain_integer_amounts_but_not_years():
         "Wrong: SGD 54987. Also wrong: 55,040.59."
     )
     assert main.unverified_memo_numbers(text, payload) == ["54987", "55,040.59"]
+
+
+def test_compare_demo_and_4b(client):
+    s = create(client)
+    p = sample(client, s)[0]
+    item = main.SESSIONS[s]["pages"][p]
+    response = client.post(
+        f"/api/sessions/{s}/pages/{p}/compare", json={"doc_type": "statement"}
+    )
+    body = response.json()
+    assert body["truth_available"]
+    assert all(
+        v["status"] == "offline" and v["metrics"]["source"] == "cached-demo"
+        for v in body["models"].values()
+    )
+    assert item["status"] == "uploaded" and item["document"] is None
+    assert not main.SESSIONS[s]["requests"]
+    assert all(all(v is None for v in r["models"].values()) for r in body["rows"])
+    assert (
+        client.post(
+            f"/api/sessions/{s}/pages/{p}/extract",
+            json={"model": "4b", "doc_type": "statement"},
+        ).status_code
+        == 200
+    )
+
+
+def test_compare_live_error(client, monkeypatch):
+    import threading
+
+    s = create(client)
+    p = sample(client, s)[0]
+    item = main.SESSIONS[s]["pages"][p]
+    monkeypatch.delenv("DEMO_MODE")
+    monkeypatch.setenv("RUNPOD_ENDPOINT_8B", "base")
+    monkeypatch.setenv("RUNPOD_ENDPOINT_FT", "ft")
+    monkeypatch.delenv("RUNPOD_ENDPOINT_4B", raising=False)
+    barrier = threading.Barrier(2)
+
+    def call(endpoint, payload, key):
+        barrier.wait(timeout=5)
+        if endpoint == "ft":
+            raise RuntimeError("failed secret-test-key")
+        return {"output": {"document": item["truth"]}, "executionTime": 1000}
+
+    monkeypatch.setattr(main.worker_client, "call_endpoint", call)
+    result = client.post(
+        f"/api/sessions/{s}/pages/{p}/compare", json={"doc_type": "statement"}
+    ).json()
+    assert result["models"]["8b"]["status"] == "ok"
+    assert result["models"]["ft"]["status"] == "error"
+    assert result["models"]["ft"]["error"] == "RuntimeError: failed [REDACTED]"
+    assert result["models"]["4b"]["status"] == "offline"
+    assert all(r["models"]["8b"] for r in result["rows"])
+    assert item["status"] == "uploaded" and item["document"] is None
+    assert len(main.SESSIONS[s]["requests"]) == 2
+
+
+def test_compare_without_truth(client):
+    s = create(client)
+    client.post(f"/api/sessions/{s}/pages", files={"files": ("ok.png", png())})
+    result = client.post(
+        f"/api/sessions/{s}/pages/p1/compare", json={"doc_type": "statement"}
+    ).json()
+    assert not result["truth_available"] and result["rows"] == []
+    assert all(
+        v["status"] == "offline" and v["document"] is None
+        for v in result["models"].values()
+    )
+
+
+def test_status_4b_offline(client, monkeypatch):
+    monkeypatch.delenv("RUNPOD_ENDPOINT_4B", raising=False)
+    assert client.get("/api/status").json()["4b"] == {"offline": True}

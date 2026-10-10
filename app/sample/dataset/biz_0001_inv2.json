@@ -1,0 +1,43 @@
+{
+  "doc_type": "invoice",
+  "issuer": "Bukit Sentosa Emas Tekstil",
+  "recipient": "Cedar Cloud Petal Foods",
+  "invoice_number": "INV-2026-9708",
+  "date": "2026-03-02",
+  "currency": "SGD",
+  "line_items": [
+    {
+      "description": "Songket panel / Kain songket",
+      "quantity": "50",
+      "unit_price": "93.70",
+      "amount": "4685.00"
+    },
+    {
+      "description": "Buttons assorted 1000 pcs 纽扣",
+      "quantity": "50",
+      "unit_price": "16.35",
+      "amount": "817.50"
+    },
+    {
+      "description": "Zips 20cm, pack of 50",
+      "quantity": "50",
+      "unit_price": "14.40",
+      "amount": "720.00"
+    },
+    {
+      "description": "Dyeing service per kg / Upah celup",
+      "quantity": "3.7",
+      "unit_price": "8.10",
+      "amount": "29.97"
+    },
+    {
+      "description": "Batik cotton fabric (m)",
+      "quantity": "7.1",
+      "unit_price": "13.95",
+      "amount": "99.05"
+    }
+  ],
+  "subtotal": "6351.52",
+  "tax": "571.64",
+  "total": "6923.16"
+}

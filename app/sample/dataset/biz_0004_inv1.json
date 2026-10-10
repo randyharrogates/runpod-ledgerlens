@@ -1,0 +1,31 @@
+{
+  "doc_type": "invoice",
+  "issuer": "Fern Cove Ridge Commerce",
+  "recipient": "Pelangi Indah Sentosa Usaha",
+  "invoice_number": "No. 06480",
+  "date": "2026-02-10",
+  "currency": "SGD",
+  "line_items": [
+    {
+      "description": "Delivery charge 运费",
+      "quantity": "1",
+      "unit_price": "35.85",
+      "amount": "35.85"
+    },
+    {
+      "description": "Frozen prawns 1kg / Udang beku",
+      "quantity": "20",
+      "unit_price": "19.25",
+      "amount": "385.00"
+    },
+    {
+      "description": "Instant noodles carton 40 pcs",
+      "quantity": "20",
+      "unit_price": "18.40",
+      "amount": "368.00"
+    }
+  ],
+  "subtotal": "788.85",
+  "tax": "71.00",
+  "total": "859.85"
+}

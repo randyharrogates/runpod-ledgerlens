@@ -1,5 +1,6 @@
 """Session-scoped demo API. Credentials remain on the server."""
 
+import asyncio
 import base64
 import io
 import json
@@ -23,9 +24,11 @@ from PIL import Image
 from pydantic import BaseModel, ValidationError
 from starlette.concurrency import run_in_threadpool
 
+from app.backend.insights import router as insights_router
 from ledgerlens.analytics import analyze, payer, payer_key
 from ledgerlens.datagen.layouts import LAYOUTS
 from ledgerlens.direction import check_direction
+from ledgerlens.eval.score import score_document
 from ledgerlens.schema import DOCUMENT_ADAPTER, Statement
 from worker import client as worker_client
 
@@ -36,6 +39,7 @@ STATUS_LOCK = threading.Lock()
 STATUS: dict = {"time": 0, "value": {}}
 MAX_BYTES = 15 * 1024 * 1024
 app = FastAPI(title="LedgerLens")
+app.include_router(insights_router)
 
 
 def config(model):
@@ -216,7 +220,7 @@ def sample(s: str):
 
 
 class Extract(BaseModel):
-    model: Literal["8b", "ft"]
+    model: Literal["8b", "ft", "4b"]
     doc_type: Literal["statement", "invoice"]
 
 
@@ -262,6 +266,104 @@ def metrics(result, output, model, source="runpod"):
     )
 
 
+def run_model(item, model, doc_type):
+    endpoint, key = config(model)
+    if os.getenv("DEMO_MODE") == "1" or not endpoint or not key:
+        raise RuntimeError("offline")
+    result = worker_client.call_endpoint(
+        endpoint,
+        {
+            "task": "extract",
+            "doc_type": doc_type,
+            "image_base64": base64.b64encode(item["data"]).decode(),
+        },
+        key,
+    )
+    output = result["output"]
+    if isinstance(output, list):
+        output = output[-1]
+    document = DOCUMENT_ADAPTER.validate_python(output["document"])
+    if document.doc_type != doc_type:
+        raise ValueError("Wrong document type")
+    corrections = []
+    if isinstance(document, Statement):
+        document, corrections = check_direction(document)
+    return document, metrics(result, output, model), corrections
+
+
+class Compare(BaseModel):
+    doc_type: Literal["statement", "invoice"]
+
+
+@app.post("/api/sessions/{s}/pages/{p}/compare")
+async def compare(s: str, p: str, request: Compare):
+    item = page(s, p)
+
+    async def call(model):
+        endpoint, key = config(model)
+        entry = {
+            "status": "offline",
+            "document": None,
+            "metrics": None,
+            "direction_fixes": [],
+            "error": None,
+        }
+        if os.getenv("DEMO_MODE") == "1" or not endpoint or not key:
+            if item["truth"]:
+                entry.update(
+                    document=item["truth"],
+                    metrics=metrics({}, {}, model, "cached-demo"),
+                    source="cached-demo",
+                )
+            return model, entry
+        try:
+            document, measured, corrections = await run_in_threadpool(
+                run_model, item, model, request.doc_type
+            )
+            measured["direction_fixes"] = len(corrections)
+            entry.update(
+                status="ok",
+                document=document.model_dump(mode="json"),
+                metrics=measured,
+                direction_fixes=corrections,
+            )
+            session(s)["requests"].append({"page_id": p, "task": "extract", **measured})
+        except Exception as exc:
+            entry.update(status="error", error=clean(f"{type(exc).__name__}: {exc}"))
+            session(s)["requests"].append(
+                {
+                    "page_id": p,
+                    "task": "extract",
+                    "model": model,
+                    "source": "runpod",
+                    "error": entry["error"],
+                }
+            )
+        return model, entry
+
+    models = dict(await asyncio.gather(*(call(m) for m in ("8b", "ft", "4b"))))
+    rows = []
+    if item["truth"]:
+        truth = item["truth"]
+        field = "transactions" if truth["doc_type"] == "statement" else "line_items"
+        rows = [
+            {"gold_row": i, "models": {m: None for m in models}}
+            for i in range(len(truth[field]))
+        ]
+        for model, entry in models.items():
+            if entry["status"] != "ok":
+                continue
+            matches = {
+                r["gold_row"]
+                for r in score_document(entry["document"], truth)["rows"]["matches"]
+            }
+            for row in rows:
+                row["models"][model] = row["gold_row"] in matches
+    return clean(
+        {"models": models, "truth_available": bool(item["truth"]), "rows": rows}
+    )
+
+
 @app.post("/api/sessions/{s}/pages/{p}/extract")
 async def extract(s: str, p: str, request: Extract):
     item = page(s, p)
@@ -273,29 +375,14 @@ async def extract(s: str, p: str, request: Extract):
     try:
         if os.getenv("DEMO_MODE") == "1" or not endpoint or not key:
             raise RuntimeError("offline")
-        result = await run_in_threadpool(
-            worker_client.call_endpoint,
-            endpoint,
-            {
-                "task": "extract",
-                "doc_type": request.doc_type,
-                "image_base64": base64.b64encode(item["data"]).decode(),
-            },
-            key,
+        document, item["metrics"], corrections = await run_in_threadpool(
+            run_model, item, request.model, request.doc_type
         )
-        output = result["output"]
-        if isinstance(output, list):
-            output = output[-1]
-        document = DOCUMENT_ADAPTER.validate_python(output["document"])
-        if document.doc_type != request.doc_type:
-            raise ValueError("Wrong document type")
-        if isinstance(document, Statement):
-            document, corrections = check_direction(document)
-        item["metrics"] = metrics(result, output, request.model)
     except Exception as exc:
         live_error = None if str(exc) == "offline" else f"{type(exc).__name__}: {exc}"
         if live_error:
             # Never fall back silently: a failed live call must not pass for a working one.
+            live_error = clean(live_error)
             logging.warning("Live extraction of %s failed: %s", p, live_error)
         if item["truth"]:
             corrections = []
@@ -582,7 +669,7 @@ def unverified_memo_numbers(text, payload):
 
 
 @app.get("/api/sessions/{s}/memo")
-def memo(s: str, model: Literal["8b", "ft"] = "8b"):
+def memo(s: str, model: Literal["8b", "ft", "4b"] = "8b"):
     computed = analysis(s)
     endpoint, key = config(model)
 
@@ -653,9 +740,11 @@ def status():
         if time.monotonic() - STATUS["time"] < 3:
             return STATUS["value"]
         value = {}
-        for model in ("8b", "ft"):
+        for model in ("8b", "ft", "4b"):
             endpoint, key = config(model)
-            if endpoint:
+            if not endpoint:
+                value[model] = {"offline": True}
+            else:
                 try:
                     value[model] = (
                         fetch_health(endpoint, key)

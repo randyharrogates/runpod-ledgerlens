@@ -1,0 +1,139 @@
+{
+  "doc_type": "statement",
+  "bank_name": "Rimba Bintang Bank",
+  "account_holder": "Bukit Sentosa Emas Tekstil",
+  "account_number_masked": "****9215",
+  "period_start": "2026-01-01",
+  "period_end": "2026-06-30",
+  "currency": "SGD",
+  "opening_balance": "173038.69",
+  "closing_balance": "179156.66",
+  "transactions": [
+    {
+      "date": "2026-04-26",
+      "description": "CHQ RETURNED - INSUFFICIENT FUNDS",
+      "debit": "699.95",
+      "credit": null,
+      "balance": "172338.74"
+    },
+    {
+      "date": "2026-04-28",
+      "description": "ATM WITHDRAWAL",
+      "debit": "138.14",
+      "credit": null,
+      "balance": "172200.60"
+    },
+    {
+      "date": "2026-05-03",
+      "description": "PayNow TO 云光桥服务 REF 189473",
+      "debit": "3650.47",
+      "credit": null,
+      "balance": "168550.13"
+    },
+    {
+      "date": "2026-05-07",
+      "description": "PayNow FROM 金山叶商贸 REF 204739",
+      "debit": null,
+      "credit": "3239.46",
+      "balance": "171789.59"
+    },
+    {
+      "date": "2026-05-08",
+      "description": "FAST FROM Cahaya Utama Damai Niaga REF 130372",
+      "debit": null,
+      "credit": "3273.22",
+      "balance": "175062.81"
+    },
+    {
+      "date": "2026-05-08",
+      "description": "FX CONVERSION USD",
+      "debit": "353.90",
+      "credit": null,
+      "balance": "174708.91"
+    },
+    {
+      "date": "2026-05-09",
+      "description": "INTEREST CREDIT",
+      "debit": null,
+      "credit": "10.11",
+      "balance": "174719.02"
+    },
+    {
+      "date": "2026-05-10",
+      "description": "FAST FROM Cahaya Utama Damai Niaga REF 569359",
+      "debit": null,
+      "credit": "2499.01",
+      "balance": "177218.03"
+    },
+    {
+      "date": "2026-05-11",
+      "description": "RENT Sewa 租金",
+      "debit": "2377.64",
+      "credit": null,
+      "balance": "174840.39"
+    },
+    {
+      "date": "2026-05-14",
+      "description": "PayNow FROM Bayu Damai Sentosa Dagang REF 343561",
+      "debit": null,
+      "credit": "2601.87",
+      "balance": "177442.26"
+    },
+    {
+      "date": "2026-05-14",
+      "description": "LOAN REPAYMENT",
+      "debit": "2216.19",
+      "credit": null,
+      "balance": "175226.07"
+    },
+    {
+      "date": "2026-05-15",
+      "description": "CARD SETTLEMENT BATCH 86378",
+      "debit": null,
+      "credit": "979.13",
+      "balance": "176205.20"
+    },
+    {
+      "date": "2026-05-16",
+      "description": "FAST FROM Cedar Cloud Petal Foods REF 392923",
+      "debit": null,
+      "credit": "3204.59",
+      "balance": "179409.79"
+    },
+    {
+      "date": "2026-05-17",
+      "description": "GIRO FROM Cahaya Utama Damai Niaga REF 970452",
+      "debit": null,
+      "credit": "3149.84",
+      "balance": "182559.63"
+    },
+    {
+      "date": "2026-05-17",
+      "description": "FAST TO Bukit Hijau Permai Makanan REF 380234",
+      "debit": "4974.76",
+      "credit": null,
+      "balance": "177584.87"
+    },
+    {
+      "date": "2026-05-18",
+      "description": "CUSTOMER REFUND",
+      "debit": "111.27",
+      "credit": null,
+      "balance": "177473.60"
+    },
+    {
+      "date": "2026-05-19",
+      "description": "FAST FROM 金山叶商贸 REF 320164",
+      "debit": null,
+      "credit": "3106.43",
+      "balance": "180580.03"
+    },
+    {
+      "date": "2026-05-19",
+      "description": "GST TAX Cukai",
+      "debit": "1423.37",
+      "credit": null,
+      "balance": "179156.66"
+    }
+  ]
+}
