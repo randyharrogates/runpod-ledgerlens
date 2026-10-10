@@ -575,7 +575,7 @@ def status():
 
 @app.get("/api/eval")
 def evaluation():
-    path = ROOT.parent / "eval/results.json"
+    path = ROOT.parent / "eval/summary.json"
     return (
         clean(json.loads(path.read_text())) if path.exists() else {"available": False}
     )

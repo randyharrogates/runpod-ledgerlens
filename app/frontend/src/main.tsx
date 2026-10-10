@@ -135,7 +135,7 @@ function App() {
           <Memo session={session} model={model} jump={jump} />
         </div>
         {tab === 'Results' && (evaluation.available === false
-          ? <p>Not run yet. Evaluation results will appear after eval/results.json is generated.</p>
+          ? <p>Not run yet. Evaluation results will appear after eval/summary.json is generated.</p>
           : <ResultTable value={evaluation} />)}
         <UnderTheHood history={history} status={status} />
       </main>

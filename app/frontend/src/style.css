@@ -510,3 +510,20 @@ progress {
 .warning { background: #fff5ce; color: #936219; }
 .live-warning summary { cursor: pointer; }
 .live-warning small { display: block; overflow-wrap: anywhere; }
+
+.evaluation-results section + section {
+  margin-top: 2rem;
+}
+
+.evaluation-note {
+  max-width: 80ch;
+}
+
+.evaluation-results td {
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.evaluation-results th {
+  text-transform: none;
+}
