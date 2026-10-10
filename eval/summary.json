@@ -1,0 +1,142 @@
+{
+  "generated_from": "batch evaluation, one GPU Pod",
+  "split_labels": {
+    "test_cord": "Real receipts (CORD v2 test)",
+    "test_seen_layout": "Seen layouts, new businesses",
+    "test_unseen_layout": "Unseen statement layouts"
+  },
+  "splits": {
+    "test_cord": {
+      "4b": {
+        "anomaly_precision": null,
+        "anomaly_recall": null,
+        "cost_per_1000_pages": 0.1064,
+        "gpu_name": "NVIDIA RTX PRO 4500 Blackwell",
+        "header_accuracy": 0.6352,
+        "pages": 98,
+        "price_per_hour": 0.72,
+        "reconciliation": null,
+        "row_f1": 0.2587,
+        "row_f1_checked": 0.2587,
+        "seconds_per_page": 0.532,
+        "valid_json": 1.0
+      },
+      "4b-ft": {
+        "anomaly_precision": null,
+        "anomaly_recall": null,
+        "cost_per_1000_pages": 0.0908,
+        "gpu_name": "NVIDIA RTX PRO 4500 Blackwell",
+        "header_accuracy": 0.9592,
+        "pages": 98,
+        "price_per_hour": 0.72,
+        "reconciliation": null,
+        "row_f1": 0.7653,
+        "row_f1_checked": 0.7653,
+        "seconds_per_page": 0.4538,
+        "valid_json": 1.0
+      },
+      "8b": {
+        "anomaly_precision": null,
+        "anomaly_recall": null,
+        "cost_per_1000_pages": 0.3173,
+        "gpu_name": "NVIDIA RTX PRO 4500 Blackwell",
+        "header_accuracy": 0.6888,
+        "pages": 98,
+        "price_per_hour": 0.72,
+        "reconciliation": null,
+        "row_f1": 0.3956,
+        "row_f1_checked": 0.3956,
+        "seconds_per_page": 1.5867,
+        "valid_json": 0.9898
+      }
+    },
+    "test_seen_layout": {
+      "4b": {
+        "anomaly_precision": 0.2102,
+        "anomaly_recall": 0.6491,
+        "cost_per_1000_pages": 0.3573,
+        "gpu_name": "NVIDIA RTX PRO 4500 Blackwell",
+        "header_accuracy": 0.9255,
+        "pages": 291,
+        "price_per_hour": 0.72,
+        "reconciliation": 0.3975,
+        "row_f1": 0.7447,
+        "row_f1_checked": 0.7989,
+        "seconds_per_page": 1.7863,
+        "valid_json": 0.9863
+      },
+      "4b-ft": {
+        "anomaly_precision": 0.5625,
+        "anomaly_recall": 0.9474,
+        "cost_per_1000_pages": 0.2644,
+        "gpu_name": "NVIDIA RTX PRO 4500 Blackwell",
+        "header_accuracy": 0.9798,
+        "pages": 291,
+        "price_per_hour": 0.72,
+        "reconciliation": 0.7615,
+        "row_f1": 0.9595,
+        "row_f1_checked": 0.9595,
+        "seconds_per_page": 1.3219,
+        "valid_json": 0.9897
+      },
+      "8b": {
+        "anomaly_precision": 0.283,
+        "anomaly_recall": 0.7895,
+        "cost_per_1000_pages": 0.5816,
+        "gpu_name": "NVIDIA RTX PRO 4500 Blackwell",
+        "header_accuracy": 0.929,
+        "pages": 291,
+        "price_per_hour": 0.72,
+        "reconciliation": 0.5021,
+        "row_f1": 0.8234,
+        "row_f1_checked": 0.8548,
+        "seconds_per_page": 2.9079,
+        "valid_json": 0.9966
+      }
+    },
+    "test_unseen_layout": {
+      "4b": {
+        "anomaly_precision": 0.1516,
+        "anomaly_recall": 0.6318,
+        "cost_per_1000_pages": 0.3438,
+        "gpu_name": "NVIDIA RTX PRO 4500 Blackwell",
+        "header_accuracy": 0.9175,
+        "pages": 1499,
+        "price_per_hour": 0.72,
+        "reconciliation": 0.2015,
+        "row_f1": 0.6142,
+        "row_f1_checked": 0.6465,
+        "seconds_per_page": 1.7189,
+        "valid_json": 0.9907
+      },
+      "4b-ft": {
+        "anomaly_precision": 0.5086,
+        "anomaly_recall": 0.9603,
+        "cost_per_1000_pages": 0.2553,
+        "gpu_name": "NVIDIA RTX PRO 4500 Blackwell",
+        "header_accuracy": 0.9835,
+        "pages": 1499,
+        "price_per_hour": 0.72,
+        "reconciliation": 0.7498,
+        "row_f1": 0.9645,
+        "row_f1_checked": 0.9664,
+        "seconds_per_page": 1.2766,
+        "valid_json": 0.9973
+      },
+      "8b": {
+        "anomaly_precision": 0.1735,
+        "anomaly_recall": 0.657,
+        "cost_per_1000_pages": 0.5168,
+        "gpu_name": "NVIDIA RTX PRO 4500 Blackwell",
+        "header_accuracy": 0.9301,
+        "pages": 1499,
+        "price_per_hour": 0.72,
+        "reconciliation": 0.3014,
+        "row_f1": 0.5775,
+        "row_f1_checked": 0.6214,
+        "seconds_per_page": 2.584,
+        "valid_json": 0.998
+      }
+    }
+  }
+}

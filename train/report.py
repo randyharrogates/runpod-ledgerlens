@@ -3,6 +3,7 @@
 import argparse
 import json
 import shutil
+import sys
 from pathlib import Path
 
 from ledgerlens.eval.score import score_batch
@@ -36,6 +37,55 @@ def assignments(values: list[str]) -> dict:
             raise ValueError(f"Duplicate model: {name}")
         result[name] = content
     return result
+
+
+SPLIT_LABELS = {
+    "test_unseen_layout": "Unseen statement layouts",
+    "test_seen_layout": "Seen layouts, new businesses",
+    "test_cord": "Real receipts (CORD v2 test)",
+}
+
+
+def summarise(results: dict) -> dict:
+    """Keep aggregate metrics only; page-level scores stay in the full report."""
+    splits = {}
+    for split, models in results.items():
+        if models.get("status") == "empty_set":
+            splits[split] = {"status": "empty_set"}
+            continue
+        splits[split] = {}
+        for model, result in models.items():
+            timing = result["timing"]
+            values = {
+                "pages": timing["pages"],
+                "header_accuracy": result.get("header_accuracy"),
+                "row_f1": result.get("row_f1"),
+                "row_f1_checked": result.get("rows_direction_checked", {}).get("f1"),
+                "reconciliation": result.get("page_reconciliation_rate"),
+                "valid_json": result.get("valid_json_rate"),
+                "anomaly_precision": result.get("anomaly_precision"),
+                "anomaly_recall": result.get("anomaly_recall"),
+                "seconds_per_page": timing.get("seconds_per_page"),
+                "cost_per_1000_pages": result.get("cost_per_1000_pages"),
+                "price_per_hour": result.get("price_per_hour"),
+                "gpu_name": timing.get("gpu_name"),
+            }
+            splits[split][model] = {
+                key: round(value, 4) if isinstance(value, float) else value
+                for key, value in values.items()
+            }
+    return {
+        "generated_from": "batch evaluation, one GPU Pod",
+        "split_labels": SPLIT_LABELS.copy(),
+        "splits": splits,
+    }
+
+
+def make_summary(results: Path, out: Path) -> dict:
+    summary = summarise(json.loads(results.read_text()))
+    out.parent.mkdir(parents=True, exist_ok=True)
+    out.write_text(json.dumps(summary, indent=2, sort_keys=True) + "\n")
+    return summary
 
 
 def make_report(
@@ -156,11 +206,21 @@ def make_report(
         lines.extend(worst_lines + [""])
     out.mkdir(parents=True, exist_ok=True)
     (out / "results.json").write_text(json.dumps(results, indent=2))
+    make_summary(out / "results.json", out / "summary.json")
     (out / "results.md").write_text("\n".join(lines) + "\n")
     return results
 
 
 def main():
+    if sys.argv[1:2] == ["summary"]:
+        parser = argparse.ArgumentParser(
+            description="Write a compact evaluation summary"
+        )
+        parser.add_argument("--results", type=Path, required=True)
+        parser.add_argument("--out", type=Path, default=Path("eval/summary.json"))
+        args = parser.parse_args(sys.argv[2:])
+        make_summary(args.results, args.out)
+        return
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--data", type=Path, required=True)
     parser.add_argument(

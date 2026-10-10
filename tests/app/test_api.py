@@ -245,10 +245,24 @@ def test_polling_forwards_chunks(monkeypatch):
     assert next(stream)["executionTime"] == 10
 
 
-def test_eval_unavailable(client):
+def test_eval_unavailable(client, monkeypatch, tmp_path):
+    monkeypatch.setattr(main, "ROOT", tmp_path / "app")
+    directory = tmp_path / "eval"
+    directory.mkdir()
+    (directory / "results.json").write_text('{"full_results": true}')
     response = client.get("/api/eval")
     assert response.status_code == 200
-    assert isinstance(json.loads(response.text), dict)
+    assert response.json() == {"available": False}
+
+
+def test_eval_summary(client, monkeypatch, tmp_path):
+    monkeypatch.setattr(main, "ROOT", tmp_path / "app")
+    directory = tmp_path / "eval"
+    directory.mkdir()
+    summary = {"generated_from": "batch evaluation, one GPU Pod", "splits": {}}
+    (directory / "summary.json").write_text(json.dumps(summary))
+    (directory / "results.json").write_text('{"full_results": true}')
+    assert client.get("/api/eval").json() == summary
 
 
 def test_upload_rejects_declared_pixel_bomb_before_verify(client, monkeypatch):

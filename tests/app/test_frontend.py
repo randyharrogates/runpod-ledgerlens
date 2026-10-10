@@ -23,6 +23,22 @@ require.extensions['.tsx'] = require.extensions['.ts'] = (module, filename) => {
 };
 const React = require('react');
 const {renderToStaticMarkup: render} = require('react-dom/server');
+const {ResultTable} = require('./src/components/Results.tsx');
+const evaluation = render(React.createElement(ResultTable, {value: {
+  split_labels: {test_cord: 'Real receipts (CORD v2 test)', empty: 'Empty set'},
+  splits: {test_cord: {
+    '8b': {pages: 98, row_f1: 0.5, seconds_per_page: 2, cost_per_1000_pages: 0.4, gpu_name: 'Test GPU', price_per_hour: 0.72},
+    '4b': {pages: 98, row_f1: 0.4, seconds_per_page: 1, cost_per_1000_pages: 0.2},
+    '4b-ft': {pages: 98, row_f1: 0.9, seconds_per_page: 1, cost_per_1000_pages: 0.2}
+  }, empty: {status: 'empty_set'}}
+}}));
+for (const label of ['Real receipts (CORD v2 test)', '98 pages', '8B, no training', '4B, no training', '4B fine-tuned', 'Rows read exactly right (row F1)', 'after the balance check', 'Header fields right', 'Page adds up', 'Valid JSON', 'Red flags found (recall)', 'Red-flag precision', 'Seconds per page (batched)', '$ per 1,000 pages', 'Test GPU', '$0.72/h', 'No pages in this set.']) assert(evaluation.includes(label), label);
+assert(evaluation.includes('<strong>90.0%</strong>'));
+assert(!evaluation.includes('<strong>50.0%</strong>'));
+assert.equal((evaluation.match(/<strong>1.00<\/strong>/g) || []).length, 2);
+assert.equal((evaluation.match(/<strong>\$0.20<\/strong>/g) || []).length, 2);
+assert(evaluation.includes('—'));
+assert(!evaluation.includes('<strong>—</strong>'));
 const {MemoContent} = require('./src/components/Memo.tsx');
 const jump = () => {};
 for (const heading of ['Summary', '## Summary', '**Summary**']) {
