@@ -205,11 +205,12 @@ def test_polling_forwards_chunks(monkeypatch):
         [
             {"id": "job"},
             {"status": "IN_PROGRESS", "stream": [{"output": {"delta": "a"}}]},
+            # /stream doesn't carry timings; the follow-up /status call does.
             {
                 "status": "COMPLETED",
-                "executionTime": 10,
                 "stream": [{"output": {"done": True, "usage": {"tokens": 1}}}],
             },
+            {"status": "COMPLETED", "delayTime": 5, "executionTime": 10},
         ]
     )
 
@@ -242,7 +243,8 @@ def test_polling_forwards_chunks(monkeypatch):
     stream = main.memo_chunks("ep", {}, "key")
     assert next(stream) == {"delta": "a"}
     assert next(stream)["usage"] == {"tokens": 1}
-    assert next(stream)["executionTime"] == 10
+    done = next(stream)
+    assert (done["delayTime"], done["executionTime"]) == (5, 10)
 
 
 def test_eval_unavailable(client, monkeypatch, tmp_path):

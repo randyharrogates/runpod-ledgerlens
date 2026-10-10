@@ -503,10 +503,18 @@ def memo_chunks(endpoint, payload, key):
             for chunk in result.get("stream") or []:
                 yield chunk.get("output", chunk)
             if result.get("status") == "COMPLETED":
+                # /stream doesn't report delayTime/executionTime; /status does (needed for cost).
+                response = client.get(
+                    f"https://api.runpod.ai/v2/{endpoint}/status/{job}"
+                )
+                response.raise_for_status()
+                times = response.json()
                 yield {
                     "done": True,
-                    "delayTime": result.get("delayTime"),
-                    "executionTime": result.get("executionTime"),
+                    "delayTime": times.get("delayTime", result.get("delayTime")),
+                    "executionTime": times.get(
+                        "executionTime", result.get("executionTime")
+                    ),
                 }
                 return
             if result.get("status") in ("FAILED", "CANCELLED", "TIMED_OUT"):
