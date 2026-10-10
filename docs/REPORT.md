@@ -13,7 +13,7 @@ why). Only measured numbers appear here; estimates say so.
 - **The ML question:** can a 4B model, LoRA fine-tuned on our own synthetic documents, match an 8B
   model with no training, so the lender can run a smaller, cheaper GPU?
 - **Answer: yes, and by a wide margin on our documents.** The fine-tuned 4B scores a row F1 of 0.96
-  (every field of a row exactly right) on statement layouts it never saw in training (8B: 58%), 77% on real receipts (8B: 40%), and is
+  (date, debit and credit of each row exactly right) on statement layouts it never saw in training (8B: 58%), 77% on real receipts (8B: 40%), and is
   2× faster per page on the same GPU. Its weak spot is heavy photo damage (87%). Served live, it
   costs about half the 8B per page.
 
@@ -70,8 +70,10 @@ why). Only measured numbers appear here; estimates say so.
 13.1 GB of 32.
 
 ### Results (final run, the schema that is served)
-Row F1 is the share of rows read exactly right (date, description, amounts, balance), from the
-model's own answer. A row counts only if every field matches. Precision = of the rows the model
+Row F1 is the share of rows read exactly right, from the model's own answer. A statement row counts
+when its date, debit and credit all match exactly; the description (free text) and the running balance
+are not compared row by row (the balance is tested by "page adds up"). An invoice or receipt item
+counts when its description, quantity, unit price and amount all match. Precision = of the rows the model
 wrote, how many were right; recall = of the real rows, how many it got. F1 combines the two.
 
 | | 8B, no training | 4B, no training | **4B fine-tuned** |
