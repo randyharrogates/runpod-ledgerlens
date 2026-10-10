@@ -320,3 +320,13 @@ the bottom of each day.
   returns valid JSON in 14 s (1,157 tokens instead of 4,096); the clean sample page still gets
   17/18 rows. On `stmt_f` pages the zero-shot 8B leaves debit and credit empty — it did the same
   with the old schema — a reading failure on that unseen layout, not caused by the fix.
+- **19:13 — 8B predictions done** (1h47m incl. 10 min model load). Invalid JSON: 28 / 1,499
+  unseen-layout, 1 / 291 seen-layout, 4 / 98 CORD — 29 of 33 are broken JSON (mostly the runaway
+  numbers). Batched throughput on the Pod: 3.06 / 2.62 / 3.09 s per page — about $0.61 per 1,000
+  pages at $0.72/h, against ~$6 on Serverless one page at a time: batching is the biggest cost lever.
+- **20:19 — Base 4B predictions done** (55 min incl. 5 min model load). Invalid JSON: 13 / 1,499
+  unseen-layout, 3 / 291 seen-layout, **34 / 98 CORD**. Every invalid receipt opened ends in
+  "…000000…" — the same runaway-number bug: the Pod runs code from before the 18:03 fix (`80c4471`).
+  Batched: 1.63 / 1.69 / 4.22 s per page. Decision: after the run, re-run both base models with the
+  bounded schema (~3 h, ~$2) so the comparison matches what is served; the first results are kept
+  as "old schema" to show what the fix changed.
