@@ -210,21 +210,27 @@ def prepare_image(image_bytes):
     return base64.b64encode(buffer.getvalue()).decode()
 
 
-def gpu_name():
+def gpu_name(driver_root=Path("/proc/driver/nvidia/gpus")):
     if name := os.getenv("RUNPOD_GPU_TYPE"):
         return name
     if shutil.which("nvidia-smi"):
         try:
-            return (
-                subprocess.check_output(
-                    ["nvidia-smi", "--query-gpu=name", "--format=csv,noheader"],
-                    text=True,
-                    timeout=5,
-                ).strip()
-                or None
-            )
+            if name := subprocess.check_output(
+                ["nvidia-smi", "--query-gpu=name", "--format=csv,noheader"],
+                text=True,
+                timeout=5,
+            ).strip():
+                return name
         except (OSError, subprocess.SubprocessError):
             pass
+    # Some hosts have neither (seen 11 Oct); the driver lists each GPU as "Model: <name>".
+    for info in sorted(Path(driver_root).glob("*/information")):
+        try:
+            for line in info.read_text().splitlines():
+                if line.startswith("Model:"):
+                    return line.split(":", 1)[1].strip() or None
+        except OSError:
+            continue
     return None
 
 
@@ -313,7 +319,13 @@ def handler(job):
                 for choice in event.get("choices", []):
                     if delta := choice.get("delta", {}).get("content"):
                         yield {"delta": delta}
-            yield {"done": True, "usage": usage, "timing": timing()}
+            yield {
+                "done": True,
+                "usage": usage,
+                "timing": timing(),
+                "gpu": gpu_name(),
+                "model": ENGINE.get("model"),
+            }
             return
         response = next(iter(vllm_client(payload)))
         raw = response["choices"][0]["message"]["content"]

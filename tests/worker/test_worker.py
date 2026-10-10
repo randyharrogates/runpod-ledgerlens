@@ -151,6 +151,19 @@ def test_memo(monkeypatch):
     result = list(worker.handler({"input": {"task": "memo", "analysis": {}}}))
     assert result[:2] == [{"delta": "Summary"}, {"delta": " [p1:r2]"}]
     assert result[2]["done"] and result[2]["usage"] == {"total_tokens": 8}
+    assert result[2]["gpu"] == "test GPU"
+
+
+def test_gpu_name_falls_back_to_the_driver_file(monkeypatch, tmp_path):
+    monkeypatch.delenv("RUNPOD_GPU_TYPE", raising=False)
+    monkeypatch.setattr(worker.shutil, "which", lambda _: None)
+    assert worker.gpu_name(tmp_path) is None
+    gpu = tmp_path / "0000:01:00.0"
+    gpu.mkdir()
+    (gpu / "information").write_text(
+        "Model: \t\t NVIDIA GeForce RTX 4090\nIRQ:   \t\t 16\n"
+    )
+    assert worker.gpu_name(tmp_path) == "NVIDIA GeForce RTX 4090"
 
 
 def test_cold_start_and_health(monkeypatch):
