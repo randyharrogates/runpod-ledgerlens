@@ -49,48 +49,33 @@ The newest directory by modification time wins (name breaks ties). Cache hits
 set `HF_HUB_OFFLINE=1` in the engine subprocess. Cache misses log a warning and
 pass the HF identifier to vLLM for download. Baked weights use MODEL_PATH.
 
-## Deployment checklist
+## How it is deployed (verified 9 Oct 2026)
 
-These commands are **to verify against `runpodctl serverless create --help` /
-`runpodctl template create --help`**. CLI flags, the image tag, Qwen3-VL support,
-and vLLM structured-output flags have not been verified offline.
-
-- [ ] Verify the vLLM image tag exists and supports your GPU/Qwen3-VL model.
-- [ ] Build and push from the repo root:
-
-  ```sh
-  docker buildx build --platform linux/amd64 -f worker/Dockerfile -t <dockerhub-user>/ledgerlens-worker:<tag> --push .
-  ```
-
-- [ ] For fine-tuned weights, enable the commented COPY and MODEL_PATH lines in
-  Dockerfile and supply `--build-arg MODEL_DIR=<local-weights-directory>`.
-  Keep that directory inside the build context and outside excluded `data/`.
-- [ ] Inspect the CLI help and create a serverless template (candidate syntax):
+- **Image:** Runpod's GitHub integration builds `worker/Dockerfile` from the **`deploy`** branch of
+  this repo. Develop on `main`; `scripts/release-worker.sh` runs the tests, shows the
+  image-affecting diff and fast-forwards `deploy`, which triggers the rebuild. The Dockerfile
+  removes the CUDA-13 `torchcodec` wheel (it crash-looped vLLM on this CUDA 12.9 image) and imports
+  `vllm.multimodal.media` at build time so that class of failure breaks the build, not paid workers.
+- **8B endpoint** `szucrtrufff80a` (template `ej6398fg30`): `MODEL_NAME=Qwen/Qwen3-VL-8B-Instruct`
+  served from Runpod's model cache (`--model-reference
+  https://huggingface.co/Qwen/Qwen3-VL-8B-Instruct:main`, pinned commit); container disk 40 GB;
+  workers 0/2, idle 60 s, FlashBoot, queue-delay scaling 4 s, execution timeout 600 s, CUDA ≥ 12.9.
+- **Fine-tuned 4B endpoint:** same template, created with the CLI:
 
   ```sh
-  runpodctl template create --name ledgerlens-worker --image-name <dockerhub-user>/ledgerlens-worker:<tag> --is-serverless --model-reference https://huggingface.co/Qwen/Qwen3-VL-8B-Instruct:main
+  runpodctl serverless create --name ledgerlens-4b-ft --template-id ej6398fg30 \
+    --gpu-id "NVIDIA RTX PRO 4500 Blackwell" --data-center-ids EU-RO-1 \
+    --network-volume-id 0kelufi0wo --env MODEL_PATH=/runpod-volume/ledgerlens/main/merged \
+    --workers-min 0 --workers-max 2 --idle-timeout 60 --min-cuda-version 12.9
   ```
 
-- [ ] Create an endpoint with EU-RO-1, min 0 / max 2 workers, FlashBoot enabled,
-  and idle timeout 60 seconds (candidate syntax):
-
-  ```sh
-  runpodctl serverless create --name ledgerlens --template-id <template-id> --data-center-ids EU-RO-1 --workers-min 0 --workers-max 2 --flashboot --idle-timeout 60
-  ```
-
-- [ ] Set MODEL_NAME, choose a GPU with enough VRAM, and verify cached weights
-  and `/health` readiness on a real worker. Never deploy LEDGERLENS_NO_ENGINE=1.
-- [ ] Call the endpoint with RUNPOD_API_KEY set in your environment:
-
-  ```sh
-  python worker/client.py extract --endpoint-id ID --image page.png --doc-type statement
-  python worker/client.py memo --endpoint-id ID --analysis analysis.json
-  ```
-
-The CLI uses `/runsync` for extraction and `/run` followed by `/stream/{job_id}`
-for memo. It prints the JSON response plus round-trip seconds, collecting streamed
-chunks until a terminal status. If `/runsync` returns a pending job, it also polls
-`/stream/{job_id}`. Credentials are never accepted as arguments or printed.
+  The merged weights stay on the network volume the training Pod wrote them to, so swapping models
+  needs no rebuild or upload; the cost is that the endpoint is pinned to the volume's data centre.
+- **Calling it:** `python worker/client.py extract --endpoint-id ID --image page.png --doc-type
+  statement` and `python worker/client.py memo --endpoint-id ID --analysis analysis.json`. The client
+  always uses `/run` and polls `/status` (or `/stream` for the memo): `/runsync` holds one connection
+  for the whole job and Runpod dropped it during a cold start. It reads the key from `runpodctl`'s
+  config (or `RUNPOD_API_KEY`), never from arguments, and never prints it.
 
 Local SDK smoke input is `worker/test_input.json`; start from `worker/` with
 `python handler.py` and an installed worker extra. This still starts vLLM unless

@@ -1,55 +1,118 @@
-# LedgerLens — offline Phase 1
+# LedgerLens
 
-Python 3.11, Decimal extraction schemas, reproducible synthetic documents,
-cited analytics, and extraction scoring. No model, GPU, Runpod, or network is
-needed to run the pipeline once Python dependencies are installed.
+**Phone photos of messy small-business bank statements and invoices go in; checked transaction
+rows, a cash-flow analysis, cited red flags and a credit memo come out.** Open vision models
+(Qwen3-VL) run on **Runpod Serverless**, so a Southeast Asian lender can keep confidential documents
+off US-hosted APIs and pay a known price per page.
 
-```sh
-uv sync
-uv run python -m ledgerlens.datagen --out data/synth --n-businesses 3 --seed 7 --no-render
-uv run python -m ledgerlens.eval.score --pred data/synth --gold data/synth --out data/eval/results.md
-uv run ruff check .
-uv run ruff format --check .
-uv run pytest -q
+The ML question behind it: *can a 4B model, LoRA fine-tuned on our own synthetic documents, match
+an 8B model zero-shot on accuracy, speed and cost per 1,000 pages?*
+
+> Everything here is fictional: synthetic businesses and fictional banks. The only real documents
+> are the public CORD v2 receipts (CC BY 4.0).
+
+## What it does
+
+1. **Extract.** A page image goes to a Serverless endpoint. vLLM reads it into a strict JSON schema
+   (structured decoding), validated with Pydantic.
+2. **Check.** Code, not the model, checks every row against the printed running balance. A row
+   whose balance proves the money went the other way is moved between debit and credit and
+   flagged; rows that still don't add up are shown red for the analyst.
+3. **Analyse.** Code computes monthly cash flow, balances, customer concentration and red flags
+   (returned cheques, round trips, large cash deposits…). Every figure cites its page and row.
+4. **Write.** The model writes the memo prose from those computed numbers only, streamed over
+   `/stream`. Citations in the memo jump back to the evidence row.
+
+## Architecture
+
+```mermaid
+flowchart LR
+  phone[Phone / browser upload] --> app[FastAPI backend + React UI]
+  app -- "/run + /status (extract)" --> ep8[Serverless endpoint: Qwen3-VL-8B]
+  app -- "/run + /status (extract)" --> epft[Serverless endpoint: Qwen3-VL-4B fine-tuned]
+  app -- "/run + /stream (memo)" --> ep8
+  ep8 --- cache[(Runpod model cache: 8B weights)]
+  epft --- vol[(Network volume EU-RO-1: merged 4B)]
+  app --> rules[Python: balance check, cash flow, red flags, citations]
+  subgraph Pod[GPU Pod, training run]
+    gen[Synthetic generator + CORD v2] --> sft[Unsloth LoRA SFT] --> merged[Merged 16-bit model]
+    merged --> pred[vLLM batch predictions] --> report[Report: accuracy, s/page, $/1,000 pages]
+  end
+  merged --> vol
 ```
 
-Omit `--no-render` to use a local Chromium binary. The renderer searches the
-macOS Playwright cache (headless shell, then Chromium), then Google Chrome.
-It disables GPU and background networking; it never downloads a browser.
-Rendering fails clearly when the binary is absent or blocked by the sandbox.
+## Runpod setup
 
-Each statement page has HTML, schema JSON, and `.meta.json` provenance. PNGs
-are written only when rendering succeeds. Metadata records local and global
-transaction indices, anomaly labels, the printed and true closing balances,
-and seeded image operations. With `--no-render`, degradation is selected but
-explicitly recorded as unapplied. Each business also has two invoice pages.
-Choose a fresh output directory for each generation run.
+| Piece | Choice | Why |
+|---|---|---|
+| Worker | `worker/handler.py`: a generator handler that starts `vllm serve` in-process at cold start; tasks `extract`, `memo` (streamed), `health` | One engine per worker; streaming memo over `/stream` |
+| Image | `worker/Dockerfile` on `vllm/vllm-openai:v0.31.0-cu129`, built by Runpod's GitHub integration from the `deploy` branch | No local Docker; pushes to `main` never rebuild by accident (`scripts/release-worker.sh` ships) |
+| 8B weights | Runpod **model cache** (`Qwen/Qwen3-VL-8B-Instruct`, pinned commit) | 16.3 GiB loaded in 5.7 s; no download at cold start |
+| Fine-tuned 4B weights | **Network volume** (`MODEL_PATH`), same image and template | No rebuild or upload to swap models; pins the endpoint to EU-RO-1 |
+| Scaling | Active 0, max 2, idle 60 s, FlashBoot on, queue-delay scaling 4 s, timeout 600 s | Nothing bills while idle; one Active worker only for the demo hour |
+| GPUs | 32 GB class (RTX 5090 / RTX PRO 4500), CUDA ≥ 12.9 | The 8B in bf16 fits 32 GB at 8,192 tokens; older drivers can't start the image |
+| Safety | Image size checked before decoding (decompression bombs); engine start failures fail jobs fast with the error instead of crash-looping paid workers | Both found or hardened during the build (see `docs/BUILD_LOG.md`) |
 
-`splits.json` lists page ids under `train`, `val`, and `test`, along with the
-business assignments and page registry. Businesses are assigned before layouts;
-`stmt_e` and `stmt_f` are test-only. Small datasets reserve one test business,
-and datasets with at least three businesses also reserve one validation business.
+### Measured (8B, RTX 5090, 9 Oct)
 
-`ledgerlens.analytics.analyze` accepts statement pages and optional page ids.
-Use one business and currency per analysis. Monthly cash flows, observed
-transaction balance statistics, payer concentration, reconciliation failures,
-and anomaly findings carry zero-based page/row citations. Printed balance
-errors never contaminate the true balance carried to the following page.
+| | Value |
+|---|---|
+| Warm statement page | 13.7–15.1 s execution, 0.13–1.4 s queue |
+| Cold start | ~3.5 min (torch.compile ~27 s and CUDA-graph capture ~63 s are the big parts) |
+| Serverless cost, warm | ≈ **$6.0–6.6 per 1,000 pages** at $0.000439/s |
 
-The scorer writes Markdown and a JSON companion. Missing predictions and
-invalid documents count as failures. Exact date/debit/credit matching consumes
-each gold row once; item rows use description, quantity, price, and amount.
-`page_reconciliation_rate` measures pages that actually add up, while
-`reconciliation_accuracy` compares that decision with gold. Thus gold-vs-gold
-scores perfectly even though intentionally misprinted pages do not reconcile.
-Anomaly recall is evaluated across whole businesses, preserving cross-page
-round trips and period-wide customer concentration. Keep reports outside the
-gold document directory.
+## Results: 8B zero-shot vs 4B zero-shot vs 4B fine-tuned
 
-In the implementation sandbox, normal offline `uv sync` could not resolve
-Python 3.11 numpy wheels from cache. Verification used already installed local
-Python 3.11 runtime dependencies and cached pytest/ruff, with `UV_NO_SYNC=1`,
-`UV_OFFLINE=1`, and a writable temporary uv cache. This is a local verification
-workaround, not a change to project dependency requirements. No network install
-was attempted. Chromium rendering was skipped because the macOS sandbox blocked
-its startup.
+_Filled in from `eval/results.md` after the training run (Sat 10 Oct)._
+
+## Data
+
+- **Synthetic statements and invoices** (`src/ledgerlens/datagen`): 400 fictional businesses in
+  Singapore, Malaysia and Indonesia, six months of seeded cash flow each, local currencies and
+  payment rails, mixed-language descriptions, planted anomalies (about 27% of businesses clean),
+  6 statement layouts and 2 invoice layouts, rendered in headless Chromium with seeded phone-photo
+  damage. Answers are exact because the generator printed them.
+- **Real receipts:** CORD v2 (Indonesian receipts, CC BY 4.0). Its train split goes into training;
+  its test split is a held-out real-document test.
+- **Leakage guards:** splits by business; two statement layouts appear only in test.
+
+| Split | Synthetic | CORD | Total |
+|---|---|---|---|
+| Train | 2,396 | see results | |
+| Validation | 289 | see results | |
+| Test | 1,790 (1,499 unseen-layout, 291 seen-layout) | see results | scored separately |
+
+## Run it
+
+```sh
+uv sync && uv run ruff check . && uv run ruff format --check . && uv run pytest -q
+```
+
+- **Demo app, offline** (cached sample results): see `app/README.md`; `DEMO_MODE=1`, port 8090.
+- **Demo app, live:** set `RUNPOD_ENDPOINT_8B` (and `RUNPOD_ENDPOINT_FT`); the key is read from
+  `runpodctl`'s config, never from the browser.
+- **One page from the command line:**
+  `uv run python worker/client.py extract --endpoint-id <id> --image page.png --doc-type statement`
+- **Training and evaluation on a GPU Pod:** `train/README.md` and `train/run_pod.sh`
+  (`train/run_pod.sh` runs every stage, resumable by stage markers).
+
+## Limitations and the synthetic-to-real gap
+
+- Statements and invoices are synthetic. The real-document checks are CORD receipts (a different
+  document type) and phone photos of printed synthetic pages. A real lender deployment would start
+  with ~50 labelled real statements and a shadow period next to analysts.
+- The fine-tune sees real CORD train receipts; the 8B baseline sees none. CORD test receipts are
+  never trained on.
+- Zero-shot, the 8B reads digits well but not the accounting convention (debit vs credit); the
+  balance check fixes direction only where the printed balance proves it, and reports raw model
+  accuracy separately.
+
+## Repo map
+
+```
+src/ledgerlens/  schema, datagen, analytics, direction (balance check), eval/score, images (pixel cap)
+worker/          Serverless handler, Dockerfile, prompts, REST client
+train/           dataset builder (+CORD), Unsloth LoRA SFT, vLLM batch predict, report, run_pod.sh
+app/             FastAPI backend + React/Vite frontend
+docs/            BUILD_LOG (every step, decision and dollar)
+```

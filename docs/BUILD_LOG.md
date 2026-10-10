@@ -266,7 +266,7 @@ the bottom of each day.
   are byte-identical (the app samples regenerated with only the invoice changing). Relaunched 15:15.
 
 ### App (second polish pass, Codex; reviewed with screenshots)
-- **15:30 —** Counterparties keep their printed casing (grouping still case-insensitive, so anomaly
+- **15:22 —** Counterparties keep their printed casing (grouping still case-insensitive, so anomaly
   detection is unchanged); partial months marked on the chart and in the memo ("3 months (2 full)");
   memo headings and bullets rendered (plain, `##` or `**` headings from the live model);
   row-number column no longer wraps; slider styled; a failed live call now shows "Live call failed —
