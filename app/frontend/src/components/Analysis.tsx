@@ -4,13 +4,8 @@ import {
 import { Analysis, Citation } from '../api';
 import { money } from './format';
 
-export function Cashflow({ data, jump }: {
-  data: Analysis | null;
-  jump: (citation: Citation) => void;
-}) {
-  if (!data) return <p>Extract statements to compute cash flow.</p>;
-  const currency = data.currency || 'SGD';
-  const points = Object.entries(data.monthly).map(([month, value]) => ({
+export function monthlyPoints(monthly: Analysis['monthly']) {
+  return Object.entries(monthly).map(([month, value]) => ({
     month,
     partial: value.partial,
     daysObserved: value.days_observed,
@@ -18,6 +13,15 @@ export function Cashflow({ data, jump }: {
     outflow: Number(value.outflow),
     net: Number(value.net),
   }));
+}
+
+export function Cashflow({ data, jump }: {
+  data: Analysis | null;
+  jump: (citation: Citation) => void;
+}) {
+  if (!data || !Object.keys(data.monthly).length) return <p>Extract statements to compute cash flow.</p>;
+  const currency = data.currency || 'SGD';
+  const points = monthlyPoints(data.monthly);
   const kpis = [
     ['Average observed balance', money(data.average_balance.value, currency, true)],
     ['Minimum observed balance', money(data.minimum_balance.value, currency, true)],
@@ -35,7 +39,7 @@ export function Cashflow({ data, jump }: {
           <ComposedChart data={points} margin={{ left: 20, right: 20 }}>
             <CartesianGrid strokeDasharray="3 3" />
             <XAxis dataKey="month" tickFormatter={month => `${month}${data.monthly[month].partial ? " · partial" : ""}`} />
-            <YAxis width={125} tickFormatter={value => money(value, currency, true)} />
+            <YAxis width={65} tickFormatter={value => Intl.NumberFormat('en', { notation: 'compact' }).format(Number(value))} label={{ value: currency, angle: -90, position: 'insideLeft' }} />
             <Tooltip formatter={value => money(value, currency, true)} />
             <Legend />
             <Bar dataKey="inflow" fill="#5CC8FF">

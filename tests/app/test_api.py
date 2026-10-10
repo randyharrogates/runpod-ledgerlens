@@ -516,6 +516,7 @@ def test_compare_demo_and_4b(client):
     )
     body = response.json()
     assert body["truth_available"]
+    assert body["truth"] == item["truth"]
     assert all(
         v["status"] == "offline" and v["metrics"]["source"] == "cached-demo"
         for v in body["models"].values()

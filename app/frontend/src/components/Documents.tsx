@@ -18,41 +18,25 @@ type DocumentsProps = {
 };
 
 export function Documents({
-  session, refresh, busy, pages, action, model, types, setTypes,
+  session, refresh, busy, pages, action, types, setTypes,
   setSelected, setRow, setTab, setError,
 }: DocumentsProps) {
-  async function extractAll() {
-    const failures: string[] = [];
-    for (const page of pages) {
-      try {
-        await api.extract(session, page.id, model,
-          types[page.id] || page.document?.doc_type || page.doc_type || 'statement');
-      } catch (e) {
-        failures.push(`${page.id}: ${(e as Error).message}`);
-      }
-      await refresh();
-    }
-    if (failures.length) throw new Error(failures.join("; "));
-  }
   return (
     <>
-      <div className="upload-grid">
+      <article className="add-pages"><h2>Add pages</h2><div className="upload-grid">
         <Upload session={session} done={() => { void refresh().catch(e => setError((e as Error).message)); }} />
-        <article>
+        <section>
           <h2>Use phone</h2>
           {session && <img className="qr" src={`/api/sessions/${session}/qr.png`}
             alt="Scan to upload from your phone" />}
           <p>Scan on the same Wi-Fi. Photos appear here automatically.</p>
-        </article>
+        </section>
       </div>
       <div className="actions">
         <button disabled={busy || !session} onClick={() => void action(() => api.sample(session))}>
           Load sample business
         </button>
-        <button disabled={busy || !pages.length} onClick={() => void action(extractAll)}>
-          {busy ? 'Working…' : 'Read all pages'}
-        </button>
-      </div>
+      </div></article>
       <div className="pages">
         {pages.map(page => (
           <article key={page.id}>
@@ -72,7 +56,7 @@ export function Documents({
               </details>
             )}
             {page.metrics?.source === 'cached-demo' && !page.metrics?.live_error && (
-              <strong className="cached">Cached demo · ground truth</strong>
+              <strong className="cached">cached demo</strong>
             )}
             <select aria-label={`Document type ${page.id}`}
               value={types[page.id] || page.document?.doc_type || page.doc_type || 'statement'}

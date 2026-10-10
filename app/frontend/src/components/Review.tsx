@@ -75,7 +75,7 @@ type ReviewProps = {
   save: (page: string, row: number, field: string, value: string | null) => Promise<void>;
 };
 
-export function Review({ pages, selected, row, choose, analysis, save, read, busy }: ReviewProps) {
+export function Review({ pages, selected, row, analysis, save }: ReviewProps) {
   const [zoom, setZoom] = useState(1);
   const [hover, setHover] = useState(-1);
   const page = pages.find(p => p.id === selected) || pages[0];
@@ -101,30 +101,10 @@ export function Review({ pages, selected, row, choose, analysis, save, read, bus
     running = r.balance == null ? expected : Number(r.balance);
     return ok;
   });
-  function download() {
-    const quote = (value: unknown) => '"' + String(value ?? '').replaceAll('"', '""') + '"';
-    const csv = [fields, ...rows.map(r => fields.map(f => r[f]))].map(r => r.map(quote).join(',')).join('\r\n');
-    const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }));
-    const link = document.createElement('a'); link.href = url; link.download = `${page.id}.csv`; link.click(); URL.revokeObjectURL(url);
-  }
   let previousBalance = Number(page.document?.opening_balance || 0);
 
   return (
     <>
-      <select aria-label="Review page" value={page.id} onChange={e => choose(e.target.value)}>
-        {pages.map(p => <option key={p.id}>{p.id}</option>)}
-      </select>
-      {check && (
-        <span className={`chip ${check.reconciles ? 'good' : 'bad'}`}>
-          {check.reconciles
-            ? 'Balances add up ✓'
-            : `Off by ${money(Math.abs(Number(check.difference)), currency, true)}`}
-        </span>
-      )}
-      <div className="actions"><button disabled={busy || !read} onClick={() => read?.(page)}>Read {page.id}</button>
-      <button disabled={!rows.length} onClick={download}>Download CSV</button></div>
-      {page.error && <p role="alert" className="error">{page.error}</p>}
-      {page.metrics?.source === 'cached-demo' && <p className="cached">{page.metrics.live_error ? 'Live call failed — showing cached result' : 'Cached demo · ground truth'}{Boolean(page.metrics.live_error) && <small> · {String(page.metrics.live_error)}</small>}</p>}
       <div className="review">
         <div className="image-pane">
           <label className="zoom-control">
@@ -137,11 +117,11 @@ export function Review({ pages, selected, row, choose, analysis, save, read, bus
               style={{ width: `${zoom * 100}%` }} />
           </div>
           <small>{page.id} · photo evidence</small>
-          <div className="photo-rows" aria-label="Find a row in the table">{rows.map((_, i) => <button key={i} onMouseEnter={() => setHover(i)} onFocus={() => setHover(i)} onMouseLeave={() => setHover(-1)} onClick={() => {setHover(i); document.getElementById(`row-${i}`)?.scrollIntoView({block: 'center'});}}>Row {i + 1}{flagged.has(i) ? ' ⚑' : ''}</button>)}</div>
+
         </div>
         <div className="review-right">
-          <div className="kpis"><article><small>Lines read</small><h2>{rows.length}</h2></article><article><small>Balances that add up</small><h2 className="ready">{invoice ? 'Not applicable' : `${checks.filter(Boolean).length} / ${rows.length}`}</h2></article><article><small>Red flags</small><h2 className="orange">{flagged.size}</h2></article></div>
-        <section className="table-tile"><h2>What was read from {page.id}</h2><p>Click a cell to correct it. Brought forward: <span className="numeric">{money(page.document?.opening_balance, currency)}</span></p><p><Term name="reconciliation" /></p>
+          <div className="kpis"><article><small>Lines read</small><h2>{rows.length}</h2></article><article><small><Term name="reconciliation" label="Balances that add up" /></small><h2 className="ready">{invoice ? 'Not applicable' : `${checks.filter(Boolean).length} / ${rows.length}`}</h2></article><article><small>Red flags</small><h2 className="orange">{flagged.size}</h2></article></div>
+        <section className="table-tile"><h2>What was read from {page.id}</h2><p>Click a cell to correct it. Brought forward: <span className="numeric">{money(page.document?.opening_balance, currency)}</span></p>
         <div className="table-scroll review-table">
           {fixes.length > 0 && (
             <p className="direction-note">
@@ -152,7 +132,7 @@ export function Review({ pages, selected, row, choose, analysis, save, read, bus
             <colgroup>
               <col style={{ width: '44px' }} />
               {widths.map((width, i) => <col key={i} style={{ width }} />)}
-              {!invoice && <col style={{width: '32px'}} />}
+              {!invoice && <col style={{width: '65px'}} />}
             </colgroup>
             <thead>
               <tr>
@@ -162,7 +142,7 @@ export function Review({ pages, selected, row, choose, analysis, save, read, bus
                     {field.replaceAll('_', ' ')}
                   </th>
                 ))}
-                {!invoice && <th>Check</th>}
+                {!invoice && <th style={{whiteSpace: 'nowrap'}}>Adds up</th>}
               </tr>
             </thead>
             <tbody>

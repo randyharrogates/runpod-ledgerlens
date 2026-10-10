@@ -9,6 +9,10 @@ import { Memo } from './components/Memo';
 import { models, modelState } from './models';
 import { navigate, RouterLink, usePath } from './router';
 import { UnderTheHood } from './components/UnderTheHood';
+import { PageToolbar } from './components/PageToolbar';
+import { Compare } from './components/Compare';
+import { Results } from './components/Results';
+import { Cost } from './components/Cost';
 import './style.css';
 
 function App() {
@@ -143,15 +147,15 @@ function App() {
       </aside>
       <main>
         <header>
-          <div><h1>{route?.[2] || 'Page not found'}</h1><p>{path === '/' ? 'Add photos of statements, check what was read, and fix any cell that is wrong.' : 'This page is coming next.'}</p></div>
+          <div><h1>{route?.[2] || 'Page not found'}</h1><p>{path === '/' ? 'Add photos of statements, check what was read, and fix any cell that is wrong.' : path === '/compare' ? 'See which lines each model reads right.' : path === '/results' ? 'Every score, including where the models fail.' : path === '/cost' ? 'Estimate the cost of reading your pages.' : 'This page is coming next.'}</p></div>
           <div className="model-status" aria-label="Model status">{models.map(m => <span key={m.key} className={modelState(status, m.key) === 'ready' ? 'ready' : ''}>{m.name} · {modelState(status, m.key)}</span>)}</div>
         </header>
         {error && <p role="alert" className="error">{error}</p>}
-        {path !== '/' ? <article className="placeholder"><h2>{route ? 'Coming next' : 'Page not found'}</h2><RouterLink href="/">Read statements →</RouterLink></article> : <>
+        {path === '/compare' ? <Compare session={session} pages={pages} status={status} /> : path === '/results' ? <Results /> : path === '/cost' ? <Cost history={history} /> : path !== '/' ? <article className="placeholder"><h2>{route ? 'Coming next' : 'Page not found'}</h2><RouterLink href="/">Read statements →</RouterLink></article> : <>
         {presenter && <article className="tour">Three-minute tour: add pages (35s), check rows (40s), cash flow (45s), credit memo (35s), timing and cost (25s).</article>}
         <nav className="steps" aria-label="Read statements steps">{['Documents', 'Review', 'Analysis', 'Memo'].map((value, i) => <button key={value} aria-current={tab === value ? 'step' : undefined} onClick={() => setTab(value)}>{i + 1} {['Add pages', 'Check rows', 'Cash flow and red flags', 'Credit memo'][i]}</button>)}</nav>
         <div className="read-controls">
-          <article className="page-switcher"><div className="actions">{pages.map(p => <button key={p.id} className={selected === p.id || (!selected && pages[0]?.id === p.id) ? 'current' : ''} onClick={() => {setSelected(p.id); setRow(-1); setTab('Review');}}>{p.id} · {p.document?.doc_type === 'invoice' || p.doc_type === 'invoice' ? 'invoice · ' : ''}{pageLabel(p)}</button>)}<button onClick={() => setTab('Documents')}>+ add pages</button></div><small>Add photos, files, or use your phone on the same Wi-Fi.</small></article>
+          {pages.length > 0 ? <PageToolbar pages={pages} selected={selected} busy={busy} label={pageLabel} choose={id => {setSelected(id); setRow(-1); setTab('Review');}} read={page => void action(() => api.extract(session, page.id, model, types[page.id] || page.document?.doc_type || page.doc_type || 'statement'))} /> : <Documents session={session} refresh={refresh} busy={busy} pages={pages} action={action} model={model} types={types} setTypes={setTypes} setSelected={setSelected} setRow={setRow} setTab={setTab} setError={setError} />}
           <article className="model-picker"><label htmlFor="model">Model reading the pages</label><select id="model" value={model} onChange={e => setModel(e.target.value)}>{models.map(m => <option key={m.key} value={m.key}>{m.name} · {modelState(status, m.key)}</option>)}</select><small>{models.find(m => m.key === model)?.technical}</small><button disabled={busy || !pages.length} onClick={() => void action(async () => {
             const failures: string[] = [];
             for (const p of pages) {
@@ -164,7 +168,7 @@ function App() {
           })}>Read all pages</button></article>
         </div>
         {busy && <article role="status">Reading · {elapsed}s elapsed{(modelState(status, model) === 'waking up' || modelState(status, model) === 'asleep') && <p>Waiting for a GPU: the model was asleep. This can take a few minutes.</p>}</article>}
-        {tab === 'Documents' && <Documents session={session} refresh={refresh} busy={busy} pages={pages} action={action} model={model} types={types} setTypes={setTypes} setSelected={setSelected} setRow={setRow} setTab={setTab} setError={setError} />}
+        {pages.length > 0 && tab === 'Documents' && <Documents session={session} refresh={refresh} busy={busy} pages={pages} action={action} model={model} types={types} setTypes={setTypes} setSelected={setSelected} setRow={setRow} setTab={setTab} setError={setError} />}
         {tab === 'Review' && (
           <Review busy={busy} read={page => void action(() => api.extract(session, page.id, model, types[page.id] || page.document?.doc_type || page.doc_type || "statement"))} pages={pages} selected={selected} row={row} analysis={analysis}
             choose={page => { setSelected(page); setRow(-1); }}

@@ -376,7 +376,12 @@ async def compare(s: str, p: str, request: Compare):
             for row in rows:
                 row["models"][model] = row["gold_row"] in matches
     return clean(
-        {"models": models, "truth_available": bool(item["truth"]), "rows": rows}
+        {
+            "models": models,
+            "truth_available": bool(item["truth"]),
+            "truth": item["truth"],
+            "rows": rows,
+        }
     )
 
 
