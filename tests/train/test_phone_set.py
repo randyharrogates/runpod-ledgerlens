@@ -93,7 +93,7 @@ def test_reject_photos(phone, tmp_path):
     photos = photos_for(tmp_path, pages)
     heic = photos / "extra.HEIC"
     heic.write_bytes(b"not decoded")
-    with pytest.raises(ValueError, match="export HEIC.*JPEG"):
+    with pytest.raises(ValueError, match="HEIC is not supported; convert to JPEG"):
         phone_set.ingest(directory, photos, tmp_path / "data")
     heic.unlink()
     next(photos.iterdir()).unlink()

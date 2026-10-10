@@ -187,7 +187,10 @@ def ingest(phone: Path, photos: Path, out: Path):
         if path.is_file() and not path.name.startswith(".")
     ]
     if any(path.suffix.lower() in {".heic", ".heif"} for path in files):
-        raise ValueError("HEIC is not supported; export HEIC photos as JPEG")
+        raise ValueError(
+            "HEIC is not supported; convert to JPEG first, e.g. on a Mac: "
+            "mkdir jpg && sips -s format jpeg *.HEIC --out jpg"
+        )
     files = [path for path in files if path.suffix.lower() in PHOTO_SUFFIXES]
     if len(files) != len(pages):
         raise ValueError(
