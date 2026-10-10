@@ -351,3 +351,13 @@ the bottom of each day.
 - **21:11 — Re-run of all three models started** on code `9a6450e` (bounded amounts), same Pod and
   data, so every reported number comes from the code that is served. Done markers for the three
   prediction stages and the report removed; train/data stages skipped.
+- **23:50 — Fine-tuned 4B endpoint: first attempt failed** (Randy approved creating it; the Japan
+  endpoint is dropped). `runpodctl serverless create --template-id ej6398fg30` refused: "This
+  template is already bound to an endpoint" — one template per endpoint — and `--env` is ignored with
+  a template. Made template `lj49qs9fw3` on the same image (`…:bf3053aaa`, `MODEL_PATH` set) and
+  endpoint **`dckc0m4e4tjgk2`** (RTX PRO 4500 class, EU-RO-1, volume `0kelufi0wo`, 0–2 workers).
+  Its workers never started: worker logs repeat "Failed to get Hub registry auth" — a hand-made
+  template can't pull an image built by Runpod's GitHub integration. Scaled it to 0 workers at 00:05;
+  account spend stayed at the Pod's $0.74/h, so the stuck workers did not bill. Fix: create the
+  endpoint in the console from the GitHub repo (`deploy` branch), the way the 8B endpoint was made
+  — there is no CLI/API for GitHub-built endpoints — then set `MODEL_PATH` and the volume.
