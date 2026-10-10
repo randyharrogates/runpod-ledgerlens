@@ -219,8 +219,8 @@ def test_memo_payload_citations(client, monkeypatch):
         {
             "task": "memo",
             "analysis": {
-                "citations": ["p1:r1"],
-                "monthly": [{"findings": {"citation": "p2:r8"}}],
+                "citations": ["[p1:r1]"],
+                "monthly": [{"findings": {"citation": "[p2:r8]"}}],
             },
         }
     ]
@@ -413,3 +413,86 @@ def test_cost_uses_the_reported_gpu_tier(monkeypatch):
     assert unknown["cost"] == on_5090["cost"]
     monkeypatch.setenv("GPU_PRICE_PER_SEC_FT", "0.001")
     assert metrics(result, {"gpu": "NVIDIA GeForce RTX 4090"}, "ft")["cost"] == 0.01
+
+
+def test_unverified_memo_live_totals():
+    payload = {
+        "monthly": [
+            {"outflow": "21487.85"},
+            {"outflow": "26539.21"},
+            {"outflow": "7014.53"},
+        ],
+        "period_totals": {"inflow": "89218.66", "outflow": "55041.59"},
+    }
+    assert main.unverified_memo_numbers(
+        "Outflow SGD 54,987.85; inflow SGD 89,218.66. Again 54,987.85.", payload
+    ) == ["54,987.85"]
+
+
+def test_unverified_memo_rounding_strings_percentages_and_citations():
+    from decimal import Decimal
+
+    assert main.unverified_memo_numbers("1.0", {"boolean": True}) == ["1.0"]
+    assert main.unverified_memo_numbers("10.005 10.006", {"amount": 10}) == ["10.006"]
+    payload = {
+        "amount": Decimal("1234.567"),
+        "float": 42.125,
+        "count": 20,
+        "top_payer_concentration": {"share": "0.63789"},
+        "description": "SGD 1,499.51; 6.3×",
+        "not_a_share": "0.25",
+        "citations": ["p1:r1"],
+        "boolean": True,
+    }
+    assert main.unverified_memo_numbers(
+        "1,234.567 1,234.57 1,234.6 1,235 42.12 20.0 1,499.51 6.3 "
+        "63.789% 64% 63.8% 63.79% [p1:r4] [p1:r1–r18] "
+        "2026 18 25% 1.0 99.99 99.99 88.88",
+        payload,
+    ) == ["25%", "99.99", "88.88"]
+
+
+def test_memo_checks_full_stream_against_sent_payload(client, monkeypatch):
+    monkeypatch.setenv("DEMO_MODE", "0")
+    monkeypatch.setenv("RUNPOD_ENDPOINT_8B", "endpoint")
+    monkeypatch.setattr(main, "analysis", lambda _: {"amount": "89218.66"})
+    monkeypatch.setattr(
+        main,
+        "memo_chunks",
+        lambda *args: iter(
+            [
+                {"delta": "SGD 54,"},
+                {"delta": "987.85 and 89,218.66 [p1:r1]"},
+                {"done": True},
+            ]
+        ),
+    )
+    response = client.get(f"/api/sessions/{create(client)}/memo")
+    final = json.loads(response.text.split("event: final\ndata: ")[1])
+    assert final["unverified"] == ["54,987.85"]
+
+
+def test_cash_deposit_finding_gives_the_date_and_bank_text():
+    # Without a date the memo model invented one ("6 Mar" for a 30 Jan deposit, seen live 11 Oct).
+    pages = {
+        "p2": {
+            "document": {
+                "transactions": [
+                    {
+                        "date": "2026-01-30",
+                        "description": "CASH LODGEMENT",
+                        "credit": "12071.87",
+                    }
+                ]
+            }
+        }
+    }
+    finding = {
+        "type": "large_cash_deposit",
+        "amount": "12071.87",
+        "median_inflow": "1929.10",
+        "citations": [{"page_id": "p2", "row_index": 0}],
+    }
+    assert main.describe_finding(finding, pages, "SGD") == (
+        "Large cash deposit · SGD 12,071.87 · 30 Jan · CASH LODGEMENT · 6.3× the median credit"
+    )

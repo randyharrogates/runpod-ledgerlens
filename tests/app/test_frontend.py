@@ -54,6 +54,15 @@ for (const heading of ['Summary', '## Summary', '**Summary**']) {
 // An incomplete stream chunk stays readable, then becomes a cited heading/list.
 assert(render(React.createElement(MemoContent, {text: '## Summ', jump})).includes('## Summ'));
 assert(render(React.createElement(MemoContent, {text: '**Credit Memo**', jump})).includes('<h3>Credit Memo</h3>'));
+const checked = render(React.createElement(MemoContent, {
+  text: '**Totals 54,987.85**\nSGD 54,987.85 and 89,218.66; **54,987.85** [p1:r1–r18]',
+  unverified: ['54,987.85'], jump
+}));
+assert.equal((checked.match(/<mark class="unverified" title="Not in the computed analysis — check before use">54,987.85<\/mark>/g) || []).length, 3);
+assert(checked.includes('and 89,218.66;'));
+assert(!checked.includes('>89,218.66</mark>'));
+const citationOnly = render(React.createElement(MemoContent, {text: '[p1:r1–r18]', unverified: ['1'], jump}));
+assert(!citationOnly.includes('<mark'));
 const clicked = [];
 const memo = MemoContent({text: `**Credit Memo**
 ---
@@ -89,6 +98,10 @@ assert(variants.includes('<strong>bold</strong>'));
 assert(variants.includes('[p1:r1-r18]</button>'));
 assert(variants.includes('[p2:r8]</button>'));
 assert(variants.includes('&lt;img src=x&gt;'));
+// Live model output also used round brackets, bare refs and page-qualified ranges.
+const round = render(React.createElement(MemoContent, {text: 'Min SGD 44,587.78 (p1:r2). Net (p1:r1–p1:r18) and (p1:r3, p2:r2). See p4:r17 too.', jump}));
+for (const ref of ['p1:r2', 'p1:r1–p1:r18', 'p1:r3', 'p2:r2', 'p4:r17']) assert(round.includes(`[${ref}]</button>`), ref);
+assert(!round.includes('(p1:r2)'));
 const {Cell} = require('./src/components/Review.tsx');
 const cell = render(React.createElement(Cell, {
   value: '100', display: '100.00', edited: false, directionTitle: 'Moved to credit',

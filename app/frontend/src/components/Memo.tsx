@@ -7,6 +7,7 @@ export function Memo({ session, model, jump }: {
   jump: (citation: Citation) => void;
 }) {
   const [text, setText] = useState('');
+  const [unverified, setUnverified] = useState<string[]>([]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const stream = useRef<EventSource | null>(null);
@@ -15,6 +16,7 @@ export function Memo({ session, model, jump }: {
   function generate() {
     stream.current?.close();
     setText('');
+    setUnverified([]);
     setError('');
     setBusy(true);
     const source = api.memo(session, model);
@@ -22,7 +24,9 @@ export function Memo({ session, model, jump }: {
     source.addEventListener('chunk', event => {
       setText(value => value + JSON.parse((event as MessageEvent).data).delta);
     });
-    source.addEventListener('final', () => {
+    source.addEventListener('final', event => {
+      const final = JSON.parse((event as MessageEvent).data);
+      setUnverified(Array.isArray(final.unverified) ? final.unverified.filter((value: unknown) => typeof value === 'string') : []);
       source.close();
       setBusy(false);
     });
@@ -40,10 +44,11 @@ export function Memo({ session, model, jump }: {
       <button disabled={busy || !session} onClick={generate}>
         {busy ? 'Writing memo…' : 'Generate memo'}
       </button>
-      <p>Numbers are computed from extracted rows; the model only writes the prose.</p>
+      <p>Numbers are computed from extracted rows; the model writes the prose. Any number it adds is highlighted.</p>
       <article className="memo">
-        <MemoContent text={text} jump={jump} />
+        <MemoContent text={text} jump={jump} unverified={unverified} />
       </article>
+      {unverified.length > 0 && <p role="alert">{unverified.length} number(s) in this memo are not in the computed analysis and are highlighted. Check them before use.</p>}
       {error && <p className="error" role="alert">{error}</p>}
     </>
   );
@@ -51,22 +56,32 @@ export function Memo({ session, model, jump }: {
 
 const headings = new Set(['summary', 'cash flow', 'concentration', 'red flags', 'questions for the applicant']);
 
-export function MemoContent({ text, jump }: { text: string; jump: (citation: Citation) => void }) {
+export function MemoContent({ text, jump, unverified = [] }: { text: string; jump: (citation: Citation) => void; unverified?: string[] }) {
+  function highlight(part: string): React.ReactNode[] {
+    return part.split(/(\d+(?:\.\d+)?%|\d{1,3}(?:,\d{3})+(?:\.\d+)?|\d+\.\d+)/g).map((token, i) =>
+      unverified.includes(token)
+        ? <mark key={i} className="unverified" title="Not in the computed analysis — check before use">{token}</mark>
+        : token);
+  }
+  // The model writes citations as [p1:r4], (p1:r4), [p1:r2; p2:r1], (p1:r1–p1:r18) or bare p1:r4.
+  const ref = String.raw`p\d+:r\d+(?:\s*[–-]\s*(?:p\d+:)?r\d+)?`;
+  const group = new RegExp(String.raw`([\[(]${ref}(?:\s*[;,]\s*${ref})*[\])]|${ref})`, 'g');
+  const whole = new RegExp(String.raw`^(?:[\[(]${ref}(?:\s*[;,]\s*${ref})*[\])]|${ref})$`);
   function inline(line: string): React.ReactNode[] {
-    return line.replace(/(\[p\d+:r\d+(?:[–-]r\d+)?(?:\s*[;,]\s*p\d+:r\d+(?:[–-]r\d+)?)*\])[^\S\n]+([.,;:!?])/g, '$1$2')
-      .split(/(\*\*[^*]+\*\*|\[p\d+:r\d+(?:[–-]r\d+)?(?:\s*[;,]\s*p\d+:r\d+(?:[–-]r\d+)?)*\])/g).map((part, i) => {
+    return line.replace(new RegExp(String.raw`([\])])[^\S\n]+([.,;:!?])`, 'g'), '$1$2')
+      .split(new RegExp(String.raw`(\*\*[^*]+\*\*|${group.source.slice(1, -1)})`, 'g')).map((part, i) => {
         if (part.startsWith('**') && part.endsWith('**')) {
           return <strong key={i}>{inline(part.slice(2, -2))}</strong>;
         }
-        if (/^\[p\d+:r\d+(?:[–-]r\d+)?(?:\s*[;,]\s*p\d+:r\d+(?:[–-]r\d+)?)*\]$/.test(part)) {
-          return <React.Fragment key={i}>{part.slice(1, -1).split(/\s*[;,]\s*/).map((ref, j) => {
-            const match = ref.match(/^(p\d+):r(\d+)(?:[–-]r\d+)?$/);
+        if (whole.test(part)) {
+          return <React.Fragment key={i}>{part.replace(/^[[(]|[\])]$/g, '').split(/\s*[;,]\s*/).map((item, j) => {
+            const match = item.match(/^(p\d+):r(\d+)/);
             return match ? <button key={j} onClick={() => jump({
               page_id: match[1], row_index: Number(match[2]) - 1,
-            })}>[{ref}]</button> : ref;
+            })}>[{item}]</button> : item;
           })}</React.Fragment>;
         }
-        return <React.Fragment key={i}>{part}</React.Fragment>;
+        return <React.Fragment key={i}>{highlight(part)}</React.Fragment>;
       });
   }
   const blocks: React.ReactNode[] = [];
@@ -94,7 +109,7 @@ export function MemoContent({ text, jump }: { text: string; jump: (citation: Cit
     flush();
     if (/^(?:---|\*\*\*|___)$/.test(trimmed)) return;
     // Known sections, and a whole line in bold (e.g. "**Credit Memo**"); "## Summ" mid-stream stays text.
-    if (headings.has(heading.toLowerCase()) || /^\*\*[^*]+\*\*$/.test(trimmed)) blocks.push(<h3 key={i}>{heading}</h3>);
+    if (headings.has(heading.toLowerCase()) || /^\*\*[^*]+\*\*$/.test(trimmed)) blocks.push(<h3 key={i}>{inline(heading)}</h3>);
     else if (trimmed) blocks.push(<p key={i}>{inline(line)}</p>);
   });
   flush();
