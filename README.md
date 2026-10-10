@@ -6,7 +6,7 @@ rows, a cash-flow analysis, cited red flags and a credit memo come out.** Open v
 off US-hosted APIs and pay a known price per page.
 
 The ML question behind it: *can a 4B model, LoRA fine-tuned on our own synthetic documents, match
-an 8B model zero-shot on accuracy, speed and cost per 1,000 pages?*
+an 8B model zero-shot on extraction quality (row F1), speed and cost per 1,000 pages?*
 
 > Everything here is fictional: synthetic businesses and fictional banks. The only real documents
 > are the public CORD v2 receipts (CC BY 4.0).
@@ -36,7 +36,7 @@ flowchart LR
   app --> rules[Python: balance check, cash flow, red flags, citations]
   subgraph Pod[GPU Pod, training run]
     gen[Synthetic generator + CORD v2] --> sft[Unsloth LoRA SFT] --> merged[Merged 16-bit model]
-    merged --> pred[vLLM batch predictions] --> report[Report: accuracy, s/page, $/1,000 pages]
+    merged --> pred[vLLM batch predictions] --> report[Report: row F1, s/page, $/1,000 pages]
   end
   merged --> vol
 ```
@@ -64,7 +64,8 @@ flowchart LR
 ## Results: 8B zero-shot vs 4B zero-shot vs 4B fine-tuned
 
 All three on the same GPU (RTX PRO 4500), same prompt, schema and pixel cap. Row F1 = rows read
-exactly right, from the model's own answer. Full results, breakdowns and failure analysis:
+exactly right (every field), from the model's own answer; precision and recall are within 1.5 points
+of each other on every set, so the models rarely invent or drop rows. Full results, breakdowns and failure analysis:
 [`docs/REPORT.md`](docs/REPORT.md).
 
 | | 8B, no training | 4B, no training | **4B fine-tuned** |
@@ -120,7 +121,7 @@ uv sync && uv run ruff check . && uv run ruff format --check . && uv run pytest 
   never trained on.
 - Zero-shot, the 8B reads digits well but not the accounting convention (debit vs credit); the
   balance check fixes direction only where the printed balance proves it, and reports raw model
-  accuracy separately.
+  row F1 separately.
 
 ## Repo map
 

@@ -60,6 +60,8 @@ def summarise(results: dict) -> dict:
                 "pages": timing["pages"],
                 "header_accuracy": result.get("header_accuracy"),
                 "row_f1": result.get("row_f1"),
+                "row_precision": result.get("row_precision"),
+                "row_recall": result.get("row_recall"),
                 "row_f1_checked": result.get("rows_direction_checked", {}).get("f1"),
                 "reconciliation": result.get("page_reconciliation_rate"),
                 "valid_json": result.get("valid_json_rate"),

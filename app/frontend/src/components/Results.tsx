@@ -12,6 +12,8 @@ const models = [
 ];
 const metrics = [
   ['row_f1', 'Rows read exactly right (row F1)', 'rate'],
+  ['row_precision', 'Rows written that are right (precision)', 'rate'],
+  ['row_recall', 'Real rows found (recall)', 'rate'],
   ['row_f1_checked', 'Rows read exactly right after the balance check', 'rate'],
   ['header_accuracy', 'Header fields right', 'rate'],
   ['reconciliation', 'Page adds up', 'rate'],

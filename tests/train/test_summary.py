@@ -9,6 +9,8 @@ def test_summary_fields_and_rounding(tmp_path):
     result = {
         "header_accuracy": 0.123456,
         "row_f1": 0.765432,
+        "row_precision": 0.777777,
+        "row_recall": 0.755555,
         "rows_direction_checked": {"f1": 0.876543, "pages": ["large"]},
         "page_reconciliation_rate": 0.333333,
         "valid_json_rate": 1.0,
@@ -34,6 +36,8 @@ def test_summary_fields_and_rounding(tmp_path):
         "pages": 3,
         "header_accuracy": 0.1235,
         "row_f1": 0.7654,
+        "row_precision": 0.7778,
+        "row_recall": 0.7556,
         "row_f1_checked": 0.8765,
         "reconciliation": 0.3333,
         "valid_json": 1.0,

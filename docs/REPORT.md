@@ -12,8 +12,8 @@ why). Only measured numbers appear here; estimates say so.
   documents never go to a US-hosted API and each page has a known price.
 - **The ML question:** can a 4B model, LoRA fine-tuned on our own synthetic documents, match an 8B
   model with no training, so the lender can run a smaller, cheaper GPU?
-- **Answer: yes, and by a wide margin on our documents.** The fine-tuned 4B reads 96% of rows right
-  on statement layouts it never saw in training (8B: 58%), 77% on real receipts (8B: 40%), and is
+- **Answer: yes, and by a wide margin on our documents.** The fine-tuned 4B scores a row F1 of 0.96
+  (every field of a row exactly right) on statement layouts it never saw in training (8B: 58%), 77% on real receipts (8B: 40%), and is
   2× faster per page on the same GPU. Its weak spot is heavy photo damage (87%). Served live, it
   costs about half the 8B per page.
 
@@ -71,18 +71,22 @@ why). Only measured numbers appear here; estimates say so.
 
 ### Results (final run, the schema that is served)
 Row F1 is the share of rows read exactly right (date, description, amounts, balance), from the
-model's own answer.
+model's own answer. A row counts only if every field matches. Precision = of the rows the model
+wrote, how many were right; recall = of the real rows, how many it got. F1 combines the two.
 
 | | 8B, no training | 4B, no training | **4B fine-tuned** |
 |---|---:|---:|---:|
 | **A. Unseen layouts** (1,499 pages): row F1 | 0.578 | 0.614 | **0.965** |
+| row precision / recall | 0.578 / 0.577 | 0.617 / 0.612 | 0.966 / 0.963 |
 | after the balance check | 0.621 | 0.647 | 0.966 |
 | header fields right | 0.930 | 0.918 | 0.984 |
 | page adds up (reconciliation) | 0.30 | 0.20 | 0.75 |
 | red flags found (recall / precision) | 0.66 / 0.17 | 0.63 / 0.15 | 0.96 / 0.51 |
 | valid JSON | 0.998 | 0.991 | 0.997 |
 | **A′. Seen layouts** (291 pages): row F1 | 0.823 | 0.745 | **0.960** |
+| row precision / recall | 0.826 / 0.821 | 0.751 / 0.739 | 0.966 / 0.953 |
 | **B. Real CORD receipts** (98): row F1 | 0.396 | 0.259 | **0.765** |
+| row precision / recall | 0.403 / 0.389 | 0.262 / 0.255 | 0.768 / 0.763 |
 | header fields right | 0.689 | 0.635 | 0.959 |
 | **Speed, batched on one RTX PRO 4500** (A): seconds per page | 2.58 | 1.72 | **1.28** |
 | cost per 1,000 pages at $0.72/h | $0.52 | $0.34 | **$0.26** |
@@ -97,6 +101,10 @@ Where the differences come from (row F1 on A, by layout and by damage; script ov
 | clean / light / medium photos | 0.61 / 0.63 / 0.58 | 0.68 / 0.75 / 0.70 | 1.00 / 1.00 / 1.00 |
 | heavy photos | 0.51 | 0.36 | **0.87** |
 
+- Precision and recall are within about 1.5 points of each other everywhere: the models rarely
+  invent or drop rows. Their mistakes are misread fields inside real rows (debit vs credit, a digit).
+- Red flags are the opposite: the fine-tuned 4B finds 96% of planted anomalies but only about half
+  of its flags are real (precision 0.51). An analyst reviews every flag; the model decides nothing.
 - The 8B's low score on A is mostly one layout: on `stmt_f` it leaves debit and credit empty.
 - The fine-tune is near perfect on clean to medium photos. **Heavy damage is its weak spot.** Looking
   at its worst pages: it reads "Jun" as "Jan" on blurred pages (the header prints "1 Jan 2026"), and
