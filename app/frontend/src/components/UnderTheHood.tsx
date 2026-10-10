@@ -1,3 +1,5 @@
+import { models, modelState } from '../models';
+import { Term } from './Term';
 import { money } from './format';
 
 type Request = Record<string, unknown>;
@@ -24,7 +26,7 @@ function RequestRow({ request }: { request: Request }) {
     <tr>
       <td>{String(request.page_id || 'Session')}</td>
       <td>{String(request.task)}</td>
-      <td>{String(request.model || 'Unknown')}</td>
+      <td>{models.find(m => m.key === request.model)?.name || 'Unknown'}</td>
       {cached ? <td colSpan={6}>cached — no GPU used
         {Boolean(request.live_error) && <details className="live-warning">
           <summary className="chip warning" title={String(request.live_error)}>Live call failed — showing cached result</summary>
@@ -50,26 +52,7 @@ function EndpointStatus({ model, status }: {
   model: string;
   status: Record<string, unknown>;
 }) {
-  const endpoint = status[model] as Record<string, unknown> | undefined;
-  const workers = endpoint?.workers as Record<string, number> | undefined;
-  const jobs = endpoint?.jobs as Record<string, number> | undefined;
-  let message = '';
-  if (!endpoint) message = status.connection ? 'Unavailable' : 'not configured';
-  else if (endpoint.offline) message = 'Offline demo';
-  else if (endpoint.unavailable) message = 'Unavailable';
-  return (
-    <div className="endpoint">
-      <strong>{model}</strong>
-      {message ? <span className="chip">{message}</span> : (
-        <>
-          <span className="chip">{workers?.idle || 0} idle workers</span>
-          <span className="chip">{workers?.running || 0} running workers</span>
-          <span className="chip">{workers?.initializing || 0} initializing workers</span>
-          <span className="chip">{jobs?.inQueue || 0} jobs in queue</span>
-        </>
-      )}
-    </div>
-  );
+  return <div className="endpoint"><strong>{models.find(m => m.key === model)?.name}</strong><span className="chip">{modelState(status, model)}</span></div>;
 }
 
 export function UnderTheHood({ history, status }: {
@@ -89,14 +72,14 @@ export function UnderTheHood({ history, status }: {
   )).filter(Boolean).join('; ');
   return (
     <details className="hood">
-      <summary>Under the hood · timing, GPU and cost</summary>
+      <summary>Timing and cost</summary>
       <p>
         {history.length} requests · USD {cost(total)} total cost ·{' '}
         {average == null ? 'No measured inference' : `${seconds(average)} s/page average inference`}
         {' · '}{cold} cold starts
       </p>
       <p className="hood-note">
-        Queue + cold start uses Runpod delayTime; cost uses executionTime.
+        delayTime is waiting for a GPU; executionTime is time spent actually reading. Cost uses executionTime.
         Cached requests incur no GPU cost. Inference averages include measured extraction pages only.
       </p>
       <div className="table-scroll">
@@ -109,8 +92,8 @@ export function UnderTheHood({ history, status }: {
       </div>
       {!history.length && <p>No requests yet.</p>}
       {usage && <p className="hood-note">Memo usage: {usage}</p>}
-      <h3>Live endpoint status</h3>
-      {['8b', 'ft'].map(model => <EndpointStatus key={model} model={model} status={status} />)}
+      <p><Term name="cold start" /></p><h3>Model status</h3>
+      {['8b', 'ft', '4b'].map(model => <EndpointStatus key={model} model={model} status={status} />)}
     </details>
   );
 }

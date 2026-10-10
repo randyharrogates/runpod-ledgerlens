@@ -22,20 +22,22 @@ export function Documents({
   setSelected, setRow, setTab, setError,
 }: DocumentsProps) {
   async function extractAll() {
+    const failures: string[] = [];
     for (const page of pages) {
       try {
         await api.extract(session, page.id, model,
           types[page.id] || page.document?.doc_type || page.doc_type || 'statement');
       } catch (e) {
-        setError((e as Error).message);
+        failures.push(`${page.id}: ${(e as Error).message}`);
       }
       await refresh();
     }
+    if (failures.length) throw new Error(failures.join("; "));
   }
   return (
     <>
       <div className="upload-grid">
-        <Upload session={session} done={() => { void refresh(); }} />
+        <Upload session={session} done={() => { void refresh().catch(e => setError((e as Error).message)); }} />
         <article>
           <h2>Use phone</h2>
           {session && <img className="qr" src={`/api/sessions/${session}/qr.png`}
@@ -48,7 +50,7 @@ export function Documents({
           Load sample business
         </button>
         <button disabled={busy || !pages.length} onClick={() => void action(extractAll)}>
-          {busy ? 'Working…' : 'Extract all'}
+          {busy ? 'Working…' : 'Read all pages'}
         </button>
       </div>
       <div className="pages">

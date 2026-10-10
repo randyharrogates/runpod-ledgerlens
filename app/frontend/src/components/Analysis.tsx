@@ -38,13 +38,13 @@ export function Cashflow({ data, jump }: {
             <YAxis width={125} tickFormatter={value => money(value, currency, true)} />
             <Tooltip formatter={value => money(value, currency, true)} />
             <Legend />
-            <Bar dataKey="inflow" fill="#12685f">
+            <Bar dataKey="inflow" fill="#5CC8FF">
               {points.map(point => <Cell key={point.month} fillOpacity={point.partial ? 0.45 : 1} />)}
             </Bar>
-            <Bar dataKey="outflow" fill="#b8c8c5">
+            <Bar dataKey="outflow" fill="#B9A6FF">
               {points.map(point => <Cell key={point.month} fillOpacity={point.partial ? 0.45 : 1} />)}
             </Bar>
-            <Line dataKey="net" stroke="#bb713b" />
+            <Line dataKey="net" stroke="#7EE2A8" />
           </ComposedChart>
         </ResponsiveContainer>
       </div>

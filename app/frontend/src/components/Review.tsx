@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Analysis, Page } from '../api';
+import { Term } from './Term';
 import { money, printedDate } from './format';
 
 const numericFields = ['debit', 'credit', 'balance', 'unit_price', 'amount', 'quantity'];
@@ -69,11 +70,14 @@ type ReviewProps = {
   row: number;
   choose: (page: string) => void;
   analysis: Analysis | null;
+  read?: (page: Page) => void;
+  busy?: boolean;
   save: (page: string, row: number, field: string, value: string | null) => Promise<void>;
 };
 
-export function Review({ pages, selected, row, choose, analysis, save }: ReviewProps) {
+export function Review({ pages, selected, row, choose, analysis, save, read, busy }: ReviewProps) {
   const [zoom, setZoom] = useState(1);
+  const [hover, setHover] = useState(-1);
   const page = pages.find(p => p.id === selected) || pages[0];
   useEffect(() => setZoom(1), [selected]);
   useEffect(() => {
@@ -86,9 +90,23 @@ export function Review({ pages, selected, row, choose, analysis, save }: ReviewP
   const fields = invoice
     ? ['description', 'quantity', 'unit_price', 'amount']
     : ['date', 'description', 'debit', 'credit', 'balance'];
-  const widths = invoice ? ['46%', '12%', '19%', '19%'] : ['16%', '32%', '16%', '16%', '16%'];
+  const widths = invoice ? ['44%', '12%', '18%', '18%'] : ['13%', '27%', '14%', '14%', '16%'];
   const currency = page.document?.currency || 'SGD';
   const check = analysis?.reconciliation.find(c => c.page_id === page.id);
+  const flagged = new Set(analysis?.findings.flatMap(f => f.citations.filter(c => c.page_id === page.id).map(c => c.row_index)) || []);
+  let running = Number(page.document?.opening_balance || 0);
+  const checks = rows.map(r => {
+    const expected = running + Number(r.credit || 0) - Number(r.debit || 0);
+    const ok = r.balance != null && Math.abs(expected - Number(r.balance)) <= 0.009;
+    running = r.balance == null ? expected : Number(r.balance);
+    return ok;
+  });
+  function download() {
+    const quote = (value: unknown) => '"' + String(value ?? '').replaceAll('"', '""') + '"';
+    const csv = [fields, ...rows.map(r => fields.map(f => r[f]))].map(r => r.map(quote).join(',')).join('\r\n');
+    const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }));
+    const link = document.createElement('a'); link.href = url; link.download = `${page.id}.csv`; link.click(); URL.revokeObjectURL(url);
+  }
   let previousBalance = Number(page.document?.opening_balance || 0);
 
   return (
@@ -99,10 +117,14 @@ export function Review({ pages, selected, row, choose, analysis, save }: ReviewP
       {check && (
         <span className={`chip ${check.reconciles ? 'good' : 'bad'}`}>
           {check.reconciles
-            ? 'Reconciles'
+            ? 'Balances add up ✓'
             : `Off by ${money(Math.abs(Number(check.difference)), currency, true)}`}
         </span>
       )}
+      <div className="actions"><button disabled={busy || !read} onClick={() => read?.(page)}>Read {page.id}</button>
+      <button disabled={!rows.length} onClick={download}>Download CSV</button></div>
+      {page.error && <p role="alert" className="error">{page.error}</p>}
+      {page.metrics?.source === 'cached-demo' && <p className="cached">{page.metrics.live_error ? 'Live call failed — showing cached result' : 'Cached demo · ground truth'}{Boolean(page.metrics.live_error) && <small> · {String(page.metrics.live_error)}</small>}</p>}
       <div className="review">
         <div className="image-pane">
           <label className="zoom-control">
@@ -114,7 +136,12 @@ export function Review({ pages, selected, row, choose, analysis, save }: ReviewP
             <img src={page.thumbnail_url} alt={`Statement evidence ${page.id}`}
               style={{ width: `${zoom * 100}%` }} />
           </div>
+          <small>{page.id} · photo evidence</small>
+          <div className="photo-rows" aria-label="Find a row in the table">{rows.map((_, i) => <button key={i} onMouseEnter={() => setHover(i)} onFocus={() => setHover(i)} onMouseLeave={() => setHover(-1)} onClick={() => {setHover(i); document.getElementById(`row-${i}`)?.scrollIntoView({block: 'center'});}}>Row {i + 1}{flagged.has(i) ? ' ⚑' : ''}</button>)}</div>
         </div>
+        <div className="review-right">
+          <div className="kpis"><article><small>Lines read</small><h2>{rows.length}</h2></article><article><small>Balances that add up</small><h2 className="ready">{invoice ? 'Not applicable' : `${checks.filter(Boolean).length} / ${rows.length}`}</h2></article><article><small>Red flags</small><h2 className="orange">{flagged.size}</h2></article></div>
+        <section className="table-tile"><h2>What was read from {page.id}</h2><p>Click a cell to correct it. Brought forward: <span className="numeric">{money(page.document?.opening_balance, currency)}</span></p><p><Term name="reconciliation" /></p>
         <div className="table-scroll review-table">
           {fixes.length > 0 && (
             <p className="direction-note">
@@ -125,6 +152,7 @@ export function Review({ pages, selected, row, choose, analysis, save }: ReviewP
             <colgroup>
               <col style={{ width: '44px' }} />
               {widths.map((width, i) => <col key={i} style={{ width }} />)}
+              {!invoice && <col style={{width: '32px'}} />}
             </colgroup>
             <thead>
               <tr>
@@ -134,6 +162,7 @@ export function Review({ pages, selected, row, choose, analysis, save }: ReviewP
                     {field.replaceAll('_', ' ')}
                   </th>
                 ))}
+                {!invoice && <th>Check</th>}
               </tr>
             </thead>
             <tbody>
@@ -146,8 +175,8 @@ export function Review({ pages, selected, row, choose, analysis, save }: ReviewP
                   ? expected : Number(transaction.balance);
                 return (
                   <tr id={`row-${i}`} key={i}
-                    className={`${bad ? 'bad' : ''} ${row === i ? 'selected' : ''}`}>
-                    <td>{i + 1}</td>
+                    onMouseEnter={() => setHover(i)} onMouseLeave={() => setHover(-1)} className={`${bad ? 'bad' : ''} ${flagged.has(i) ? 'flagged' : ''} ${row === i || hover === i ? 'selected' : ''}`}>
+                    <td>{i + 1}{flagged.has(i) && <span title="Red flag"> ⚑</span>}</td>
                     {fields.map(field => {
                       const fix = fixes.find(f => f.row === i && f.to === field);
                       const directionTitle = fix
@@ -167,6 +196,7 @@ export function Review({ pages, selected, row, choose, analysis, save }: ReviewP
                           save={value => save(page.id, i, field, value)} />
                       );
                     })}
+                    {!invoice && <td className={checks[i] ? "ready" : "error"} aria-label={checks[i] ? "Balance adds up" : "Balance needs checking"}>{checks[i] ? "✓" : "!"}</td>}
                   </tr>
                 );
               })}
@@ -174,6 +204,7 @@ export function Review({ pages, selected, row, choose, analysis, save }: ReviewP
           </table>
           {!rows.length && <p>Extract this page to review its rows.</p>}
         </div>
+        </section></div>
       </div>
     </>
   );
