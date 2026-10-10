@@ -57,12 +57,13 @@ export function Memo({ session, model, jump, status = {} }: {
     <>
       {cached && <p className="cached">Cached demo · no live model call</p>}
       {busy && <p role="status">Writing · {elapsed}s elapsed{['asleep', 'waking up'].includes(modelState(status, model)) && <span> · Waiting for a GPU: the model was asleep. This can take a few minutes.</span>}</p>}
-      <article className="memo">
-        {!text && <p>Generate a credit memo from the checked rows, cash flow and cited red flags.</p>}
+      <article className="memo" data-tour="memo">
+        {!text && <p className="memo-info">Generate a credit memo from the checked rows, cash flow and cited red flags.</p>}
       <button disabled={busy || !session} onClick={generate}>
         {busy ? 'Writing memo…' : 'Generate memo'}
       </button>
-      <p>Numbers are computed from extracted rows; the model writes the prose. Any number it adds is highlighted.</p>
+      <button className="print-control" disabled={!text || busy} onClick={() => window.print()}>Save as PDF</button>
+      <p className="memo-info">Numbers are computed from extracted rows; the model writes the prose. Any number it adds is highlighted.</p>
         <MemoContent text={text} jump={jump} unverified={unverified} />
       </article>
       {unverified.length > 0 && <p role="alert">{unverified.length} number(s) in this memo are not in the computed analysis and are highlighted. Check them before use.</p>}

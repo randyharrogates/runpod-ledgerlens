@@ -18,6 +18,9 @@ Environment variables:
 | Variable | Purpose |
 | --- | --- |
 | RUNPOD_ENDPOINT_8B | Base model endpoint ID; optional |
+| RUNPOD_ENDPOINT_4B | Base small-model endpoint ID; optional |
+| TRAINING_ENABLED | Set to 1 to permit real GPU rentals; unset uses simulation |
+| LEDGERLENS_DATA | Directory of rendered dataset pages, answer keys, metadata and splits; unset uses bundled samples and recorded summaries |
 | RUNPOD_ENDPOINT_FT | Fine-tuned model endpoint ID; optional |
 | RUNPOD_API_KEY | Server-only credential; falls back to worker.client.runpodctl_key() |
 | GPU_PRICE_PER_SEC_8B / GPU_PRICE_PER_SEC_FT | Optional override, dollars per second. By default each request is priced by the GPU the worker reports: RTX 5090 or PRO 4500 $1.58/h, RTX 4090 $1.10/h, RTX 3090 $0.69/h (Serverless flex, Oct 2026) |
@@ -27,4 +30,16 @@ Environment variables:
 Phone and laptop need the same Wi-Fi and port 8090 reachable. iOS Safari converts camera photos to JPEG for file inputs. The server rejects HEIC files that arrive without conversion. Sessions are bearer capabilities in URLs, held only in memory; restarting clears them. This is a demo with no persistent storage or login. Do not use real confidential documents on an unprotected public connection.
 
 Extraction failures fall back only for bundled sample pages. Cached ground truth is explicitly marked and carries no fabricated GPU cost. Uploaded pages remain retryable. Memo streaming polls Runpod /run and /stream incrementally, forwards worker deltas, and closes with usage/timing. The browser retains the session across refreshes, polls for phone uploads, and allows retry after connection failures. Memo retries start a fresh memo.
+
+## Workspace pages and exports
+
+Read statements: add pages, check editable rows, review cash flow and cited flags, and write a memo. Download the current page or all checked pages as CSV. Save as PDF opens the browser print dialog and prints only the memo with plain-text citations.
+
+Compare models: run a page on three models explicitly, or inspect recorded test outputs offline. Explore data: browse group, layout, damage and planted flags; preview sandboxed HTML or PNG beside its answer key; upload and validate a dataset ZIP. Results: held-out scores, breakdowns and hardest pages, with a scores CSV export. Cost calculator: batch estimates and measured live costs, with Copy this estimate. Training: reported history, learning curves and a guarded new-run flow.
+
+## Guarded training
+
+Choose a validated dataset, quick check or full run, and a spending limit (at most $25). Review checks supported GPU stock in Romania, price and shared-volume availability. The confirmation token expires after ten minutes. Only the explicit Start action can launch a run. Real training requires TRAINING_ENABLED=1 and server credentials. Cancellation and spending limits trigger Pod deletion; if deletion cannot be verified, the app shows a persistent Pod warning with instructions to delete it in the Runpod console.
+
+“Simulated” means no GPU is rented and no new training or measurements take place. Stages, logs and spending progress are simulated; full-run scores replay the recorded evaluation and are labeled accordingly. Quick checks prove the flow and produce no scores. The reported run is historical evidence, so it has no live progress, log or deletion status.
 

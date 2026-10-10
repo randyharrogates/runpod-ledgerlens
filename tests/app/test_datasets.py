@@ -337,3 +337,46 @@ def test_counterparty_warning_stored(client):
         "examples": ["Shared Fictional Co"],
     }
     assert client.get("/api/datasets").json()[0]["validation"] == report
+
+
+def test_safe_png_preview_and_availability(client):
+    entries = files()
+    del entries["page.html"]
+    identity = send(client, entries).json()["id"]
+    detail = client.get(f"/api/dataset/pages/page?dataset={identity}").json()
+    assert detail["preview"] == "image"
+    response = client.get(f"/api/dataset/pages/page/image?dataset={identity}")
+    assert response.status_code == 200
+    assert response.headers["content-type"] == "image/png"
+    assert response.headers["x-content-type-options"] == "nosniff"
+    assert client.get("/api/dataset/pages/bad-id/image").status_code == 404
+    assert client.get("/api/dataset/pages/page/image?dataset=..").status_code == 404
+    (datasets.upload_path(identity) / "page.png").write_bytes(b"invalid")
+    assert (
+        client.get(f"/api/dataset/pages/page/image?dataset={identity}").status_code
+        == 422
+    )
+
+
+def test_preview_pixel_cap_before_decode(client, monkeypatch):
+    from app.backend import insights
+
+    identity = send(client, files()).json()["id"]
+
+    class Huge:
+        width, height = 100_000, 100_000
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *args):
+            pass
+
+        def verify(self):
+            pytest.fail("Oversized preview must not be decoded")
+
+    monkeypatch.setattr(insights.Image, "open", lambda _: Huge())
+    assert (
+        client.get(f"/api/dataset/pages/page/image?dataset={identity}").status_code
+        == 413
+    )

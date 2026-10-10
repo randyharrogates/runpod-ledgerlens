@@ -2,10 +2,12 @@
 
 import os
 import re
+import warnings
 from pathlib import Path
 
 from fastapi import APIRouter, HTTPException, Query
 from fastapi.responses import FileResponse
+from PIL import Image
 
 from ledgerlens.insights import (
     STRENGTHS,
@@ -131,7 +133,20 @@ def page_path(page_id, suffix, dataset=None):
 def detail(page_id: str, dataset: str | None = None):
     gold, source = page_path(page_id, ".json", dataset)
     meta, _ = page_path(page_id, ".meta.json", dataset)
-    return {"document": read_json(gold), "meta": read_json(meta), "source": source}
+    preview_kind = None
+    for suffix, kind in ((".html", "html"), (".png", "image")):
+        try:
+            page_path(page_id, suffix, dataset)
+            preview_kind = kind
+            break
+        except HTTPException:
+            pass
+    return {
+        "document": read_json(gold),
+        "meta": read_json(meta),
+        "source": source,
+        "preview": preview_kind,
+    }
 
 
 @router.get("/api/dataset/pages/{page_id}/preview")
@@ -139,13 +154,7 @@ def preview(page_id: str, dataset: str | None = None):
     try:
         path, source = page_path(page_id, ".html", dataset)
     except HTTPException:
-        for suffix in (".png", ".jpg", ".jpeg", ".webp"):
-            try:
-                path, source = page_path(page_id, suffix, dataset)
-                return FileResponse(path, headers={"X-Content-Type-Options": "nosniff"})
-            except HTTPException:
-                pass
-        raise
+        return page_image(page_id, dataset)
     return FileResponse(
         path,
         media_type="text/html",
@@ -154,6 +163,27 @@ def preview(page_id: str, dataset: str | None = None):
             "X-Content-Type-Options": "nosniff",
             "source": source,
         },
+    )
+
+
+@router.get("/api/dataset/pages/{page_id}/image")
+def page_image(page_id: str, dataset: str | None = None):
+    path, _ = page_path(page_id, ".png", dataset)
+    try:
+        with warnings.catch_warnings():
+            warnings.simplefilter("error", Image.DecompressionBombWarning)
+            with Image.open(path) as image:
+                if image.width * image.height > 60_000_000:
+                    raise HTTPException(413, "Image exceeds 60,000,000 pixels")
+                if image.format != "PNG":
+                    raise HTTPException(422, "Preview must be a PNG")
+                image.verify()
+    except (Image.DecompressionBombError, Image.DecompressionBombWarning):
+        raise HTTPException(413, "Image exceeds 60,000,000 pixels") from None
+    except (OSError, ValueError):
+        raise HTTPException(422, "Invalid preview image") from None
+    return FileResponse(
+        path, media_type="image/png", headers={"X-Content-Type-Options": "nosniff"}
     )
 
 

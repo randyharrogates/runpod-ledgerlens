@@ -121,7 +121,7 @@ export function Review({ pages, selected, row, analysis, save }: ReviewProps) {
         </div>
         <div className="review-right">
           <div className="kpis"><article><small>Lines read</small><h2>{rows.length}</h2></article><article><small><Term name="reconciliation" label="Balances that add up" /></small><h2 className="ready">{invoice ? 'Not applicable' : `${checks.filter(Boolean).length} / ${rows.length}`}</h2></article><article><small>Red flags</small><h2 className="orange">{flagged.size}</h2></article></div>
-        <section className="table-tile"><h2>What was read from {page.id}</h2><p>Click a cell to correct it. Brought forward: <span className="numeric">{money(page.document?.opening_balance, currency)}</span></p>
+        <section className="table-tile" data-tour="rows"><h2>What was read from {page.id}</h2><p>Click a cell to correct it. Brought forward: <span className="numeric">{money(page.document?.opening_balance, currency)}</span></p>
         <div className="table-scroll review-table">
           {fixes.length > 0 && (
             <p className="direction-note">

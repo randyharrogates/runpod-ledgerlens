@@ -1,21 +1,24 @@
-import { useEffect, useState } from 'react';
+import { lazy, Suspense, useEffect, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import { api, Analysis, Citation, Page } from './api';
 import { Upload } from './components/MobileUpload';
 import { Documents } from './components/Documents';
 import { Review } from './components/Review';
-import { Cashflow } from './components/Analysis';
+const Cashflow = lazy(() => import('./components/Analysis').then(m => ({default: m.Cashflow})));
 import { Memo } from './components/Memo';
 import { models, modelState } from './models';
 import { navigate, RouterLink, usePath } from './router';
 import { UnderTheHood } from './components/UnderTheHood';
 import { PageToolbar } from './components/PageToolbar';
-import { Compare } from './components/Compare';
-import { Results } from './components/Results';
-import { Cost } from './components/Cost';
-import { Data } from './components/Data';
-import { Training, TrainingRun, PodAlert } from './components/Training';
-import { getJSON } from './components/Compare';
+const Compare = lazy(() => import('./components/Compare').then(m => ({default: m.Compare})));
+const Results = lazy(() => import('./components/Results').then(m => ({default: m.Results})));
+const Cost = lazy(() => import('./components/Cost').then(m => ({default: m.Cost})));
+const Data = lazy(() => import('./components/Data').then(m => ({default: m.Data})));
+const Training = lazy(() => import('./components/Training').then(m => ({default: m.Training})));
+import { getJSON } from './request';
+import { TrainingRun, PodAlert } from './components/PodAlert';
+import { Presenter } from './components/Presenter';
+import { tour } from './tour';
 import './style.css';
 
 function App() {
@@ -41,6 +44,9 @@ function App() {
   async function refreshRuns() { setRuns(await getJSON<TrainingRun[]>('/api/training/runs')); }
   useEffect(() => { const poll = () => { void refreshRuns().catch(() => {}); }; poll(); const timer = setInterval(poll, 5000); return () => clearInterval(timer); }, []);
   const [presenter, setPresenter] = useState(false);
+  const [tourIndex, setTourIndex] = useState(0);
+  function tourGo(index: number) { setTourIndex(index); navigate(tour[index].route); if (tour[index].readStep) setTab(['Documents','Review','Analysis','Memo'][tour[index].readStep! - 1]); }
+
   useEffect(() => {
     if (!busy) return;
     const timer = setInterval(() => setElapsed(Math.floor((Date.now() - started) / 1000)), 1000);
@@ -138,7 +144,7 @@ function App() {
   }
   const route = routes.find(r => r[0] === path);
   return (
-    <div className="shell">
+    <div className={presenter ? "shell presenting" : "shell"} data-tour-active={presenter ? tour[tourIndex].highlight : undefined}>
       <aside className="rail">
         <RouterLink href="/" className="brand" aria-label="LedgerLens home">LL</RouterLink>
         <nav aria-label="Workspace">
@@ -147,7 +153,7 @@ function App() {
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true"><path d={icon} /></svg><span>{label}</span>{href === "/training" && runs.some(r => r.status.startsWith("POD MAY STILL BE RUNNING")) && <span className="pod-badge" aria-label="Pod may still be running">!</span>}
           </RouterLink>)}
         </nav>
-        <button className="presenter" aria-pressed={presenter} onClick={() => {setPresenter(!presenter); navigate('/'); setTab('Documents');}}>
+        <button className="presenter" aria-pressed={presenter} onClick={() => {setPresenter(!presenter); tourGo(0);}}>
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true"><path d="M7 4l13 8-13 8z" /></svg>Presenter
         </button>
       </aside>
@@ -158,8 +164,7 @@ function App() {
           <div className="model-status" aria-label="Model status">{models.map(m => <span key={m.key} className={modelState(status, m.key) === 'ready' ? 'ready' : ''}>{m.name} · {modelState(status, m.key)}</span>)}</div>
         </header>
         {error && <p role="alert" className="error">{error}</p>}
-        {path === '/data' ? <Data /> : path === '/training' ? <Training runs={runs} refresh={refreshRuns} /> : path === '/compare' ? <Compare session={session} pages={pages} status={status} /> : path === '/results' ? <Results /> : path === '/cost' ? <Cost history={history} /> : path !== '/' ? <article className="placeholder"><h2>{route ? 'Coming next' : 'Page not found'}</h2><RouterLink href="/">Read statements →</RouterLink></article> : <>
-        {presenter && <article className="tour">Three-minute tour: add pages (35s), check rows (40s), cash flow (45s), credit memo (35s), timing and cost (25s).</article>}
+        <Suspense fallback={<p role="status">Loading page…</p>}>{path === '/data' ? <Data /> : path === '/training' ? <Training runs={runs} refresh={refreshRuns} /> : path === '/compare' ? <Compare session={session} pages={pages} status={status} /> : path === '/results' ? <Results /> : path === '/cost' ? <Cost history={history} /> : path !== '/' ? <article className="placeholder"><h2>{route ? 'Coming next' : 'Page not found'}</h2><RouterLink href="/">Read statements →</RouterLink></article> : <>
         <nav className="steps" aria-label="Read statements steps">{['Documents', 'Review', 'Analysis', 'Memo'].map((value, i) => <button key={value} aria-current={tab === value ? 'step' : undefined} onClick={() => setTab(value)}>{i + 1} {['Add pages', 'Check rows', 'Cash flow and red flags', 'Credit memo'][i]}</button>)}</nav>
         <div className="read-controls">
           {pages.length > 0 ? <PageToolbar pages={pages} selected={selected} busy={busy} label={pageLabel} choose={id => {setSelected(id); setRow(-1); setTab('Review');}} read={page => void action(() => api.extract(session, page.id, model, types[page.id] || page.document?.doc_type || page.doc_type || 'statement'))} /> : <Documents session={session} refresh={refresh} busy={busy} pages={pages} action={action} model={model} types={types} setTypes={setTypes} setSelected={setSelected} setRow={setRow} setTab={setTab} setError={setError} />}
@@ -189,8 +194,9 @@ function App() {
           <Memo status={status} session={session} model={model} jump={jump} />
         </div>
         <UnderTheHood history={history} status={status} />
-        </>}
+        </>}</Suspense>
       </main>
+      {presenter && <Presenter index={tourIndex} go={tourGo} exit={() => setPresenter(false)} readMemo={() => setTab('Memo')} />}
     </div>
   );
 }
