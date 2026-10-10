@@ -527,3 +527,17 @@ the bottom of each day.
   outflow given as the total) still passes — the check proves a number came from the analysis, not
   that it is used in the right place. Stated as a limit. 226 tests pass; the 02:30 live memo still
   checks clean.
+- **02:41–03:05 — Phone-set pipeline checked end to end; clean baseline measured.**
+  - Ingest dry run with the 20 clean pages as stand-in photos: 20 pairs, `pairs.html`, test file.
+    iPhones save HEIC by default; the error now gives the `sips` command, and the handoff says so.
+  - Scoring dry run (fine-tuned 4B only) worked end to end: report, summary, GPU name, precision and
+    recall. Not a phone result.
+  - Then scored the same 20 clean pages on all three endpoints as the **baseline for test set C**
+    (`data/phone_clean_eval`, gitignored; RTX 5090 on all three, so $1.58/h is the right price):
+    row F1 8B 0.664, 4B 0.682, fine-tuned 4B 0.984; seconds per page (live execution) 12.0 / 6.9 /
+    5.6; $ per 1,000 pages 5.26 / 3.04 / 2.48. Base models reconcile 0 of 20 pages. In `docs/REPORT.md`.
+  - Results tab: phone-set labels, a note per set (the phone sets are live, not batched), a
+    `train.report merge` command to add them to `eval/summary.json`; "(batched)" dropped from the
+    seconds label since not every set is batched. Checked by merging the baseline into a copy and
+    screenshotting (`results-phone-clean-merge.png`); the committed summary is unchanged until the
+    photos are scored. Spend for the baseline ≈ $0.3.

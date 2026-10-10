@@ -33,7 +33,7 @@ const evaluation = render(React.createElement(ResultTable, {value: {
     '4b-ft': {pages: 98, row_f1: 0.9, seconds_per_page: 1, cost_per_1000_pages: 0.2}
   }, empty: {status: 'empty_set'}}
 }}));
-for (const label of ['Real receipts (CORD v2 test)', '98 pages', '8B, no training', '4B, no training', '4B fine-tuned', 'Rows read exactly right (row F1)', 'Rows written that are right (precision)', 'Real rows found (recall)', 'Header fields right', 'Seconds per page (batched)', '$ per 1,000 pages', 'Test GPU', '$0.72/h', 'No pages in this set.']) assert(evaluation.includes(label), label);
+for (const label of ['Real receipts (CORD v2 test)', '98 pages', '8B, no training', '4B, no training', '4B fine-tuned', 'Rows read exactly right (row F1)', 'Rows written that are right (precision)', 'Real rows found (recall)', 'Header fields right', 'Seconds per page', '$ per 1,000 pages', 'Test GPU', '$0.72/h', 'No pages in this set.']) assert(evaluation.includes(label), label);
 // Rows with no value for any model (e.g. reconciliation on receipts) are hidden.
 for (const label of ['after the balance check', 'Page adds up', 'Valid JSON', 'Red flags found (recall)', 'Red-flag precision']) assert(!evaluation.includes(label), label);
 assert(evaluation.includes('Live Serverless, one page at a time.'));

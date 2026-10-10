@@ -115,7 +115,21 @@ Where the differences come from (row F1 on A, by layout and by damage; script ov
 - Receipts are real photos of a different document type, so they show the synthetic-to-real gap
   most clearly: 0.765 for the fine-tune (which also trained on CORD's own training receipts) vs
   0.96+ on synthetic pages.
-- **Phone photos (test set C):** pending — needs the printed pages photographed.
+- **Phone photos (test set C):** photos pending. The **clean baseline** for the same 20 pages is
+  measured (live on Serverless, one page at a time, RTX 5090, $1.58/h), so the photo result can be
+  read as "what the camera costs" on identical content:
+
+  | Same 20 pages, clean | 8B | 4B | 4B fine-tuned |
+  |---|---:|---:|---:|
+  | row F1 | 0.664 | 0.682 | **0.984** |
+  | row precision / recall | 0.671 / 0.657 | 0.689 / 0.675 | 0.997 / 0.972 |
+  | header fields right | 0.928 | 0.928 | 0.972 |
+  | page adds up | 0.00 | 0.00 | 0.81 |
+  | seconds per page (live, execution) | 12.0 | 6.9 | **5.6** |
+  | $ per 1,000 pages (live) | $5.26 | $3.04 | **$2.48** |
+
+  Both base models reconcile none of the 20 pages; their errors are mostly debit/credit direction
+  (the balance check lifts the 8B from 0.66 to 0.83).
 
 ### What the schema fix changed
 The first full run allowed an amount to be a JSON number of any length; base models sometimes wrote
@@ -175,7 +189,8 @@ Serverless and ~$0.52 batched on a Pod. A lender processing month-end files in b
 
 ## 8. What's next
 
-1. **Phone photos (test set C):** score both endpoints on 20 printed, photographed test pages.
+1. **Phone photos (test set C):** score all three endpoints on the 20 printed, photographed test pages
+   and compare with the clean baseline above (commands in `train/README.md`).
 2. **Heavy damage:** train with more heavily damaged pages, and accept a page with one impossible
    date instead of rejecting it (flag that row for the analyst).
 3. **Rupiah amounts for the base 8B:** one prompt line on thousands grouping, then re-score CORD.
