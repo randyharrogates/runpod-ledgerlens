@@ -8,9 +8,9 @@ type Summary = {
   split_notes?: Record<string, string>;
 };
 const models = [
-  ['8b', '8B, no training'],
-  ['4b', '4B, no training'],
-  ['4b-ft', '4B fine-tuned'],
+  ['8b', 'Big model'],
+  ['4b', 'Small model'],
+  ['4b-ft', 'Trained small model'],
 ];
 const metrics = [
   ['row_f1', 'Rows read exactly right (row F1)', 'rate'],

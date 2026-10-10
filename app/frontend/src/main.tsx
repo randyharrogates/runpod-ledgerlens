@@ -6,12 +6,14 @@ import { Documents } from './components/Documents';
 import { Review } from './components/Review';
 import { Cashflow } from './components/Analysis';
 import { Memo } from './components/Memo';
-import { ResultTable } from './components/Results';
+import { models, modelState } from './models';
+import { navigate, RouterLink, usePath } from './router';
 import { UnderTheHood } from './components/UnderTheHood';
 import './style.css';
 
 function App() {
-  const mobile = location.pathname.match(/^\/m\/([a-f0-9]{32})$/);
+  const path = usePath();
+  const mobile = path.match(/^\/m\/([a-f0-9]{32})$/);
   const [session, setSession] = useState(
     mobile?.[1] || localStorage.getItem('ledgerlens-session') || '',
   );
@@ -20,13 +22,20 @@ function App() {
   const [analysis, setAnalysis] = useState<Analysis | null>(null);
   const [selected, setSelected] = useState('');
   const [row, setRow] = useState(-1);
-  const [model, setModel] = useState('8b');
+  const [model, setModel] = useState('ft');
   const [types, setTypes] = useState<Record<string, string>>({});
   const [history, setHistory] = useState<Record<string, unknown>[]>([]);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
   const [status, setStatus] = useState<Record<string, unknown>>({});
-  const [evaluation, setEvaluation] = useState<Record<string, unknown>>({ available: false });
+  const [started, setStarted] = useState(0);
+  const [elapsed, setElapsed] = useState(0);
+  const [presenter, setPresenter] = useState(false);
+  useEffect(() => {
+    if (!busy) return;
+    const timer = setInterval(() => setElapsed(Math.floor((Date.now() - started) / 1000)), 1000);
+    return () => clearInterval(timer);
+  }, [busy, started]);
 
   async function refresh() {
     if (!session) return;
@@ -61,12 +70,14 @@ function App() {
     };
     poll();
     const timer = setInterval(poll, 3000);
-    void api.evaluation().then(setEvaluation).catch(e => setError(e.message));
+
     return () => clearInterval(timer);
   }, [session]);
 
   async function action(fn: () => Promise<unknown>) {
     setBusy(true);
+    setStarted(Date.now());
+    setElapsed(0);
     setError('');
     try {
       await fn();
@@ -82,6 +93,7 @@ function App() {
     setSelected(citation.page_id);
     setRow(citation.row_index);
     setTab('Review');
+    if (path !== '/') navigate('/');
   }
 
   if (mobile) {
@@ -92,38 +104,69 @@ function App() {
       </main>
     );
   }
+  const routes = [
+    ['/', 'Read', 'Read statements', 'M6 3h8l4 4v14H6z M14 3v5h4 M9 12h6 M9 16h6'],
+    ['/compare', 'Compare', 'Compare models', 'M3 5h7v14H3z M14 5h7v14h-7z'],
+    ['/data', 'Data', 'Explore data', 'M4 6c0-4 16-4 16 0s-16 4-16 0v12c0 4 16 4 16 0V6 M4 12c0 4 16 4 16 0'],
+    ['/training', 'Training', 'Training', 'M3 4v16h18 M6 8c3 0 3 8 6 8s3-3 7-3'],
+    ['/results', 'Results', 'Results', 'M5 20V10 M12 20V4 M19 20v-7'],
+    ['/cost', 'Cost', 'Cost calculator', 'M12 3a9 9 0 1 0 0 18a9 9 0 1 0 0-18 M15 8h-4a2 2 0 0 0 0 4h2a2 2 0 0 1 0 4H9 M12 6v12'],
+  ];
+  function pageLabel(page: Page) {
+    if (page.status === 'extracting') return 'reading';
+    if (page.status === 'error') return 'error';
+    if (!page.document) return 'not read';
+    if (page.document.doc_type === 'invoice') return 'read';
+    let balance = Number(page.document.opening_balance || 0);
+    let problems = 0;
+    for (const row of page.document.transactions || []) {
+      const expected = balance + Number(row.credit || 0) - Number(row.debit || 0);
+      if (row.balance == null || Math.abs(expected - Number(row.balance)) > 0.009) problems++;
+      balance = row.balance == null ? expected : Number(row.balance);
+    }
+    return problems ? `${problems} to check` : 'read ✓';
+  }
+  const route = routes.find(r => r[0] === path);
   return (
     <div className="shell">
-      <aside>
-        <h1>LedgerLens</h1>
-        <p>Evidence to lending insight</p>
-        <nav>
-          {['Documents', 'Review', 'Analysis', 'Memo', 'Results'].map(label => (
-            <button className={tab === label ? 'active' : ''} key={label}
-              onClick={() => setTab(label)}>
-              {label}
-            </button>
-          ))}
+      <aside className="rail">
+        <RouterLink href="/" className="brand" aria-label="LedgerLens home">LL</RouterLink>
+        <nav aria-label="Workspace">
+          {routes.map(([href, label, title, icon]) => <RouterLink key={href} href={href}
+            aria-label={title} aria-current={path === href ? 'page' : undefined}>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true"><path d={icon} /></svg><span>{label}</span>
+          </RouterLink>)}
         </nav>
-        <small>Private session · fictional sample data</small>
+        <button className="presenter" aria-pressed={presenter} onClick={() => {setPresenter(!presenter); navigate('/'); setTab('Documents');}}>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true"><path d="M7 4l13 8-13 8z" /></svg>Presenter
+        </button>
       </aside>
       <main>
         <header>
-          <div><small>SME CREDIT WORKSPACE</small><h1>{tab}</h1></div>
-          <select aria-label="Extraction model" value={model}
-            onChange={e => setModel(e.target.value)}>
-            <option value="8b">Qwen3-VL-8B (base)</option>
-            <option value="ft">Qwen3-VL-4B (fine-tuned)</option>
-          </select>
+          <div><h1>{route?.[2] || 'Page not found'}</h1><p>{path === '/' ? 'Add photos of statements, check what was read, and fix any cell that is wrong.' : 'This page is coming next.'}</p></div>
+          <div className="model-status" aria-label="Model status">{models.map(m => <span key={m.key} className={modelState(status, m.key) === 'ready' ? 'ready' : ''}>{m.name} · {modelState(status, m.key)}</span>)}</div>
         </header>
         {error && <p role="alert" className="error">{error}</p>}
-        {tab === 'Documents' && (
-          <Documents session={session} refresh={refresh} busy={busy} pages={pages}
-            action={action} model={model} types={types} setTypes={setTypes}
-            setSelected={setSelected} setRow={setRow} setTab={setTab} setError={setError} />
-        )}
+        {path !== '/' ? <article className="placeholder"><h2>{route ? 'Coming next' : 'Page not found'}</h2><RouterLink href="/">Read statements →</RouterLink></article> : <>
+        {presenter && <article className="tour">Three-minute tour: add pages (35s), check rows (40s), cash flow (45s), credit memo (35s), timing and cost (25s).</article>}
+        <nav className="steps" aria-label="Read statements steps">{['Documents', 'Review', 'Analysis', 'Memo'].map((value, i) => <button key={value} aria-current={tab === value ? 'step' : undefined} onClick={() => setTab(value)}>{i + 1} {['Add pages', 'Check rows', 'Cash flow and red flags', 'Credit memo'][i]}</button>)}</nav>
+        <div className="read-controls">
+          <article className="page-switcher"><div className="actions">{pages.map(p => <button key={p.id} className={selected === p.id || (!selected && pages[0]?.id === p.id) ? 'current' : ''} onClick={() => {setSelected(p.id); setRow(-1); setTab('Review');}}>{p.id} · {p.document?.doc_type === 'invoice' || p.doc_type === 'invoice' ? 'invoice · ' : ''}{pageLabel(p)}</button>)}<button onClick={() => setTab('Documents')}>+ add pages</button></div><small>Add photos, files, or use your phone on the same Wi-Fi.</small></article>
+          <article className="model-picker"><label htmlFor="model">Model reading the pages</label><select id="model" value={model} onChange={e => setModel(e.target.value)}>{models.map(m => <option key={m.key} value={m.key}>{m.name} · {modelState(status, m.key)}</option>)}</select><small>{models.find(m => m.key === model)?.technical}</small><button disabled={busy || !pages.length} onClick={() => void action(async () => {
+            const failures: string[] = [];
+            for (const p of pages) {
+              try { await api.extract(session, p.id, model, types[p.id] || p.document?.doc_type || p.doc_type || 'statement'); }
+              catch (e) { failures.push(`${p.id}: ${(e as Error).message}`); }
+              await refresh();
+            }
+            if (failures.length) throw new Error(failures.join('; '));
+            setTab('Review');
+          })}>Read all pages</button></article>
+        </div>
+        {busy && <article role="status">Reading · {elapsed}s elapsed{(modelState(status, model) === 'waking up' || modelState(status, model) === 'asleep') && <p>Waiting for a GPU: the model was asleep. This can take a few minutes.</p>}</article>}
+        {tab === 'Documents' && <Documents session={session} refresh={refresh} busy={busy} pages={pages} action={action} model={model} types={types} setTypes={setTypes} setSelected={setSelected} setRow={setRow} setTab={setTab} setError={setError} />}
         {tab === 'Review' && (
-          <Review pages={pages} selected={selected} row={row} analysis={analysis}
+          <Review busy={busy} read={page => void action(() => api.extract(session, page.id, model, types[page.id] || page.document?.doc_type || page.doc_type || "statement"))} pages={pages} selected={selected} row={row} analysis={analysis}
             choose={page => { setSelected(page); setRow(-1); }}
             save={async (page, index, field, value) => {
               await api.edit(session, page, index, field, value);
@@ -132,12 +175,10 @@ function App() {
         )}
         {tab === 'Analysis' && <Cashflow data={analysis} jump={jump} />}
         <div hidden={tab !== 'Memo'}>
-          <Memo session={session} model={model} jump={jump} />
+          <Memo status={status} session={session} model={model} jump={jump} />
         </div>
-        {tab === 'Results' && (evaluation.available === false
-          ? <p>Not run yet. Evaluation results will appear after eval/summary.json is generated.</p>
-          : <ResultTable value={evaluation} />)}
         <UnderTheHood history={history} status={status} />
+        </>}
       </main>
     </div>
   );

@@ -33,7 +33,7 @@ const evaluation = render(React.createElement(ResultTable, {value: {
     '4b-ft': {pages: 98, row_f1: 0.9, seconds_per_page: 1, cost_per_1000_pages: 0.2}
   }, empty: {status: 'empty_set'}}
 }}));
-for (const label of ['Real receipts (CORD v2 test)', '98 pages', '8B, no training', '4B, no training', '4B fine-tuned', 'Rows read exactly right (row F1)', 'Rows written that are right (precision)', 'Real rows found (recall)', 'Header fields right', 'Seconds per page', '$ per 1,000 pages', 'Test GPU', '$0.72/h', 'No pages in this set.']) assert(evaluation.includes(label), label);
+for (const label of ['Real receipts (CORD v2 test)', '98 pages', 'Big model', 'Small model', 'Trained small model', 'Rows read exactly right (row F1)', 'Rows written that are right (precision)', 'Real rows found (recall)', 'Header fields right', 'Seconds per page', '$ per 1,000 pages', 'Test GPU', '$0.72/h', 'No pages in this set.']) assert(evaluation.includes(label), label);
 // Rows with no value for any model (e.g. reconciliation on receipts) are hidden.
 for (const label of ['after the balance check', 'Page adds up', 'Valid JSON', 'Red flags found (recall)', 'Red-flag precision']) assert(!evaluation.includes(label), label);
 assert(evaluation.includes('Live Serverless, one page at a time.'));
@@ -43,6 +43,16 @@ assert.equal((evaluation.match(/<strong>1.00<\/strong>/g) || []).length, 2);
 assert.equal((evaluation.match(/<strong>\$0.20<\/strong>/g) || []).length, 2);
 assert(evaluation.includes('—'));
 assert(!evaluation.includes('<strong>—</strong>'));
+const {modelState} = require('./src/models.ts');
+assert.equal(modelState({}, 'ft'), 'unavailable');
+for (const [payload, expected] of [[{offline:true}, 'offline'], [{unavailable:true}, 'unavailable'], [{workers:{idle:1}}, 'ready'], [{workers:{running:1}}, 'ready'], [{workers:{initializing:1}}, 'waking up'], [{workers:{idle:0},jobs:{inQueue:1}}, 'waking up'], [{workers:{idle:0,running:0,initializing:0},jobs:{inQueue:0}}, 'asleep'], [{workers:{}}, 'unavailable']]) assert.equal(modelState({ft:payload}, 'ft'), expected);
+const {Term} = require('./src/components/Term.tsx');
+for (const [name, definition] of Object.entries(require('./src/glossary.ts').glossary)) {
+  const term = render(React.createElement(Term, {name}));
+  assert(term.includes(definition)); assert(term.includes('role="tooltip"')); assert(term.includes('aria-describedby'));
+}
+const {RouterLink} = require('./src/router.tsx');
+assert(render(React.createElement(RouterLink, {href:'/compare', 'aria-label':'Compare models'}, 'Compare')).includes('href="/compare"'));
 const {MemoContent} = require('./src/components/Memo.tsx');
 const jump = () => {};
 for (const heading of ['Summary', '## Summary', '**Summary**']) {
@@ -111,6 +121,12 @@ const cell = render(React.createElement(Cell, {
 }));
 assert(cell.includes('cell-content'));
 assert(cell.indexOf('↔') < cell.indexOf('100.00'));
+const {Review} = require('./src/components/Review.tsx');
+const reviewed = render(React.createElement(Review, {
+  pages: [{id:'p1', thumbnail_url:'/photo', status:'done', document:{doc_type:'statement',currency:'SGD',opening_balance:'0',transactions:[{date:'2026-01-01',description:'Payment',credit:'100',debit:null,balance:'100'}]}, edited:[], direction_fixes:[{row:0,from:'debit',to:'credit',amount:'100'}],metrics:null}], selected:'p1', row:0, choose:()=>{}, save:async()=>{},
+  analysis:{reconciliation:[],findings:[{citations:[{page_id:'p1',row_index:0}]}]}
+}));
+for (const label of ['What was read from p1','Download CSV','Balance adds up','Red flag','Moved from debit to credit: the balance went up by this amount','Statement evidence p1']) assert(reviewed.includes(label),label);
 const {Documents} = require('./src/components/Documents.tsx');
 const page = {id: 'p1', status: 'extracted', metrics: {source: 'cached-demo', live_error: 'Oops'}};
 const props = {pages: [page], types: {}, session: ''};

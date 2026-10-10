@@ -1,7 +1,9 @@
 import React, { useEffect, useRef, useState } from 'react';
+import { modelState } from '../models';
 import { api, Citation } from '../api';
 
-export function Memo({ session, model, jump }: {
+export function Memo({ session, model, jump, status = {} }: {
+  status?: Record<string, unknown>;
   session: string;
   model: string;
   jump: (citation: Citation) => void;
@@ -9,6 +11,14 @@ export function Memo({ session, model, jump }: {
   const [text, setText] = useState('');
   const [unverified, setUnverified] = useState<string[]>([]);
   const [busy, setBusy] = useState(false);
+  const [cached, setCached] = useState(false);
+  const [elapsed, setElapsed] = useState(0);
+  const started = useRef(0);
+  useEffect(() => {
+    if (!busy) return;
+    const timer = setInterval(() => setElapsed(Math.floor((Date.now() - started.current) / 1000)), 1000);
+    return () => clearInterval(timer);
+  }, [busy]);
   const [error, setError] = useState('');
   const stream = useRef<EventSource | null>(null);
   useEffect(() => () => stream.current?.close(), []);
@@ -17,6 +27,9 @@ export function Memo({ session, model, jump }: {
     stream.current?.close();
     setText('');
     setUnverified([]);
+    setCached(false);
+    setElapsed(0);
+    started.current = Date.now();
     setError('');
     setBusy(true);
     const source = api.memo(session, model);
@@ -27,6 +40,7 @@ export function Memo({ session, model, jump }: {
     source.addEventListener('final', event => {
       const final = JSON.parse((event as MessageEvent).data);
       setUnverified(Array.isArray(final.unverified) ? final.unverified.filter((value: unknown) => typeof value === 'string') : []);
+      setCached(final.source === 'cached-demo' || final.metrics?.source === 'cached-demo');
       source.close();
       setBusy(false);
     });
@@ -45,6 +59,8 @@ export function Memo({ session, model, jump }: {
         {busy ? 'Writing memo…' : 'Generate memo'}
       </button>
       <p>Numbers are computed from extracted rows; the model writes the prose. Any number it adds is highlighted.</p>
+      {cached && <p className="cached">Cached demo · no live model call</p>}
+      {busy && <p role="status">Writing · {elapsed}s elapsed{['asleep', 'waking up'].includes(modelState(status, model)) && <span> · Waiting for a GPU: the model was asleep. This can take a few minutes.</span>}</p>}
       <article className="memo">
         <MemoContent text={text} jump={jump} unverified={unverified} />
       </article>
