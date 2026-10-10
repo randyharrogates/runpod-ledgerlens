@@ -2,7 +2,7 @@
 
 import json
 
-from train.report import make_summary, summarise
+from train.report import make_summary, merge_summary, summarise
 
 
 def test_summary_fields_and_rounding(tmp_path):
@@ -54,3 +54,20 @@ def test_summary_fields_and_rounding(tmp_path):
     assert make_summary(source, out) == summary
     assert out.read_text() == json.dumps(summary, indent=2, sort_keys=True) + "\n"
     assert result["header_accuracy"] == 0.123456
+
+
+def test_merge_adds_a_renamed_split_with_its_note(tmp_path):
+    into = tmp_path / "summary.json"
+    into.write_text(json.dumps(summarise({"test_cord": {"status": "empty_set"}})))
+    source = tmp_path / "phone.json"
+    source.write_text(json.dumps({"splits": {"test_phone": {"4b-ft": {"pages": 20}}}}))
+    merged = merge_summary(
+        into, source, "test_phone", "test_phone_clean", "Live, one page at a time."
+    )
+    assert merged["splits"]["test_phone_clean"] == {"4b-ft": {"pages": 20}}
+    assert merged["split_labels"]["test_phone_clean"].startswith(
+        "The same pages, clean"
+    )
+    assert merged["split_notes"] == {"test_phone_clean": "Live, one page at a time."}
+    assert merged["splits"]["test_cord"] == {"status": "empty_set"}
+    assert json.loads(into.read_text()) == merged

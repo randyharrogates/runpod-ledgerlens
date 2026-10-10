@@ -43,6 +43,8 @@ SPLIT_LABELS = {
     "test_unseen_layout": "Unseen statement layouts",
     "test_seen_layout": "Seen layouts, new businesses",
     "test_cord": "Real receipts (CORD v2 test)",
+    "test_phone": "Phone photos of printed pages",
+    "test_phone_clean": "The same pages, clean (baseline for the phone photos)",
 }
 
 
@@ -81,6 +83,21 @@ def summarise(results: dict) -> dict:
         "split_labels": SPLIT_LABELS.copy(),
         "splits": splits,
     }
+
+
+def merge_summary(
+    into: Path, source: Path, split: str, name: str | None = None, note: str = ""
+) -> dict:
+    """Add one split from another summary (e.g. the live phone run) to the app's summary."""
+    summary = json.loads(into.read_text())
+    added = json.loads(source.read_text())["splits"][split]
+    name = name or split
+    summary["splits"][name] = added
+    summary["split_labels"][name] = SPLIT_LABELS.get(name, name)
+    if note:
+        summary.setdefault("split_notes", {})[name] = note
+    into.write_text(json.dumps(summary, indent=2, sort_keys=True) + "\n")
+    return summary
 
 
 def make_summary(results: Path, out: Path) -> dict:
@@ -222,6 +239,16 @@ def main():
         parser.add_argument("--out", type=Path, default=Path("eval/summary.json"))
         args = parser.parse_args(sys.argv[2:])
         make_summary(args.results, args.out)
+        return
+    if sys.argv[1:2] == ["merge"]:
+        parser = argparse.ArgumentParser(description="Add one split to a summary")
+        parser.add_argument("--into", type=Path, default=Path("eval/summary.json"))
+        parser.add_argument("--source", type=Path, required=True)
+        parser.add_argument("--split", required=True)
+        parser.add_argument("--as", dest="name")
+        parser.add_argument("--note", default="")
+        args = parser.parse_args(sys.argv[2:])
+        merge_summary(args.into, args.source, args.split, args.name, args.note)
         return
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--data", type=Path, required=True)
