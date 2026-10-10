@@ -345,3 +345,43 @@ def test_statement_heading_by_country(ledger, currency, heading):
         html = render_html(statement, layout_id)
         assert heading in html
         assert "Fictional synthetic document" in html
+
+
+def test_invoices_vary_and_add_up():
+    import random
+    from decimal import ROUND_HALF_UP, Decimal
+
+    from ledgerlens.datagen.invoice import TAX, generate_invoice
+
+    businesses = generate_businesses(30, 7)
+    rng = random.Random(1)
+    invoices = [generate_invoice(b, rng) for b in businesses for _ in range(2)]
+    # Not a template: totals, line counts and dates differ between invoices.
+    assert len({i.total for i in invoices}) > 50
+    assert len({len(i.line_items) for i in invoices}) > 3
+    assert len({i.date for i in invoices}) > 30
+    for invoice, business in zip(invoices, [b for b in businesses for _ in range(2)]):
+        step = Decimal(1) if invoice.currency == "IDR" else Decimal("0.01")
+        for line in invoice.line_items:
+            assert line.amount == (line.quantity * line.unit_price).quantize(
+                step, rounding=ROUND_HALF_UP
+            )
+        assert invoice.subtotal == sum(line.amount for line in invoice.line_items)
+        rate = TAX[business.country][1]
+        assert abs(invoice.tax - invoice.subtotal * rate) <= step / 2
+        assert invoice.total == invoice.subtotal + invoice.tax
+        if invoice.currency == "IDR":
+            assert all(line.unit_price % 100 == 0 for line in invoice.line_items)
+
+
+def test_invoice_items_match_the_business_name():
+    import random
+
+    from ledgerlens.datagen.invoice import CATALOGUE, generate_invoice
+
+    for business in generate_businesses(60, 3):
+        invoice = generate_invoice(business, random.Random(0))
+        names = {name for name, _, _ in CATALOGUE["textiles"]}
+        if business.name.endswith(("Tekstil", "Textiles", "纺织")):
+            assert all(line.description in names for line in invoice.line_items)
+        assert invoice.invoice_number.isascii()
