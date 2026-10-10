@@ -98,3 +98,42 @@ TRL 1.13, transformers 5.17, torch 2.14.1+cu130, vLLM 0.31.0.
 Measured stage times (20 businesses): smoke 16 min (30 steps, eval, merged export); main 25 min
 for 108 steps (one epoch, ~860 examples, ~11 s/step); each prediction stage spends 10–20 min loading and
 compiling before the first page.
+
+## Test set C: phone photos of printed pages
+
+Run locally from the repo root (Pillow is required; `prepare` also needs local Chromium):
+
+```sh
+uv run python -m train.phone_set prepare --synth /path/to/synth --out phone --n 20 --seed 7
+# Print phone/print.pdf at A4, then photograph each page in printed order in normal room light.
+uv run python -m train.phone_set ingest --phone phone --photos /path/to/exported/photos --out phone-data
+# Open phone-data/pairs.html and confirm every photo matches the adjacent clean page.
+# Supply RUNPOD_API_KEY through your environment; this tool never reads runpodctl's config.
+uv run python -m train.phone_set score --data phone-data \
+  --endpoint baseline=ENDPOINT_ID --price baseline=1.58 --out phone-results
+```
+
+The seeded test-only selection uses 10 unseen-layout statements, 6 seen-layout statements
+and 4 invoices, cycling businesses and favoring less-used layouts/currencies. Other `--n`
+values scale those proportions with largest-remainder rounding. Insufficient buckets or
+business diversity fail explicitly. Clean HTML is rendered again; degraded dataset PNGs
+are never printed. The A4 PDF includes a small numbered label outside the page content;
+`manifest.json` records the exact order and source directory.
+
+Export HEIC as JPEG first. Ingest accepts JPEG, PNG and WEBP, checks dimensions before
+pixel decoding (60 million pixel upload limit), applies EXIF orientation and requires
+exactly one photo per manifest entry. EXIF DateTimeOriginal orders dated photos, then
+undated photos follow in filename order; filenames also break timestamp ties. Keep
+exports in one directory without extra photos. The contact sheet is a local HTML file
+referencing the clean PNGs in `phone/clean`; keep that directory available for review.
+If pairs are wrong, fix the photo timestamps/names and ingest again before scoring.
+
+Repeat `--endpoint NAME=ID` and `--price NAME=USD_PER_HOUR` for each model. Calls are
+sequential. Invalid extraction answers are scored as invalid; failed jobs stop the run
+instead of producing a misleading complete report. Predictions and `_timing.json` live
+under `phone-results/predictions/NAME/test_phone`; Markdown/JSON reports are in `eval`.
+Seconds/page and cost use mean Runpod `executionTime` (including cold jobs), excluding
+queue delay and client wall time. Timing separately records mean delay in seconds,
+worker-reported cold-start count, engine load time and wall time. The hourly prices are
+user-supplied comparison inputs. This measures a real camera gap on known synthetic
+answers; it does not measure accuracy on real customer documents.

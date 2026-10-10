@@ -273,3 +273,12 @@ the bottom of each day.
   showing cached result" with the error, on the document card and in Under the hood. Reviewed the
   diff; one follow-up fixed directly: the generator's concentration label compares case-insensitive
   keys. 207 tests; Node render test of the memo, review cell and warning chip.
+- **15:30 — Test set C tool (`train/phone_set.py`, Codex; reviewed).** `prepare` picks 20 held-out
+  test pages (10 unseen-layout and 6 seen-layout statement pages, 4 invoices; all six statement
+  layouts, three currencies, never the same business twice in a row) and writes a clean, numbered
+  `print.pdf`; `ingest` pairs phone photos with gold answers by capture time (size check before
+  decoding, EXIF orientation, HEIC refused) and writes a contact sheet to confirm the pairing;
+  `score` runs the photos through the deployed endpoints and reports Runpod execution time and
+  cost. Review fixes: key from `runpodctl` config, a failed call counts as a failed page instead of
+  aborting, errors shown. Prepared locally from an identical seed-7 dataset (gold JSON hashes match
+  the Pod's): `data/phone/print.pdf` (gitignored). 214 tests.
