@@ -22,7 +22,7 @@ const metrics = [
   ['valid_json', 'Valid JSON', 'rate'],
   ['anomaly_recall', 'Red flags found (recall)', 'rate'],
   ['anomaly_precision', 'Red-flag precision', 'rate'],
-  ['seconds_per_page', 'Seconds per page (batched)', 'seconds'],
+  ['seconds_per_page', 'Seconds per page', 'seconds'],
   ['cost_per_1000_pages', '$ per 1,000 pages', 'dollars'],
 ];
 
