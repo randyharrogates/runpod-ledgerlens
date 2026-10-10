@@ -20,6 +20,11 @@ def client(tmp_path, monkeypatch):
     monkeypatch.setenv("DEMO_MODE", "1")
     training.TOKENS.clear()
     monkeypatch.setattr(
+        pod_runner.subprocess,
+        "run",
+        lambda *a, **k: subprocess.CompletedProcess(a, 0, "[]", ""),
+    )
+    monkeypatch.setattr(
         training,
         "stock",
         lambda: ("NVIDIA RTX PRO 4500 Blackwell", 0.72, "Available", True),
@@ -54,9 +59,15 @@ def test_math_and_index(client):
     assert full["total_minutes"] == 351
     assert full["total_cost"] == pytest.approx(4.212)
     assert full["suggested_cap_usd"] == 7
-    expected = (15 + 10 + 86) * 60 / 400 + 16 + (105 + 55 + 50) * 300 / 1888 + 9 + 5
-    assert quick["total_minutes"] == pytest.approx(expected)
-    assert quick["env"] == {"N_BUSINESSES": "60", "PREDICT_LIMIT": "100"}
+    assert quick["total_minutes"] == 180
+    assert quick["total_cost"] == 2.70
+    assert quick["env"] == {
+        "N_BUSINESSES": "20",
+        "STOP_AFTER": "predict-ft",
+        "PREDICT_LIMIT": "3",
+    }
+    assert "9 Oct rehearsal" in quick["measurement_note"]
+    assert "report" not in [s["id"] for s in quick["stages"]]
     assert all(
         p["estimated"] and all(s["estimated"] for s in p["stages"])
         for p in (full, quick)
@@ -208,6 +219,7 @@ def runner_state():
     "mode",
     [
         "success",
+        "quick",
         "failure",
         "cap",
         "cancel",
@@ -219,6 +231,8 @@ def runner_state():
 )
 def test_real_runner(tmp_path, monkeypatch, mode):
     state = runner_state()
+    if mode == "quick":
+        state["env"] = training.presets()[1]["env"]
     folder = tmp_path / "run"
     folder.mkdir()
     calls = []
@@ -245,7 +259,9 @@ def test_real_runner(tmp_path, monkeypatch, mode):
             code = 1 if mode == "create-failure" else 0
         elif args[:3] == ["runpodctl", "pod", "list"]:
             output = json.dumps(
-                [{"id": "pod123456"}] if mode == "delete-failure" else []
+                [{"id": "pod123456", "status": "EXITED"}]
+                if mode == "delete-failure"
+                else []
             )
         elif args[0] == "ssh":
             command = args[-1]
@@ -258,7 +274,9 @@ def test_real_runner(tmp_path, monkeypatch, mode):
                     runner.cancel()
             elif command.startswith("ls "):
                 output = (
-                    " ".join(pod_runner.STAGES)
+                    " ".join(pod_runner.STAGES[:-1])
+                    if mode == "quick"
+                    else " ".join(pod_runner.STAGES)
                     if mode in ("success", "delete-failure")
                     else "generate"
                 )
@@ -275,6 +293,7 @@ def test_real_runner(tmp_path, monkeypatch, mode):
     runner.run()
     expected = {
         "success": "done",
+        "quick": "done",
         "failure": "failed",
         "cap": "cap_reached",
         "cancel": "cancelled",
@@ -293,7 +312,8 @@ def test_real_runner(tmp_path, monkeypatch, mode):
         assert state["pod_deleted"]
     assert ["runpodctl", "pod", "delete", "pod123456"] in calls
     assert ["runpodctl", "pod", "list", "--all", "-o", "json"] in calls
-    assert calls[0] == [
+    assert calls[0] == ["runpodctl", "pod", "list", "-o", "json"]
+    assert calls[1] == [
         "runpodctl",
         "pod",
         "create",
@@ -324,10 +344,23 @@ def test_real_runner(tmp_path, monkeypatch, mode):
             a[-1] for a in calls if a[0] == "ssh" and "setsid nohup" in a[-1]
         )
         assert (
-            "RUN=/workspace/runs/test123 GPU_PRICE=0.72 N_BUSINESSES=400 setsid nohup"
-            in detached
-        )
+            "RUN=/workspace/runs/test123 GPU_PRICE=0.72 N_BUSINESSES=20 STOP_AFTER=predict-ft PREDICT_LIMIT=3 setsid nohup"
+            if mode == "quick"
+            else "RUN=/workspace/runs/test123 GPU_PRICE=0.72 N_BUSINESSES=400 setsid nohup"
+        ) in detached
         assert "RUN=/workspace/ledgerlens " not in detached
+    if mode == "quick":
+        assert state["result_summary"] == {
+            "simulated": False,
+            "quick_check": True,
+            "stages_completed": list(pod_runner.STAGES[:-1]),
+            "predictions_copied": True,
+        }
+        assert not any(a[0] == "ssh" and a[-1].startswith("pgrep") for a in calls)
+        assert any(a[0] == "scp" and a[-2].endswith("/predictions") for a in calls)
+        assert any(
+            a[0] == "scp" and a[-2].endswith("/main/train_summary.json") for a in calls
+        )
     assert "do-not-show-this" not in (folder / "log.txt").read_text()
 
 
@@ -368,11 +401,7 @@ def test_uploaded_marker(tmp_path, monkeypatch):
         "mkdir -p /workspace/runs/test123/done && touch /workspace/runs/test123/done/generate"
         in commands
     )
-    assert any(
-        ".venv-train/bin/python -m train.render_pod --data /workspace/runs/test123/synth"
-        in c
-        for c in commands
-    )
+    assert not any("train.render_pod" in c for c in commands)
     assert any(a[0] == "scp" and a[-1].endswith("/synth/page.json") for a in calls)
     assert state["status"] == "cancelled"
     assert state["pod_deleted"]
@@ -500,3 +529,105 @@ def test_cap_during_blocking_copy(tmp_path, monkeypatch):
     assert runner.outcome == "cap_reached"
     assert "spending limit reached" in (tmp_path / "log.txt").read_text()
     assert ["runpodctl", "pod", "delete", "pod123456"] in calls
+
+
+@pytest.mark.parametrize(
+    "output",
+    [
+        [
+            {
+                "id": "other123",
+                "name": "other-job",
+                "desiredStatus": "RUNNING",
+                "networkVolumeId": "0kelufi0wo",
+            }
+        ],
+        [{"id": "other123", "name": "ledgerlens-rehearsal", "status": "STARTING"}],
+        "unreadable",
+        [{"id": "unknown"}],
+    ],
+)
+def test_volume_refusal_in_plan_and_runner(client, tmp_path, monkeypatch, output):
+    calls = []
+
+    def run(args, **kwargs):
+        calls.append(args)
+        assert args == ["runpodctl", "pod", "list", "-o", "json"]
+        return subprocess.CompletedProcess(args, 0, json.dumps(output), "")
+
+    monkeypatch.setattr(pod_runner.subprocess, "run", run)
+    response = make_plan(client)
+    assert response.status_code == 409
+    if isinstance(output, list) and "name" in output[0]:
+        assert output[0]["name"] in response.json()["detail"]
+        assert "Wait for it to finish" in response.json()["detail"]
+    else:
+        assert "could not be read" in response.json()["detail"]
+    state = runner_state()
+    runner = pod_runner.RealRunner(state, tmp_path, lambda **v: state.update(v))
+    runner.run()
+    assert state["status"] == "failed"
+    assert not runner.create_attempted
+    assert len(calls) == 2
+
+
+def test_volume_list_failure(client, monkeypatch):
+    def run(*args, **kwargs):
+        raise subprocess.TimeoutExpired(args, 20)
+
+    monkeypatch.setattr(pod_runner.subprocess, "run", run)
+    assert make_plan(client).status_code == 409
+
+
+def test_fake_quick_and_measured_plan(client, monkeypatch):
+    original = pod_runner.FakeRunner
+    monkeypatch.setattr(training, "FakeRunner", lambda *args: original(*args, speed=0))
+    monkeypatch.setattr(training, "stock", lambda: ("GPU", 1.5, "Available", True))
+    plan = make_plan(client, preset="quick").json()
+    assert plan["estimate"]["total_cost"] == 2.70
+    assert "rejects" not in plan["warning"]
+    started = client.post(
+        "/api/training/runs", json={"confirm_token": plan["confirm_token"]}
+    ).json()
+    value = wait_done(client, started["id"])
+    assert value["stage"] == "predict-ft"
+    assert value["result_summary"] == {
+        "simulated": True,
+        "quick_check": True,
+        "stages_completed": list(pod_runner.STAGES[:-1]),
+        "predictions_copied": False,
+    }
+    assert not (training.ROOT / started["id"] / "eval").exists()
+
+
+def test_uploaded_plan_dataset_note(client):
+    training.atomic_json(datasets.ROOT / "uploaded/.validation.json", {"valid": True})
+    value = make_plan(client, dataset="uploaded").json()
+    assert "CORD v2" in value["dataset_note"]
+    assert "always mixed in" in value["estimate"]["dataset_note"]
+
+
+@pytest.mark.parametrize(
+    "command",
+    [
+        "rm -rf /workspace/ledgerlens/main/merged",
+        "ls /workspace/ledgerlens",
+        "cp x /workspace/ledgerlens;",
+        "root@host:/workspace/ledgerlens/eval",
+    ],
+)
+def test_live_model_folder_is_protected(command):
+    with pytest.raises(RuntimeError, match="Refusing to touch"):
+        pod_runner.protect(command)
+
+
+def test_run_bundle_and_runs_folder_are_allowed():
+    pod_runner.protect("git fetch /workspace/ledgerlens-test123.bundle HEAD")
+    pod_runner.protect("ls /workspace/runs/test123/done")
+
+
+def test_run_folder_must_be_fresh(tmp_path):
+    state = runner_state()
+    state["id"] = "../ledgerlens"
+    with pytest.raises(ValueError):
+        pod_runner.RealRunner(state, tmp_path, lambda **_: None)

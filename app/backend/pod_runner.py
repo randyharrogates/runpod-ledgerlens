@@ -89,6 +89,11 @@ class FakeRunner:
         self.update(status="running")
         elapsed = 0
         stages = self.state["estimate"]["stages"]
+        stop = self.state["env"].get("STOP_AFTER")
+        if stop:
+            stages = stages[
+                : next(i for i, s in enumerate(stages) if s["id"] == stop) + 1
+            ]
         for index, stage in enumerate(stages):
             self.update(stage=stage["id"])
             self.log(f"starting {stage['id']} (simulated)")
@@ -107,6 +112,17 @@ class FakeRunner:
                     return
             self.log(f"completed {stage['id']} (simulated)")
             self.update(progress=(index + 1) / len(stages))
+        if stop:
+            self.update(
+                status="done",
+                result_summary={
+                    "simulated": True,
+                    "quick_check": True,
+                    "stages_completed": [s["id"] for s in stages if s["id"] in STAGES],
+                    "predictions_copied": False,
+                },
+            )
+            return
         (self.folder / "eval").mkdir(exist_ok=True)
         for name in ("summary.json", "training_summary.json"):
             shutil.copyfile(ROOT / "eval" / name, self.folder / "eval" / name)
@@ -135,6 +151,59 @@ def json_output(text):
     raise ValueError("CLI did not return JSON")
 
 
+def assert_volume_idle(command=None):
+    try:
+        result = (command or subprocess.run)(
+            ["runpodctl", "pod", "list", "-o", "json"],
+            timeout=20,
+            **(
+                {} if command else {"capture_output": True, "text": True, "check": True}
+            ),
+        )
+        if result.returncode:
+            raise ValueError
+        output = json_output(result.stdout)
+        pods = output if isinstance(output, list) else output["pods"]
+        if not isinstance(pods, list):
+            raise ValueError
+        for pod in pods:
+            if not isinstance(pod, dict) or not any(
+                k in pod for k in ("desiredStatus", "status", "state")
+            ):
+                raise ValueError
+            active = any(
+                str(pod.get(k, "")).upper()
+                in ("RUNNING", "STARTING", "PENDING", "CREATED")
+                for k in ("desiredStatus", "status", "state")
+            )
+            volume = pod.get("networkVolumeId") or (pod.get("networkVolume") or {}).get(
+                "id"
+            )
+            if active and (
+                volume == "0kelufi0wo"
+                or str(pod.get("name", "")).lower().startswith("ledgerlens")
+            ):
+                name = sanitize(pod.get("name") or pod.get("id") or "unknown Pod")
+                raise RuntimeError(
+                    f"Another GPU is using the training volume right now ({name}). Wait for it to finish."
+                )
+    except RuntimeError:
+        raise
+    except Exception:
+        raise RuntimeError(
+            "The Pod list could not be read. Wait until the training volume can be checked."
+        ) from None
+
+
+def protect(command):
+    # The live fine-tuned endpoint loads its weights from /workspace/ledgerlens/main/merged on the
+    # shared volume, and that folder also holds the reported run: never touch it.
+    if re.search(r"/workspace/ledgerlens(?:/|$|[\s'\";&|)])", command):
+        raise RuntimeError(
+            "Refusing to touch /workspace/ledgerlens (the live model and reported run)"
+        )
+
+
 class RealRunner(FakeRunner):
     def __init__(self, state, folder, update, poll_seconds=60):
         super().__init__(state, folder, update)
@@ -149,6 +218,8 @@ class RealRunner(FakeRunner):
         self.outcome = "failed"
         self.create_attempted = False
         self.remote = f"/workspace/runs/{state['id']}"
+        if not re.fullmatch(r"/workspace/runs/[A-Za-z0-9_-]+", self.remote):
+            raise ValueError("Run folder must be a fresh folder under /workspace/runs")
 
     def command(self, args, timeout=120, check=True):
         result = subprocess.run(
@@ -204,6 +275,7 @@ class RealRunner(FakeRunner):
         ]
 
     def ssh(self, command, timeout=120, check=True):
+        protect(command)
         self.check()
         result = self.command(
             [
@@ -223,6 +295,8 @@ class RealRunner(FakeRunner):
         return result
 
     def scp(self, source, target):
+        protect(source)
+        protect(target)
         self.check()
         result = self.command(
             ["scp", *self.ssh_options(), "-P", str(self.port), "-r", source, target],
@@ -355,6 +429,7 @@ class RealRunner(FakeRunner):
                 "--wait-timeout",
                 "10m",
             ]
+            assert_volume_idle(self.command)
             create_started = time.time()
             self.created_at = create_started
             self.create_attempted = True
@@ -411,21 +486,6 @@ class RealRunner(FakeRunner):
                             str(file),
                             f"root@{self.host}:{self.remote}/synth/{file.name}",
                         )
-                identities = [
-                    p.name.removesuffix(".meta.json")
-                    for p in folder.glob("*.meta.json")
-                ]
-                if any(
-                    not any(
-                        (folder / (p + ext)).exists()
-                        for ext in (".png", ".jpg", ".jpeg", ".webp")
-                    )
-                    for p in identities
-                ):
-                    self.ssh(
-                        f"cd /workspace/runpod-ledgerlens && .venv-train/bin/python -m train.render_pod --data {self.remote}/synth",
-                        timeout=1800,
-                    )
                 self.ssh(
                     f"mkdir -p {self.remote}/done && touch {self.remote}/done/generate"
                 )
@@ -443,10 +503,12 @@ class RealRunner(FakeRunner):
             self.update(status="running")
             previous_stage = None
             completed = set()
+            stop = self.state["env"].get("STOP_AFTER") or "report"
+            expected_stages = STAGES[: STAGES.index(stop) + 1]
             while True:
                 self.check()
                 markers = self.ssh(f"ls {self.remote}/done", check=False).stdout.split()
-                stage = next((s for s in STAGES if s not in markers), "report")
+                stage = next((s for s in expected_stages if s not in markers), stop)
                 for marker in STAGES:
                     if marker in markers and marker not in completed:
                         self.log(f"completed {marker}")
@@ -455,23 +517,47 @@ class RealRunner(FakeRunner):
                     self.log(f"starting {stage}")
                     previous_stage = stage
                 self.update(
-                    stage=stage, progress=len(set(markers) & set(STAGES)) / len(STAGES)
+                    stage=stage,
+                    progress=len(set(markers) & set(expected_stages))
+                    / len(expected_stages),
                 )
                 self.log(
                     self.ssh(
                         f"tail -n 50 {self.remote}/logs/{stage}.log", check=False
                     ).stdout
                 )
-                if "report" in markers:
+                if stop in markers:
                     break
                 if self.ssh(
                     'pgrep -f "^bash train/run_pod.sh"', check=False
                 ).returncode:
+                    # The stage may have finished between the marker read and pgrep.
+                    markers = self.ssh(
+                        f"ls {self.remote}/done", check=False
+                    ).stdout.split()
+                    if stop in markers:
+                        completed.update(s for s in STAGES if s in markers)
+                        self.update(stage=stop, progress=1)
+                        break
                     raise RuntimeError(
-                        "Training process exited before report completed"
+                        f"Training process exited before {stop} completed"
                     )
                 self.cancelled.wait(self.poll_seconds)
-            self.scp(f"root@{self.host}:{self.remote}/eval", str(self.folder))
+            quick = stop != "report"
+            predictions_copied = False
+            if quick:
+                if (
+                    self.ssh(
+                        f"test -d {self.remote}/predictions", check=False
+                    ).returncode
+                    == 0
+                ):
+                    self.scp(
+                        f"root@{self.host}:{self.remote}/predictions", str(self.folder)
+                    )
+                    predictions_copied = True
+            else:
+                self.scp(f"root@{self.host}:{self.remote}/eval", str(self.folder))
             if (
                 self.ssh(
                     f"test -f {self.remote}/main/train_summary.json", check=False
@@ -489,6 +575,13 @@ class RealRunner(FakeRunner):
                 status="cleaning-up",
                 result_summary={
                     "simulated": False,
+                    "quick_check": True,
+                    "stages_completed": [s for s in STAGES if s in completed],
+                    "predictions_copied": predictions_copied,
+                }
+                if quick
+                else {
+                    "simulated": False,
                     "evaluation": sanitize_data(
                         json.loads(
                             (summary if summary.exists() else results).read_text()
@@ -503,7 +596,10 @@ class RealRunner(FakeRunner):
             self.log(
                 "spending limit reached" if str(exc) == "cap_reached" else "cancelled"
             )
-        except Exception:
+        except Exception as exc:
+            if not self.create_attempted:
+                self.log(str(exc))
+                self.update(error=sanitize(str(exc)))
             if self.cancelled.is_set():
                 self.outcome = "cancelled"
             elif self.state["spend"] >= self.state["cap_usd"]:
