@@ -26,6 +26,7 @@ const {renderToStaticMarkup: render} = require('react-dom/server');
 const {ResultTable} = require('./src/components/Results.tsx');
 const evaluation = render(React.createElement(ResultTable, {value: {
   split_labels: {test_cord: 'Real receipts (CORD v2 test)', empty: 'Empty set'},
+  split_notes: {test_cord: 'Live Serverless, one page at a time.'},
   splits: {test_cord: {
     '8b': {pages: 98, row_f1: 0.5, row_precision: 0.6, row_recall: 0.4, header_accuracy: 0.7, seconds_per_page: 2, cost_per_1000_pages: 0.4, gpu_name: 'Test GPU', price_per_hour: 0.72},
     '4b': {pages: 98, row_f1: 0.4, seconds_per_page: 1, cost_per_1000_pages: 0.2},
@@ -35,6 +36,7 @@ const evaluation = render(React.createElement(ResultTable, {value: {
 for (const label of ['Real receipts (CORD v2 test)', '98 pages', '8B, no training', '4B, no training', '4B fine-tuned', 'Rows read exactly right (row F1)', 'Rows written that are right (precision)', 'Real rows found (recall)', 'Header fields right', 'Seconds per page (batched)', '$ per 1,000 pages', 'Test GPU', '$0.72/h', 'No pages in this set.']) assert(evaluation.includes(label), label);
 // Rows with no value for any model (e.g. reconciliation on receipts) are hidden.
 for (const label of ['after the balance check', 'Page adds up', 'Valid JSON', 'Red flags found (recall)', 'Red-flag precision']) assert(!evaluation.includes(label), label);
+assert(evaluation.includes('Live Serverless, one page at a time.'));
 assert(evaluation.includes('<strong>90.0%</strong>'));
 assert(!evaluation.includes('<strong>50.0%</strong>'));
 assert.equal((evaluation.match(/<strong>1.00<\/strong>/g) || []).length, 2);

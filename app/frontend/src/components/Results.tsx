@@ -4,6 +4,8 @@ type Metrics = Record<string, number | string | null>;
 type Summary = {
   split_labels: Record<string, string>;
   splits: Record<string, Record<string, Metrics> & { status?: string }>;
+  // Sets run differently from the batch (e.g. live, one page at a time) say how.
+  split_notes?: Record<string, string>;
 };
 const models = [
   ['8b', '8B, no training'],
@@ -25,7 +27,7 @@ const metrics = [
 ];
 
 // Headline set first; JSON key order is alphabetical.
-const order = ['test_unseen_layout', 'test_seen_layout', 'test_cord'];
+const order = ['test_unseen_layout', 'test_seen_layout', 'test_cord', 'test_phone', 'test_phone_clean'];
 
 export function ResultTable({ value }: { value: unknown }): React.ReactElement {
   const summary = value as Summary;
@@ -35,7 +37,7 @@ export function ResultTable({ value }: { value: unknown }): React.ReactElement {
   const any = Object.values(summary.splits ?? {})
     .flatMap(entries => models.map(([model]) => entries?.[model])).find(Boolean);
   return <div className="evaluation-results">
-    {any && <p className="evaluation-note">All three models ran on the same GPU ({any.gpu_name ?? '—'}), batched, same prompt and schema. Row F1 is the model&apos;s own answer. Cost at ${typeof any.price_per_hour === 'number' ? any.price_per_hour.toFixed(2) : '—'}/h.</p>}
+    {any && <p className="evaluation-note">Unless a set says otherwise, all three models ran on the same GPU ({any.gpu_name ?? '—'}), batched, same prompt and schema. Row F1 is the model&apos;s own answer. Cost at ${typeof any.price_per_hour === 'number' ? any.price_per_hour.toFixed(2) : '—'}/h.</p>}
     {labels.map(([split, label]) => {
       const entries = summary.splits?.[split];
       if (!entries) return null;
@@ -45,6 +47,7 @@ export function ResultTable({ value }: { value: unknown }): React.ReactElement {
       }
       return <section key={split}>
         <h2>{label} · {Number(first.pages).toLocaleString('en-US')} pages</h2>
+        {summary.split_notes?.[split] && <p className="evaluation-note">{summary.split_notes[split]}</p>}
         <div className="table-scroll"><table>
           <thead><tr><th scope="col">Metric</th>{models.map(([id, name]) => <th scope="col" key={id}>{name}</th>)}</tr></thead>
           <tbody>{metrics.map(([key, label, format]) => {
