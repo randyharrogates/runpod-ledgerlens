@@ -219,11 +219,30 @@ class Extract(BaseModel):
     doc_type: Literal["statement", "invoice"]
 
 
+# Runpod Serverless flex rates per GPU tier, $/h as listed in the endpoint editor (9–11 Oct 2026):
+# 32 GB PRO $1.58, 24 GB PRO $1.10, 24 GB $0.69. A worker reports its GPU, so each request is
+# priced at the tier it actually ran on (the fine-tuned endpoint falls back from 5090 to 4090).
+GPU_PRICE_PER_SEC = {
+    "RTX 5090": 1.58 / 3600,
+    "RTX PRO 4500": 1.58 / 3600,
+    "RTX 4090": 1.10 / 3600,
+    "RTX 3090": 0.69 / 3600,
+}
+
+
+def gpu_price(model, gpu):
+    """Dollars per second: env override, else the reported GPU's tier, else 32 GB PRO."""
+    if override := os.getenv("GPU_PRICE_PER_SEC_" + model.upper()):
+        return float(override)
+    for name, price in GPU_PRICE_PER_SEC.items():
+        if gpu and name in gpu:
+            return price
+    return GPU_PRICE_PER_SEC["RTX 5090"]
+
+
 def metrics(result, output, model, source="runpod"):
     seconds = float(result.get("executionTime") or 0) / 1000
-    # Default: Runpod Serverless flex rate for the 32 GB PRO tier (RTX 5090) the 8B endpoint runs
-    # on, $1.58/h as listed in the endpoint editor on 9 Oct 2026. Override per model.
-    price = float(os.getenv("GPU_PRICE_PER_SEC_" + model.upper(), "0.000439"))
+    price = gpu_price(model, output.get("gpu"))
     return clean(
         {
             "source": source,
