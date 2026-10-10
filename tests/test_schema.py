@@ -71,3 +71,47 @@ def test_optional_receipt_fields_and_schema():
         assert {"type": "null"} in schema["properties"][field]["anyOf"]
     with pytest.raises(ValidationError):
         InvoiceLine(description="Tea")
+
+
+def test_extraction_schema_bounds_amounts():
+    import json
+    import re
+    from decimal import Decimal
+
+    from ledgerlens.schema import AMOUNT, Statement, json_schema
+
+    for doc_type in ("statement", "invoice", "receipt"):
+        text = json.dumps(json_schema(doc_type))
+        # No free JSON numbers: the base 8B once wrote "4000000.0000…" until the token limit.
+        assert '"type": "number"' not in text
+    pattern = re.compile(AMOUNT["pattern"])
+    assert (
+        pattern.fullmatch("206204.73")
+        and pattern.fullmatch("-12")
+        and pattern.fullmatch("9.6")
+    )
+    assert not pattern.fullmatch("4000000.00000") and not pattern.fullmatch("1,000.00")
+    debit = json_schema("statement")["$defs"]["Transaction"]["properties"]["debit"]
+    assert {"type": "null"} in debit["anyOf"]
+    # Strings that match the pattern still validate to exact Decimals.
+    statement = Statement.model_validate(
+        {
+            "bank_name": "B",
+            "account_holder": "H",
+            "account_number_masked": "***1",
+            "period_start": "2026-01-01",
+            "period_end": "2026-01-31",
+            "currency": "SGD",
+            "opening_balance": "100.00",
+            "closing_balance": "90.50",
+            "transactions": [
+                {
+                    "date": "2026-01-02",
+                    "description": "X",
+                    "debit": "9.50",
+                    "balance": "90.50",
+                }
+            ],
+        }
+    )
+    assert statement.transactions[0].debit == Decimal("9.50")
