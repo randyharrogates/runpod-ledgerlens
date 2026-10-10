@@ -400,3 +400,13 @@ the bottom of each day.
   no Pod): a prompt line on rupiah grouping, then re-score the 8B on CORD.
 - **00:41 — Pod `evli8q47at2gm6` deleted** after copying results. Spend now $0.01/h (volume only).
   Balance $203.46: whole project ≈ **$11.2** of $214.64.
+- **00:52–01:07 — Live app test, fine-tuned 4B, sample business (5 pages, "Extract all").** First
+  page waited **13.5 min** in the queue: EU-RO-1 had no free RTX 5090/4090 for Serverless (workers
+  "throttled", console "100% of max workers busy"), then one RTX 4090 started (engine load 78 s).
+  Warm on the 4090: statement pages 10.3–11.4 s, invoice 3.0 s, queue ~0.1 s; all five valid. The
+  same heavy page took 6.9 s on a 5090 at 00:31. Cost is about the same either way (4090 tier is
+  cheaper): ≈ $3 per 1,000 pages. Two consequences: the app priced every request at the 32 GB rate
+  — now priced by the GPU the worker reports (5090/PRO 4500 $1.58/h, 4090 $1.10/h, 3090 $0.69/h);
+  and the volume pin is a live demo risk — for the demo, set 1 Active worker on the fine-tuned
+  endpoint well before it starts. Results tab rebuilt to show `eval/summary.json` (screenshots
+  checked: headline set first, empty rows hidden, best values bold).
