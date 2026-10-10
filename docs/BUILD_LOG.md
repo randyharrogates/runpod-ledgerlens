@@ -564,3 +564,26 @@ the bottom of each day.
   - Merged `test_phone` and `test_phone_clean` into `eval/summary.json`; Results tab checked by
     screenshot (`results-phone-photos.png`). Spend: balance $201.39 → $200.73 (≈ $0.66); back to
     $0.01/h at 12:11:46.
+
+- **UI revamp on branch `ui-revamp` (worktree `runpod-ledgerlens-ui`), for review before merge.**
+  Planned and checked by Claude, built by Codex in seven cycles; each cycle was screenshotted at
+  1440px and 390px and the problems found went into the next cycle.
+  - Design: five rounds of mockups; Randy chose "Showcase × Bento" with a left icon rail, dark only,
+    plain words for non-technical users, no marketing taglines.
+  - Backend: dataset, training and results insights API; the base 4B as a third endpoint
+    (`RUNPOD_ENDPOINT_4B`); compare one page across all three models; full page index
+    (4,475 pages); dataset upload checked to the pipeline's own rules (leakage between groups blocks).
+  - Training from the UI: simulated unless `TRAINING_ENABLED=1` and not `DEMO_MODE`. A real run needs
+    a plan review, a one-time confirm token, a spending limit (≤ $25), a guard on the shared volume,
+    and a cleanup that always runs and checks the Pod is deleted; if it can't confirm, the UI shows
+    "POD MAY STILL BE RUNNING". Every command refuses to touch `/workspace/ledgerlens`, where the live
+    model and the reported run are. The quick preset uses the 9 Oct rehearsal: ~3 h, ~$2.70.
+  - Pages: Read statements (the old flow, rebuilt), Compare (live, or recorded test examples
+    offline), Explore data (EDA, page browser with preview and answer key, upload), Training (replay
+    of the reported run, history, guarded new run), Results (all scores, hardest pages), Cost
+    calculator. Presenter mode runs the 3-minute tour. Exports: rows CSV, memo as PDF, scores CSV.
+  - Rebased onto main's memo fixes (number check, 1-based and grouped citations); the citation
+    buttons keep main's `[p1:r4]` text, with "p1 · line 4" as the tooltip.
+  - Last fixes from the screenshots: tour step 4 opens the recorded example biz_0007_p006 even when
+    pages are loaded; amounts always show two decimals (16.20, not 16.2). 312 tests pass, ruff
+    clean; first-load JS 181 kB (59.8 kB gzip) after route splitting.

@@ -25,7 +25,7 @@ export function DatasetTiles({summary: s}: {summary: DatasetSummary}) {
 export function AnswerKey({document: d}: {document: {currency?: string; transactions?: Row[]; line_items?: Row[]}}) {
   const rows = d.transactions || d.line_items || [];
   const columns = d.transactions ? ['date','description','debit','credit','balance'] : ['description','quantity','unit_price','amount'];
-  return <div className="table-scroll"><table><thead><tr><th>Line</th>{columns.map(k => <th key={k}>{k === 'debit' ? 'Money out' : k === 'credit' ? 'Money in' : k[0].toUpperCase()+k.slice(1).replaceAll('_',' ')}</th>)}</tr></thead><tbody>{rows.map((r,i) => <tr key={i}><td>{number(i+1)}</td>{columns.map(k => <td key={k}>{k === 'date' ? printedDate(r[k]) : ['debit','credit','balance','amount','unit_price','quantity'].includes(k) ? money(r[k],d.currency) : r[k]}</td>)}</tr>)}</tbody></table></div>;
+  return <div className="table-scroll"><table><thead><tr><th>Line</th>{columns.map(k => <th key={k}>{k === 'debit' ? 'Money out' : k === 'credit' ? 'Money in' : k[0].toUpperCase()+k.slice(1).replaceAll('_',' ')}</th>)}</tr></thead><tbody>{rows.map((r,i) => <tr key={i}><td>{number(i+1)}</td>{columns.map(k => <td key={k}>{k === 'date' ? printedDate(r[k]) : k === 'quantity' ? number(r[k]) : ['debit','credit','balance','amount','unit_price'].includes(k) ? money(r[k],d.currency) : r[k]}</td>)}</tr>)}</tbody></table></div>;
 }
 const sampleNote = 'Only a sample of pages is bundled with the app; run with LEDGERLENS_DATA to browse all';
 type IndexedPage = {id: string; split: string; doc_type: string; layout_id: string; strength: string; row_count: number; detail_available: boolean};

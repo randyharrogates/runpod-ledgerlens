@@ -61,7 +61,8 @@ for (const heading of ['Summary', '## Summary', '**Summary**']) {
   }));
   assert(html.includes('<h3>Summary</h3>'));
   assert(html.includes('[p3:r17]'));
-  assert(html.includes('p3 · line 17</span></button>.'));
+  assert(html.includes('title="p3 · line 17"'));
+  assert(html.includes('[p3:r17]</button>.'));
   assert.equal((html.match(/<li>/g) || []).length, 3);
 }
 // An incomplete stream chunk stays readable, then becomes a cited heading/list.
@@ -247,7 +248,7 @@ const quickHtml = render(React.createElement(RunView,{run:quick}));
 assert(quickHtml.includes('Quick check passed, no scores'));assert(quickHtml.includes('simulated, no GPU used'));assert(quickHtml.includes('Simulated Pod deleted'));
 assert(runLabel(quick).includes('simulated, no GPU used'));
 const f = require('./src/components/format.ts');
-assert.equal(f.number('50000'),'50,000');assert.equal(f.dollars(300),'$300.00');assert.equal(f.money('114800','IDR'),'114,800');assert.equal(f.printedDate('2026-04-06'),'6 Apr 2026');assert.equal(f.monthName('2026-01'),'Jan 2026');
+assert.equal(f.number('50000'),'50,000');assert.equal(f.dollars(300),'$300.00');assert.equal(f.money('114800','IDR'),'114,800');assert.equal(f.money('16.2'),'16.20');assert.equal(f.money('354.4','SGD',true),'SGD 354.40');assert.equal(f.printedDate('2026-04-06'),'6 Apr 2026');assert.equal(f.monthName('2026-01'),'Jan 2026');
 assert.equal(f.metadata({layout_id:'stmt_e',strength:'medium'},'IDR'),'Statement E (held back) · medium photo damage · Indonesian rupiah');
 assert.equal(f.groupName('test_unseen_layout'),'final test, unseen layout');
 const {models} = require('./src/models.ts');
@@ -281,7 +282,7 @@ const {tour}=require('./src/tour.ts');
 assert.equal(tour.length,7);assert(tour.every(s=>s.route.startsWith('/') && s.words && s.title && s.end>s.start));assert(tour[6].end<=180);assert.equal(tour.reduce((sum,s)=>sum+s.end-s.start,0),180);
 const source=fs.readFileSync('../../docs/ui-mockups/tour-script.md','utf8');
 const words=[...source.matchAll(/\n"(.*?)"/g)].map(m=>m[1]);assert.deepEqual(tour.map(s=>s.words),words);
-assert.deepEqual(tour.map(s=>s.route),['/','/','/','/compare','/results','/cost','/training']);assert.deepEqual(tour.slice(0,3).map(s=>s.readStep),[2,2,3]);assert.deepEqual(tour[2].readSteps,[3,4]);
+assert.equal(tour[3].query,'?example=biz_0007_p006');assert.deepEqual(tour.map(s=>s.route),['/','/','/','/compare','/results','/cost','/training']);assert.deepEqual(tour.slice(0,3).map(s=>s.readStep),[2,2,3]);assert.deepEqual(tour[2].readSteps,[3,4]);
 const {Presenter,clockText}=require('./src/components/Presenter.tsx');
 const panel=render(React.createElement(Presenter,{index:0,go:()=>{},exit:()=>{},readMemo:()=>{}}));
 for(const text of ['Step 1 of 7','Back','Next','Exit','Collapse','3:00','0:00–0:40','Presenter tour'])assert(panel.includes(text),text);

@@ -38,6 +38,7 @@ export const tour = [
   },
   {
     "route": "/compare",
+    "query": "?example=biz_0007_p006",
     "readStep": null,
     "title": "Compare models",
     "words": "Same page, three models at once. On a layout none of them had seen, both untrained models read incoming payments as money going out on 7 of the 18 lines. Our trained small model got all 18 right.",
