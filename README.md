@@ -77,7 +77,7 @@ exactly right, from the model's own answer. Full results, breakdowns and failure
 | $ per 1,000 pages, batched ($0.72/h) | 0.52 | 0.34 | **0.26** |
 
 Served live on Serverless (warm, one page at a time): 8B ~14 s per page (≈ $6 per 1,000), fine-tuned
-4B ~7 s (≈ $3 per 1,000). The fine-tune's weak spot is heavy photo damage (row F1 0.87). Phone photos
+4B 7–11 s depending on the GPU it gets (RTX 5090 / 4090; ≈ $3 per 1,000 either way). The fine-tune's weak spot is heavy photo damage (row F1 0.87). Phone photos
 of printed pages (the third test set) are pending.
 
 ## Data
