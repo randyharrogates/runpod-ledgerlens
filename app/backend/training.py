@@ -21,6 +21,7 @@ from app.backend.pod_runner import (
     TERMINAL,
     FakeRunner,
     RealRunner,
+    assert_volume_idle,
     json_output,
     sanitize,
     sanitize_data,
@@ -47,7 +48,7 @@ MEASURED = {
 }
 LABELS = {
     "full": "Full training and evaluation",
-    "quick": "Quick training with 60 businesses and 100 pages per test set",
+    "quick": "Quick check: proves the whole pipeline runs end to end on a small set; it does not produce scores (the report stage is skipped)",
 }
 
 
@@ -61,13 +62,15 @@ def presets():
         ):
             minutes = MEASURED[stage]
             if name == "quick":
-                if stage in ("generate", "dataset", "main"):
-                    minutes *= 60 / 400
-                elif stage.startswith("predict-"):
-                    minutes *= (100 * 3) / (1499 + 291 + 98)
+                if stage == "report":
+                    continue
+                # Approximate allocation only; the total comes from the rehearsal.
+                minutes *= 180 / (351 - 9)
             stages.append({"id": stage, "minutes": minutes, "estimated": True})
         minutes = sum(s["minutes"] for s in stages)
-        cost = minutes / 60 * 0.72
+        cost = 2.70 if name == "quick" else minutes / 60 * 0.72
+        if name == "quick":
+            minutes = 180
         result.append(
             {
                 "id": name,
@@ -77,7 +80,16 @@ def presets():
                 "total_minutes": minutes,
                 "total_cost": cost,
                 "suggested_cap_usd": math.ceil(cost * 1.5),
-                "env": {"N_BUSINESSES": "60", "PREDICT_LIMIT": "100"}
+                "dataset_note": "Real shop receipts (CORD v2) are always mixed in.",
+                "stage_note": "Per-stage timings are approximate; the quick total is measured.",
+                "measurement_note": "About 3 h and about $2.70 including setup, measured in the 9 Oct rehearsal"
+                if name == "quick"
+                else "Stage estimates from the full run",
+                "env": {
+                    "N_BUSINESSES": "20",
+                    "STOP_AFTER": "predict-ft",
+                    "PREDICT_LIMIT": "3",
+                }
                 if name == "quick"
                 else {"N_BUSINESSES": "400"},
             }
@@ -181,13 +193,18 @@ class Plan(BaseModel):
 def plan(request: Plan):
     with LOCK, datasets.LOCK:
         assert_idle()
+        try:
+            assert_volume_idle()
+        except RuntimeError as exc:
+            raise HTTPException(409, str(exc)) from None
         if request.dataset != "default":
             folder = datasets.upload_path(request.dataset)
             if not json.loads((folder / ".validation.json").read_text()).get("valid"):
                 raise HTTPException(422, "Dataset did not pass validation")
         preset = copy.deepcopy(next(p for p in presets() if p["id"] == request.preset))
         gpu, price, availability, verified = stock()
-        preset["total_cost"] = preset["total_minutes"] / 60 * price
+        if request.preset != "quick":
+            preset["total_cost"] = preset["total_minutes"] / 60 * price
         preset["suggested_cap_usd"] = math.ceil(preset["total_cost"] * 1.5)
         value = {
             "preset": request.preset,
@@ -204,17 +221,21 @@ def plan(request: Plan):
                 "Create a GPU Pod in EU-RO-1 using the existing network volume.",
                 "Check that /workspace has at least 20 GB free.",
                 "Copy the committed code using a Git bundle.",
-                "Copy and render the uploaded dataset; skip generation."
+                "Copy the rendered uploaded dataset; skip generation."
                 if request.dataset != "default"
                 else "Generate fictional business documents.",
                 "Build the dataset, run smoke training, then train the main model.",
-                "Evaluate the 8B, 4B and fine-tuned 4B models and build the report.",
+                "Predict a few pages with all three models; skip the report and scores."
+                if request.preset == "quick"
+                else "Evaluate the 8B, 4B and fine-tuned 4B models and build the report.",
                 "Copy results back and delete the Pod, including on failure, cancel or spending limit.",
             ],
         }
+        if request.dataset != "default":
+            value["dataset_note"] = preset["dataset_note"]
         if request.preset == "quick":
             value["warning"] = (
-                "The current report script rejects partial predictions; this quick run may fail at report. Estimates exclude setup cache misses and storage charges."
+                "About 3 h and about $2.70 including setup, measured in the 9 Oct rehearsal. Uploaded datasets may take longer."
             )
         else:
             value["warning"] = (

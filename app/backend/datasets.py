@@ -16,8 +16,9 @@ from pathlib import Path, PurePosixPath
 from fastapi import APIRouter, File, HTTPException, UploadFile
 from PIL import Image
 
+from ledgerlens.analytics import payer, payer_key
 from ledgerlens.images import resize_image
-from ledgerlens.schema import DOCUMENT_ADAPTER
+from train.common import canonical_target
 
 ROOT = Path(__file__).resolve().parents[2] / "data/uploads"
 LOCK = threading.RLock()
@@ -39,6 +40,11 @@ def upload_path(identity):
 
 def validate_archive(data):
     problems, files, metadata, pages = [], {}, {}, set()
+    documents = {}
+    leakage = {
+        "businesses": {"severity": "BLOCK", "examples": []},
+        "counterparties": [],
+    }
 
     def problem(file, message):
         if len(problems) < 50:
@@ -101,15 +107,15 @@ def validate_archive(data):
                     continue
                 identity, suffix = match.groups()
                 if suffix == ".json":
-                    DOCUMENT_ADAPTER.validate_json(payload)
+                    documents[identity] = json.loads(canonical_target(payload.decode()))
                     pages.add(identity)
                 elif suffix == ".meta.json":
                     meta = json.loads(payload)
                     if not isinstance(meta, dict) or any(
                         not isinstance(meta.get(k), str) or not meta[k]
-                        for k in ("business_id", "layout_id")
+                        for k in ("business_id",)
                     ):
-                        raise ValueError("Meta needs business_id and layout_id strings")
+                        raise ValueError("Meta needs a business_id string")
                     if meta.get("strength", "clean") not in (
                         "clean",
                         "light",
@@ -139,7 +145,8 @@ def validate_archive(data):
                         with Image.open(io.BytesIO(payload)) as image:
                             normalized = io.BytesIO()
                             resize_image(image).save(normalized, format="PNG")
-                            contents[identity + ".png"] = normalized.getvalue()
+                            if suffix == ".png":
+                                contents[identity + ".png"] = normalized.getvalue()
             except Exception:
                 problem(
                     name,
@@ -148,14 +155,39 @@ def validate_archive(data):
         for identity in pages:
             if identity not in metadata:
                 problem(identity, "Missing valid meta file")
-            if not any(
-                identity + suffix in contents
-                for suffix in (".html", ".png", ".jpg", ".jpeg", ".webp")
-            ):
-                problem(identity, "Every page needs HTML or an image")
+            if identity + ".png" not in files:
+                problem(identity, "Every page needs an already rendered PNG image")
+            if identity in metadata and documents[identity]["doc_type"] == "statement":
+                meta = metadata[identity]
+                if (
+                    not isinstance(meta.get("layout_id"), str)
+                    or not meta["layout_id"]
+                    or meta.get("strength") not in ("clean", "light", "medium", "heavy")
+                ):
+                    problem(identity, "Statement meta needs layout_id and strength")
+                labels = meta.get("anomalies")
+                if not isinstance(labels, list) or any(
+                    not isinstance(a, dict)
+                    or not isinstance(a.get("type"), str)
+                    or not a["type"]
+                    or not isinstance(a.get("label_id"), str)
+                    or not a["label_id"]
+                    or not isinstance(a.get("transaction_indices"), list)
+                    or any(
+                        type(i) is not int
+                        or i < 0
+                        or i >= len(documents[identity]["transactions"])
+                        for i in a["transaction_indices"]
+                    )
+                    for a in labels
+                ):
+                    problem(
+                        identity,
+                        "Missing or invalid anomaly metadata: needs type, transaction_indices and label_id",
+                    )
         for name in files:
             match = FILE.fullmatch(name)
-            if match and match[1] not in pages:
+            if name != "splits.json" and match and match[1] not in pages:
                 problem(name, "Missing valid gold document")
         if not pages:
             problem("archive", "No valid pages found")
@@ -163,27 +195,28 @@ def validate_archive(data):
         try:
             if "splits.json" in contents:
                 splits = json.loads(contents["splits.json"])
-                if not isinstance(splits, dict) or set(splits) != {
-                    "train",
-                    "val",
-                    "test",
-                }:
+                if not isinstance(splits, dict) or any(
+                    not isinstance(splits.get(k), list)
+                    for k in ("train", "val", "test")
+                ):
                     raise ValueError
-                splits = {k: splits[k] for k in ("train", "val", "test")}
-                listed = [p for values in splits.values() for p in values]
+                listed = [p for k in ("train", "val", "test") for p in splits[k]]
                 if (
-                    any(not isinstance(v, list) for v in splits.values())
+                    any(not isinstance(p, str) for p in listed)
                     or len(listed) != len(set(listed))
                     or set(listed) != pages
                 ):
                     raise ValueError
-                businesses = {}
-                for split, values in splits.items():
-                    for p in values:
-                        business = metadata[p]["business_id"]
-                        if business in businesses and businesses[business] != split:
-                            raise ValueError
-                        businesses[business] = split
+                test_businesses = {metadata[p]["business_id"] for p in splits["test"]}
+                mapping = splits.get("business_test_sets")
+                if not isinstance(mapping, dict) or any(
+                    mapping.get(b) not in ("test_unseen_layout", "test_seen_layout")
+                    for b in test_businesses
+                ):
+                    problem(
+                        "splits.json",
+                        "business_test_sets must map every test business to test_unseen_layout or test_seen_layout",
+                    )
             elif not problems:
                 businesses = sorted({m["business_id"] for m in metadata.values()})
                 random.Random(7).shuffle(businesses)
@@ -198,30 +231,71 @@ def validate_archive(data):
                 }
                 for p in sorted(pages):
                     splits[membership[metadata[p]["business_id"]]].append(p)
+            memberships = {}
+            names = {k: {} for k in ("train", "val", "test")}
+            for split in names:
+                for page in splits[split]:
+                    memberships.setdefault(metadata[page]["business_id"], set()).add(
+                        split
+                    )
+                    for row in documents[page].get("transactions", []):
+                        key = payer_key(row["description"])
+                        if key:
+                            names[split][key] = payer(row["description"])
+            shared = sorted(b for b, values in memberships.items() if len(values) > 1)
+            leakage["businesses"]["examples"] = shared
+            leakage["businesses"]["count"] = len(shared)
+            if shared:
+                problem(
+                    "splits.json",
+                    "Business leakage: businesses appear in more than one split",
+                )
+            for left, right in (("train", "val"), ("train", "test"), ("val", "test")):
+                overlap = sorted(names[left].keys() & names[right].keys())
+                leakage["counterparties"].append(
+                    {
+                        "splits": [left, right],
+                        "severity": "WARNING",
+                        "count": len(overlap),
+                        "examples": [names[left][k] for k in overlap[:10]],
+                    }
+                )
             if not problems:
                 assignments = {
                     metadata[p]["business_id"]: split
-                    for split, values in splits.items()
-                    for p in values
+                    for split in ("train", "val", "test")
+                    for p in splits[split]
                 }
-                training_layouts = {metadata[p]["layout_id"] for p in splits["train"]}
+                training_layouts = {
+                    metadata[p]["layout_id"]
+                    for p in splits["train"]
+                    if documents[p]["doc_type"] == "statement"
+                }
                 test_businesses = {metadata[p]["business_id"] for p in splits["test"]}
                 splits.update(
                     pages={
-                        p: {k: metadata[p][k] for k in ("business_id", "layout_id")}
+                        p: {
+                            k: metadata[p][k]
+                            for k in ("business_id", "layout_id")
+                            if k in metadata[p]
+                        }
                         for p in sorted(pages)
                     },
                     business_splits=assignments,
-                    business_test_sets={
-                        b: "test_unseen_layout"
-                        if all(
-                            metadata[p]["layout_id"] not in training_layouts
-                            for p in splits["test"]
-                            if metadata[p]["business_id"] == b
-                        )
-                        else "test_seen_layout"
-                        for b in test_businesses
-                    },
+                    business_test_sets=splits.get(
+                        "business_test_sets",
+                        {
+                            b: "test_unseen_layout"
+                            if all(
+                                metadata[p]["layout_id"] not in training_layouts
+                                for p in splits["test"]
+                                if metadata[p]["business_id"] == b
+                                and documents[p]["doc_type"] == "statement"
+                            )
+                            else "test_seen_layout"
+                            for b in test_businesses
+                        },
+                    ),
                     seed=7,
                 )
                 csp = b"<meta http-equiv=\"Content-Security-Policy\" content=\"default-src 'none'; style-src 'unsafe-inline'; img-src data:; font-src data:\">"
@@ -247,6 +321,7 @@ def validate_archive(data):
             "pages": len(pages),
             "businesses": len({m["business_id"] for m in metadata.values()}),
             "problems": problems,
+            "leakage": leakage,
         }
         return (contents if not problems else None), report
     except Exception:
