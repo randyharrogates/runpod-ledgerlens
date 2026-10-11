@@ -603,3 +603,8 @@ the bottom of each day.
     - Cost: monthly figures use the rate as displayed ($0.26 × 50 = $13.00, not $12.77); the live
       big-model line reads "$6.00 to $6.60 per 1,000 pages … $300 to $330 per month".
     - 312 tests pass, ruff clean; first-load JS 181.8 kB (60.1 kB gzip).
+  - Rebased onto main 82d76e4 (phone photos scored). Results renders both phone sets with their
+    notes; checked by screenshot at 1440 and 390 px. The page footer said every set ran in one batch
+    on the RTX PRO 4500, which is no longer true, so it now says the phone sets ran live on Serverless
+    (RTX 5090, $1.58/h). "What the test tells us" gains a phone finding computed from summary.json
+    (67.2% vs 41.1% and 25.8%, down from 98.4% clean; no photographed page adds up). 317 tests pass.
