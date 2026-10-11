@@ -2,8 +2,14 @@
   "generated_from": "batch evaluation, one GPU Pod",
   "split_labels": {
     "test_cord": "Real receipts (CORD v2 test)",
+    "test_phone": "Phone photos of printed pages",
+    "test_phone_clean": "The same pages, clean (baseline for the phone photos)",
     "test_seen_layout": "Seen layouts, new businesses",
     "test_unseen_layout": "Unseen statement layouts"
+  },
+  "split_notes": {
+    "test_phone": "18 printed pages photographed on a phone and sent through a chat app (about 1.1 MP; clean pages are 2 MP). Live on Serverless, one page at a time; cost from executionTime at $1.58/h.",
+    "test_phone_clean": "The same 18 pages, clean, live on Serverless one page at a time; seconds per page from the 20-page clean run; cost at $1.58/h."
   },
   "splits": {
     "test_cord": {
@@ -54,6 +60,106 @@
         "row_recall": 0.3885,
         "seconds_per_page": 1.5867,
         "valid_json": 0.9898
+      }
+    },
+    "test_phone": {
+      "4b": {
+        "anomaly_precision": 0.1,
+        "anomaly_recall": 0.1333,
+        "cost_per_1000_pages": 3.7742,
+        "gpu_name": "NVIDIA GeForce RTX 5090",
+        "header_accuracy": 0.6975,
+        "pages": 18,
+        "price_per_hour": 1.58,
+        "reconciliation": 0.0,
+        "row_f1": 0.2575,
+        "row_f1_checked": 0.2747,
+        "row_precision": 0.2817,
+        "row_recall": 0.2372,
+        "seconds_per_page": 8.5993,
+        "valid_json": 0.8889
+      },
+      "4b-ft": {
+        "anomaly_precision": 0.4231,
+        "anomaly_recall": 0.7333,
+        "cost_per_1000_pages": 2.3725,
+        "gpu_name": "NVIDIA GeForce RTX 5090",
+        "header_accuracy": 0.8333,
+        "pages": 18,
+        "price_per_hour": 1.58,
+        "reconciliation": 0.0,
+        "row_f1": 0.6722,
+        "row_f1_checked": 0.6722,
+        "row_precision": 0.7074,
+        "row_recall": 0.6403,
+        "seconds_per_page": 5.4056,
+        "valid_json": 0.9444
+      },
+      "8b": {
+        "anomaly_precision": 0.2917,
+        "anomaly_recall": 0.4667,
+        "cost_per_1000_pages": 5.0345,
+        "gpu_name": "NVIDIA GeForce RTX 5090",
+        "header_accuracy": 0.8025,
+        "pages": 18,
+        "price_per_hour": 1.58,
+        "reconciliation": 0.0,
+        "row_f1": 0.4112,
+        "row_f1_checked": 0.491,
+        "row_precision": 0.4153,
+        "row_recall": 0.4071,
+        "seconds_per_page": 11.4709,
+        "valid_json": 1.0
+      }
+    },
+    "test_phone_clean": {
+      "4b": {
+        "anomaly_precision": 0.4783,
+        "anomaly_recall": 0.7333,
+        "cost_per_1000_pages": 3.0439,
+        "gpu_name": "NVIDIA GeForce RTX 5090",
+        "header_accuracy": 0.9321,
+        "pages": 18,
+        "price_per_hour": 1.58,
+        "reconciliation": 0.0,
+        "row_f1": 0.7226,
+        "row_f1_checked": 0.7545,
+        "row_precision": 0.7298,
+        "row_recall": 0.7154,
+        "seconds_per_page": 6.9355,
+        "valid_json": 1.0
+      },
+      "4b-ft": {
+        "anomaly_precision": 0.875,
+        "anomaly_recall": 0.9333,
+        "cost_per_1000_pages": 2.4751,
+        "gpu_name": "NVIDIA GeForce RTX 5090",
+        "header_accuracy": 0.9753,
+        "pages": 18,
+        "price_per_hour": 1.58,
+        "reconciliation": 0.7857,
+        "row_f1": 0.984,
+        "row_f1_checked": 0.984,
+        "row_precision": 0.996,
+        "row_recall": 0.9723,
+        "seconds_per_page": 5.6395,
+        "valid_json": 1.0
+      },
+      "8b": {
+        "anomaly_precision": 0.4167,
+        "anomaly_recall": 0.6667,
+        "cost_per_1000_pages": 5.2614,
+        "gpu_name": "NVIDIA GeForce RTX 5090",
+        "header_accuracy": 0.9383,
+        "pages": 18,
+        "price_per_hour": 1.58,
+        "reconciliation": 0.0,
+        "row_f1": 0.6707,
+        "row_f1_checked": 0.8064,
+        "row_precision": 0.6774,
+        "row_recall": 0.664,
+        "seconds_per_page": 11.9879,
+        "valid_json": 1.0
       }
     },
     "test_seen_layout": {

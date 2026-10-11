@@ -541,3 +541,26 @@ the bottom of each day.
     seconds label since not every set is batched. Checked by merging the baseline into a copy and
     screenshotting (`results-phone-clean-merge.png`); the committed summary is unchanged until the
     photos are scored. Spend for the baseline ≈ $0.3.
+
+- **11:47–12:32 — Phone photos (test set C) scored; results in the report, README and Results tab.**
+  - Randy's 20 photos arrived in `data/phone/scanned` as chat-app JPEGs: 1280 px long side (about
+    1.1 MP; clean pages are 2 MP) and no EXIF time. The first ingest paired by file name and every
+    pair was wrong; caught by looking at photo/clean side by side.
+  - Read each photo's printed footer ("LedgerLens phone test NN/20") instead: 18 paper photos map to
+    18 different pages; page 01 was shot twice off a laptop screen and page 17 is missing. Both left
+    out. Copied to `data/phone/photos_by_page/NN.jpg` and re-checked every pair by eye.
+  - `phone_set ingest` now pairs `NN.jpg` files by footer number and allows gaps (prints the missing
+    pages); other names keep the EXIF-time rule. Codex implemented, reviewed; 232 tests pass.
+  - Clean baseline on the same 18 pages: re-scored the stored clean predictions (no new calls).
+  - Live run 11:51–12:10, all three endpoints, workers 0 (one cold start each, as in the clean run),
+    RTX 5090, no failed calls. Row F1 photo (clean): 8B 0.411 (0.671), 4B 0.258 (0.723), fine-tuned
+    4B **0.672 (0.984)**. No model reconciles a photographed page (fine-tune clean: 79%). Seconds per
+    page 11.5 / 8.6 / 5.4; $ per 1,000 pages 5.03 / 3.77 / 2.37.
+  - Looked at the fine-tune's three zero pages: p07 months read as Jan instead of May; p12 rupiah
+    "8,383,500" read as "8383.500"; p16 impossible date 30 Feb (invalid). Elsewhere single-digit
+    misreads, which also break reconciliation.
+  - Honest reading: ranking and cost hold on real photos; near-perfect accuracy does not; camera and
+    chat-app compression are measured together. Next: re-shoot at full resolution.
+  - Merged `test_phone` and `test_phone_clean` into `eval/summary.json`; Results tab checked by
+    screenshot (`results-phone-photos.png`). Spend: balance $201.39 → $200.73 (≈ $0.66); back to
+    $0.01/h at 12:11:46.
