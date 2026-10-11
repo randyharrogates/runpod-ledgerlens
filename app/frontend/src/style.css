@@ -115,7 +115,9 @@ svg {
   gap:14px;
   position:sticky;
   top:0;
-  height:100vh
+  height:100vh;
+  overflow-y:auto;
+  overflow-x:hidden
 }
 
 .brand {
@@ -932,3 +934,12 @@ button.secondary {background:transparent;color:var(--text);border:1px solid var(
   .editable-rows textarea {width:100%;min-width:0}
 }
 .gallery + button {margin-top:var(--gap)}
+
+/* Short windows (a laptop at 125% zoom): tighten the rail so Presenter stays on screen. */
+@media(min-width:761px) and (max-height:720px) {
+  .rail {gap:6px;padding:10px 8px}
+  .brand {padding:6px 8px}
+  .rail nav {gap:2px}
+  .rail nav a,.presenter {padding:5px 0;gap:2px}
+  .rail svg {width:18px;height:18px}
+}
