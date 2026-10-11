@@ -777,6 +777,8 @@ h1 {
 .evaluation-results {display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:var(--gap)}
 .evaluation-results .evaluation-note {grid-column:1/-1}
 .evaluation-results article:first-of-type {grid-column:1/-1}
+/* Side-by-side cards need room for all three model columns; stack them on narrower screens. */
+@media(max-width:1400px) {.evaluation-results {grid-template-columns:1fr}}
 .score-bars {display:grid;gap:14px}
 .score-bar {display:grid;grid-template-columns:155px minmax(40px,1fr) 60px;gap:12px;align-items:center;font-size:12px}
 .bar-track {display:block;background:#1A2430;height:14px;border-radius:10px;overflow:hidden;flex:1}

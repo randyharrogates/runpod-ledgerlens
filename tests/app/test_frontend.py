@@ -209,6 +209,7 @@ const uniform = endpoint => Object.fromEntries(models.map(m=>[m.key,endpoint]));
 const ready = {workers:{idle:1}};
 const asleep = {workers:{idle:0,running:0,initializing:0},jobs:{inQueue:0}};
 const waking = {workers:{initializing:1}};
+assert.equal(statusSummary({}),'Checking live models…');
 assert.equal(statusSummary(uniform({offline:true})),'Live models off · recorded results still work');
 assert.equal(statusSummary({'ft':{offline:true},'8b':{unavailable:true}}),'Live models off · recorded results still work');
 assert.equal(statusSummary(uniform(asleep)),'Live models asleep · first read wakes them (can take minutes)');
@@ -236,6 +237,9 @@ assert.deepEqual(['clean','light','medium','heavy'].map(damageLabel),['Clean','L
 assert.equal(periodLabel('2026-01-01','2026-06-30'),'1 Jan to 30 Jun 2026');
 assert.equal(periodLabel('2025-12-01','2026-06-30'),'1 Dec 2025 to 30 Jun 2026');
 const {liveCostText,monthlyDollars} = require('./src/components/Cost.tsx');
+const {liveRateText} = require('./src/components/Cost.tsx');
+assert.equal(liveRateText({splits:{test_phone_clean:{'4b-ft':{cost_per_1000_pages:2.4751,gpu_name:'NVIDIA GeForce RTX 5090'}}}},'ft',50000),'$2.48 per 1,000 pages live on RTX 5090 (test pages, one at a time); $124 per month');
+assert.equal(liveRateText(null,'ft',50000),null);
 assert.equal(liveCostText(50000),'$6.00 to $6.60 per 1,000 pages warm on RTX 5090; $300 to $330 per month');
 assert.equal(monthlyDollars(99),'$99.00');
 assert.equal(monthlyDollars(100.5),'$100.50');
@@ -381,7 +385,7 @@ function findButton(node){if(!node||typeof node!=='object')return null;if(node.t
 const effect=React.useEffect;React.useEffect=()=>{};const tree=Cost({history:[]});React.useEffect=effect;React.useState=original;
 const estimateHtml=render(tree);
 for(const text of ['$13.00','$26.00','$17.00','$0.26 per 1,000 pages','$0.52 per 1,000 pages','$0.34 per 1,000 pages']) assert(estimateHtml.includes(text),text);
-findButton(tree).props.onClick();setImmediate(()=>{assert(copied.includes('50,000 pages/month'));assert(copied.includes('Trained small model'));assert(copied.includes('RTX PRO 4500'));assert(copied.includes('$0.26 per 1,000 pages; $13.00 per month'));assert(copied.includes('$6.00 to $6.60 per 1,000 pages warm on RTX 5090; $300 to $330 per month'));});
+findButton(tree).props.onClick();setImmediate(()=>{assert(copied.includes('50,000 pages/month'));assert(copied.includes('Trained small model'));assert(copied.includes('RTX PRO 4500'));assert(copied.includes('$0.26 per 1,000 pages; $13.00 per month'));assert(copied.includes('Big model: $5.26 per 1,000 pages live on RTX 5090 (test pages, one at a time); $263 per month'));assert(copied.includes('Trained small model: $2.48 per 1,000 pages live'));});
 """
     result = subprocess.run(
         ["node", "-e", script], cwd=FRONTEND, capture_output=True, text=True

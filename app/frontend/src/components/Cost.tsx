@@ -12,6 +12,14 @@ export const monthlyDollars = (value: number) => value >= 100 && Number.isIntege
 export function liveCostText(pages: number): string {
   return `$${LIVE_BIG_COST.low.toFixed(2)} to $${LIVE_BIG_COST.high.toFixed(2)} per 1,000 pages warm on ${LIVE_BIG_COST.gpu}; ${monthlyDollars(monthlyCost(pages,LIVE_BIG_COST.low))} to ${monthlyDollars(monthlyCost(pages,LIVE_BIG_COST.high))} per month`;
 }
+// Live Serverless rates from the clean phone-set pages: all three models, one page at a time, same RTX 5090.
+export function liveRateText(summary: Summary | null, key: string, pages: number): string | null {
+  const entry = summary?.splits?.test_phone_clean?.[scoreKey(key)];
+  const rate = entry?.cost_per_1000_pages;
+  if (typeof rate !== 'number') return null;
+  const gpu = String(entry?.gpu_name || 'GPU not reported').replace('NVIDIA GeForce ', '');
+  return `${dollars(rate)} per 1,000 pages live on ${gpu} (test pages, one at a time); ${monthlyDollars(monthlyCost(pages,rate))} per month`;
+}
 export function sessionCosts(history: Record<string, unknown>[], model: string) {
   const measured = history.filter(r => r.model === model && r.task === 'extract' && r.source === 'runpod' && !r.error && r.cost != null && Number.isFinite(Number(r.cost)));
   const gpus = [...new Set(measured.map(r => String(r.gpu || 'GPU not reported')))];
@@ -28,7 +36,7 @@ export function Cost({history}: {history: Record<string, unknown>[]}) {
   const rates = Object.fromEntries(models.map(m => [m.key,typeof entries?.[scoreKey(m.key)]?.cost_per_1000_pages === 'number' ? entries[scoreKey(m.key)].cost_per_1000_pages as number : null]));
   const rate = rates[model];
   const max = Math.max(...Object.values(rates).map(v => v || 0),0.001);
-  const live = models.map(m => {const session = sessionCosts(history,m.key);return `${m.name}: ${session ? `this session: $${session.perPage.toFixed(5)} per page measured on ${session.gpu}` : m.key === '8b' ? liveCostText(pages) : 'not measured yet'}`;});
+  const live = models.map(m => {const session = sessionCosts(history,m.key);return `${m.name}: ${session ? `this session: $${session.perPage.toFixed(5)} per page measured on ${session.gpu}` : liveRateText(summary,m.key,pages) ?? (m.key === '8b' ? liveCostText(pages) : 'not measured yet')}`;});
   async function copy() {
     try {await navigator.clipboard.writeText(`LedgerLens estimate: ${pages.toLocaleString('en-US')} pages/month; ${models.find(m => m.key === model)?.name}.\nBatch: ${rate == null ? 'not measured' : `${dollars(rate)} per 1,000 pages; ${dollars(monthlyCost(pages,rate))} per month`}. RTX PRO 4500, $0.72/h; unseen-layout batch test.\nLive Serverless:\n${live.join('\n')}\nIdle cost $0; waking up can take minutes. GPUs: Romania, EU-RO-1. In-region option not measured yet.`);setCopied('Estimate copied');}catch {setCopied('Could not copy. Clipboard access is unavailable.');}
   }
