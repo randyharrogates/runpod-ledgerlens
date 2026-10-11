@@ -8,7 +8,7 @@
     "test_unseen_layout": "Unseen statement layouts"
   },
   "split_notes": {
-    "test_phone": "18 printed pages photographed on a phone and sent through a chat app (about 1.1 MP; clean pages are 2 MP). Live on Serverless, one page at a time; cost from executionTime at $1.58/h.",
+    "test_phone": "18 printed pages photographed on a phone and sent through a chat app (about 1.1 MP; clean pages are 2 MP). Live on Serverless, one page at a time; cost from Runpod's measured run time per page at $1.58/h.",
     "test_phone_clean": "The same 18 pages, clean, live on Serverless one page at a time; seconds per page from the 20-page clean run; cost at $1.58/h."
   },
   "splits": {
