@@ -6,6 +6,7 @@ import { money, printedDate } from './format';
 const numericFields = ['debit', 'credit', 'balance', 'unit_price', 'amount', 'quantity'];
 
 type CellProps = {
+  field?: string;
   value: string | null;
   display: string;
   edited: boolean;
@@ -15,7 +16,7 @@ type CellProps = {
   save: (value: string | null) => Promise<void>;
 };
 
-export function Cell({ value, display, edited, directionTitle, numeric, label, save }: CellProps) {
+export function Cell({ value, display, edited, directionTitle, numeric, label, save, field }: CellProps) {
   const [draft, setDraft] = useState(value || '');
   const [editing, setEditing] = useState(false);
   const [error, setError] = useState('');
@@ -35,7 +36,7 @@ export function Cell({ value, display, edited, directionTitle, numeric, label, s
   }
 
   return (
-    <td className={`${edited ? 'edited' : ''} ${numeric ? 'numeric' : ''}`}>
+    <td data-field={field} className={`${edited ? 'edited' : ''} ${numeric ? 'numeric' : ''}`}>
       <span className="cell-content">
         {directionTitle && <span className="direction-marker" title={directionTitle}>↔</span>}
         {edited && <span className="edit-marker" title="corrected by analyst">●</span>}
@@ -128,7 +129,7 @@ export function Review({ pages, selected, row, analysis, save }: ReviewProps) {
               {fixes.length} rows moved between debit and credit to match the printed balance.
             </p>
           )}
-          <table>
+          <table className={invoice ? "editable-rows invoice-rows" : "editable-rows statement-rows"}>
             <colgroup>
               <col style={{ width: '44px' }} />
               {widths.map((width, i) => <col key={i} style={{ width }} />)}
@@ -169,7 +170,7 @@ export function Review({ pages, selected, row, analysis, save }: ReviewProps) {
                           ? money(transaction[field], currency)
                           : transaction[field] || '';
                       return (
-                        <Cell key={field} value={transaction[field]} display={display}
+                        <Cell key={field} field={field} value={transaction[field]} display={display}
                           directionTitle={directionTitle}
                           numeric={numeric} label={`Edit row ${i + 1} ${field}`}
                           edited={page.edited.includes(`${i}:${field}`)}

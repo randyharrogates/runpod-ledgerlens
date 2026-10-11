@@ -6,7 +6,7 @@ import { Documents } from './components/Documents';
 import { Review } from './components/Review';
 const Cashflow = lazy(() => import('./components/Analysis').then(m => ({default: m.Cashflow})));
 import { Memo } from './components/Memo';
-import { models, modelState } from './models';
+import { models, modelState, statusSummary } from './models';
 import { navigate, RouterLink, usePath } from './router';
 import { UnderTheHood } from './components/UnderTheHood';
 import { PageToolbar } from './components/PageToolbar';
@@ -161,7 +161,7 @@ function App() {
         <PodAlert runs={runs} />
         <header>
           <div><h1>{route?.[2] || 'Page not found'}</h1><p>{path === '/' ? 'Add photos of statements, check what was read, and fix any cell that is wrong.' : path === '/compare' ? 'See which lines each model reads right.' : path === '/results' ? 'Every score, including where the models fail.' : path === '/cost' ? 'Estimate the cost of reading your pages.' : path === '/data' ? 'Browse the practice documents the models learned from and were tested on.' : path === '/training' ? 'Replay the reported run or set up a new one. Nothing is rented until you confirm.' : 'Page not found.'}</p></div>
-          <div className="model-status" aria-label="Model status">{models.map(m => <span key={m.key} className={modelState(status, m.key) === 'ready' ? 'ready' : ''}>{m.name} · {modelState(status, m.key)}</span>)}</div>
+          <div className="model-status" aria-label="Model status">{statusSummary(status) ? <span className={modelState(status, 'ft') === 'ready' ? 'ready' : ''}>{statusSummary(status)}</span> : models.map(m => <span key={m.key} className={modelState(status, m.key) === 'ready' ? 'ready' : ''}>{m.name} · {modelState(status, m.key)}</span>)}</div>
         </header>
         {error && <p role="alert" className="error">{error}</p>}
         <Suspense fallback={<p role="status">Loading page…</p>}>{path === '/data' ? <Data /> : path === '/training' ? <Training runs={runs} refresh={refreshRuns} /> : path === '/compare' ? <Compare session={session} pages={pages} status={status} /> : path === '/results' ? <Results /> : path === '/cost' ? <Cost history={history} /> : path !== '/' ? <article className="placeholder"><h2>{route ? 'Coming next' : 'Page not found'}</h2><RouterLink href="/">Read statements →</RouterLink></article> : <>

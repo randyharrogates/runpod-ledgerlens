@@ -587,3 +587,19 @@ the bottom of each day.
   - Last fixes from the screenshots: tour step 4 opens the recorded example biz_0007_p006 even when
     pages are loaded; amounts always show two decimals (16.20, not 16.2). 312 tests pass, ruff
     clean; first-load JS 181 kB (59.8 kB gzip) after route splitting.
+  - Polish pass (2026-10-11), from a second look at the screenshots:
+    - The loss chart's log axis now ticks at powers of ten, so its caption ("each labelled line is
+      ten times lower") is true; before, ticks read 0.1/0.06/0.03 under the same caption.
+    - One header pill when all models share a state ("Live models off · recorded results still
+      work") instead of three "offline" pills on every page.
+    - Compare opens on the recorded example unless a live model is reachable; the duplicate model
+      state tile became a short "two ways to compare" explainer; page headers share one top offset.
+    - Results: the CSV download is a small outline button; the hardest-pages gallery (20 pages per
+      test set, 60 in all) shows one set at a time, 8 cards, "Show all 20".
+    - Phone: Read rows stack per line so Balance and the "adds up" tick are visible at 390 px.
+    - Runs are numbered ("Run 2 · simulated, no GPU used · 11 Oct, 02:28 · done"), the id in a
+      tooltip; "cached demo" reads "Recorded answer (demo)"; damage labels are capitalised; the
+      period tile reads "1 Jan to 30 Jun 2026".
+    - Cost: monthly figures use the rate as displayed ($0.26 × 50 = $13.00, not $12.77); the live
+      big-model line reads "$6.00 to $6.60 per 1,000 pages … $300 to $330 per month".
+    - 312 tests pass, ruff clean; first-load JS 181.8 kB (60.1 kB gzip).

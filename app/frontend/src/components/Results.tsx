@@ -1,6 +1,6 @@
 import { downloadCSV } from './export';
 import React, { useEffect, useState } from 'react';
-import { layoutName, metadata, groupName } from './format';
+import { damageLabel, layoutName, metadata, groupName } from './format';
 import { Term } from './Term';
 import { models as modelChoices } from '../models';
 import { Example, getJSON, LineTable, scoreKey } from './Compare';
@@ -86,10 +86,16 @@ export function ResultsHeadline({summary}: {summary: Summary}) {
 function GroupChart({breakdown, field, title}: {breakdown: Breakdown; field: 'by_strength' | 'by_layout_id'; title: string}) {
   const outputs = breakdown.splits.test_unseen_layout?.models || {};
   const groups = [...new Set(Object.values(outputs).flatMap(v => Object.keys(v[field] || {})))].sort((a,b) => field === 'by_strength' ? ['clean','light','medium','heavy'].indexOf(a)-['clean','light','medium','heavy'].indexOf(b) : a.localeCompare(b));
-  return <article><h2>{title}</h2><p>Unseen layouts · <Term name="average per page" /></p>{groups.map(group => <section className="chart-group" key={group}><h3>{field === 'by_layout_id' ? layoutName(group) : group}</h3><ScoreBars values={Object.fromEntries(modelChoices.map(m => [scoreKey(m.key),outputs[scoreKey(m.key)]?.[field]?.[group]?.row_f1]))} /></section>)}</article>;
+  return <article><h2>{title}</h2><p>Unseen layouts · <Term name="average per page" /></p>{groups.map(group => <section className="chart-group" key={group}><h3>{field === 'by_layout_id' ? layoutName(group) : damageLabel(group)}</h3><ScoreBars values={Object.fromEntries(modelChoices.map(m => [scoreKey(m.key),outputs[scoreKey(m.key)]?.[field]?.[group]?.row_f1]))} /></section>)}</article>;
 }
 export function scoresCSV(summary: Summary): unknown[][] {
   return [['Group','Metric',...models.map(([,name]) => name)], ...Object.entries(summary.splits).flatMap(([split, entries]) => metrics.filter(([key]) => models.some(([id]) => typeof entries[id]?.[key] === 'number')).map(([key,label]) => [summary.split_labels[split] || split,label,...models.map(([id]) => entries[id]?.[key] ?? '')]))];
+}
+export const HARD_PAGE_PREVIEW = 8;
+export const HARD_SET_LABELS: Record<string, string> = {test_unseen_layout:'Unseen layouts', test_seen_layout:'Seen layouts', test_cord:'Real receipts'};
+export function visibleHardPages(breakdown: Breakdown, set: string, showAll: boolean): HardPage[] {
+  const pages = breakdown.splits[set]?.hardest_pages || [];
+  return showAll ? pages : pages.slice(0, HARD_PAGE_PREVIEW);
 }
 export function Results() {
   const [summary,setSummary] = useState<Summary | null>(null);
@@ -98,9 +104,11 @@ export function Results() {
   const [selected,setSelected] = useState<HardPage | null>(null);
   const [detail,setDetail] = useState<Example | null>(null);
   const [note,setNote] = useState('');
+  const [hardSet,setHardSet] = useState('test_unseen_layout');
+  const [showAll,setShowAll] = useState(false);
   useEffect(() => {void Promise.all([getJSON<Summary>('/api/eval'),getJSON<Breakdown>('/api/results/breakdown')]).then(([s,b]) => {setSummary(s);setBreakdown(b);}).catch(e => setError(e.message));}, []);
   useEffect(() => {setDetail(null);setNote('');if (!selected) return;let active = true;void getJSON<Example>(`/api/results/examples/${selected.id}`).then(v => {if(active) setDetail(v);}).catch(() => {if(active) setNote("The per-line outputs aren't bundled for this page.");});return () => {active = false;};}, [selected]);
   if (error) return <p role="alert" className="error">{error}</p>;
   if (!summary || !breakdown) return <p role="status">Loading recorded results…</p>;
-  return <div className="page-stack"><button onClick={() => downloadCSV('scores.csv', scoresCSV(summary))}>Download scores (CSV)</button><ResultsHeadline summary={summary} /><ResultTable value={summary} /><article className="findings"><h2>What the test tells us</h2><p>Precision and recall are within about 1.5 points everywhere, so the models rarely invent or drop lines. Their mistakes are misread fields: money in versus money out, and digits.</p><p>The trained model finds 96% of planted red flags, but half of what it flags is not a planted flag (precision 51%). Treat a flag as a reason to investigate.</p></article><div className="two-tiles"><GroupChart breakdown={breakdown} field="by_strength" title="Lines read right, by photo damage" /><GroupChart breakdown={breakdown} field="by_layout_id" title="Lines read right, by layout" /></div><article><h2>Where it fails: the hardest pages</h2><div className="gallery">{Object.entries(breakdown.splits).flatMap(([split,b]) => b.hardest_pages.map(p => <section key={`${split}-${p.id}`}><h3>{p.id}</h3><p>{groupName(split)} · {metadata(p.meta || {})}</p><ScoreBars values={p.row_f1} /><button aria-expanded={selected?.id === p.id} onClick={() => setSelected(p)}>Open page and lines →</button></section>))}</div></article>{selected && <article className="detail-panel"><button onClick={() => setSelected(null)}>Close detail</button><h2>{selected.id}</h2><p>Lines read right (row F1)</p><ScoreBars values={selected.row_f1} />{detail ? <LineTable example={detail} /> : <p>{note || 'Loading line outputs…'}</p>}</article>}<p>All three models graded in one batch on the same GPU (RTX PRO 4500, $0.72/h) with the same instructions.</p></div>;
+  return <div className="page-stack"><button className="scores-download secondary" onClick={() => downloadCSV('scores.csv', scoresCSV(summary))}>Download scores (CSV)</button><ResultsHeadline summary={summary} /><ResultTable value={summary} /><article className="findings"><h2>What the test tells us</h2><p>Precision and recall are within about 1.5 points everywhere, so the models rarely invent or drop lines. Their mistakes are misread fields: money in versus money out, and digits.</p><p>The trained model finds 96% of planted red flags, but half of what it flags is not a planted flag (precision 51%). Treat a flag as a reason to investigate.</p></article><div className="two-tiles"><GroupChart breakdown={breakdown} field="by_strength" title="Lines read right, by photo damage" /><GroupChart breakdown={breakdown} field="by_layout_id" title="Lines read right, by layout" /></div><article><h2>Where it fails: the hardest pages</h2><nav className="steps" aria-label="Test set">{Object.keys(breakdown.splits).map(k => <button key={k} aria-current={hardSet === k ? 'page' : undefined} onClick={() => {setHardSet(k);setShowAll(false);}}>{HARD_SET_LABELS[k] || groupName(k)}</button>)}</nav><div className="gallery">{visibleHardPages(breakdown, hardSet, showAll).map(p => <section key={`${hardSet}-${p.id}`}><h3>{p.id}</h3><p>{groupName(hardSet)} · {metadata(p.meta || {})}</p><ScoreBars values={p.row_f1} /><button aria-expanded={selected?.id === p.id} onClick={() => setSelected(p)}>Open page and lines →</button></section>)}</div>{(breakdown.splits[hardSet]?.hardest_pages.length || 0) > HARD_PAGE_PREVIEW && <button className="secondary" onClick={() => setShowAll(v => !v)}>{showAll ? 'Show fewer' : `Show all ${breakdown.splits[hardSet].hardest_pages.length}`}</button>}</article>{selected && <article className="detail-panel"><button onClick={() => setSelected(null)}>Close detail</button><h2>{selected.id}</h2><p>Lines read right (row F1)</p><ScoreBars values={selected.row_f1} />{detail ? <LineTable example={detail} /> : <p>{note || 'Loading line outputs…'}</p>}</article>}<p>All three models graded in one batch on the same GPU (RTX PRO 4500, $0.72/h) with the same instructions.</p></div>;
 }

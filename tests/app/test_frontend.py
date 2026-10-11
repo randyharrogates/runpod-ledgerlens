@@ -129,15 +129,25 @@ const reviewed = render(React.createElement(Review, {
   analysis:{reconciliation:[],findings:[{citations:[{page_id:'p1',row_index:0}]}]}
 }));
 for (const label of ['What was read from p1','Balance adds up','Red flag','Moved from debit to credit: the balance went up by this amount','Statement evidence p1']) assert(reviewed.includes(label),label);
+for(const field of ['date','description','debit','credit','balance']) assert(reviewed.includes('data-field="'+field+'"'),field);
+const invoiceHtml = render(React.createElement(Review, {
+  pages: [{id:'invoice',thumbnail_url:'/photo',status:'done',document:{doc_type:'invoice',currency:'SGD',opening_balance:'0',line_items:[{description:'Fictional supplies',quantity:'2',unit_price:'5',amount:'10'}]},edited:[],direction_fixes:[],metrics:null}],
+  selected:'invoice',row:-1,choose:()=>{},save:async()=>{},analysis:null
+}));
+assert(invoiceHtml.includes('invoice-rows'));
+for(const field of ['description','quantity','unit_price','amount']) {
+  assert(invoiceHtml.includes('data-field="'+field+'"'),field);
+  assert(invoiceHtml.includes('Edit row 1 '+field),field);
+}
 const {Documents} = require('./src/components/Documents.tsx');
 const page = {id: 'p1', status: 'extracted', metrics: {source: 'cached-demo', live_error: 'Oops'}};
 const props = {pages: [page], types: {}, session: ''};
 const warning = render(React.createElement(Documents, props));
 assert(warning.includes('Live call failed — showing cached result'));
 assert(warning.includes('Oops'));
-assert(!warning.includes('cached demo'));
+assert(!warning.includes('Recorded answer (demo)'));
 delete page.metrics.live_error;
-assert(render(React.createElement(Documents, props)).includes('cached demo'));
+assert(render(React.createElement(Documents, props)).includes('Recorded answer (demo)'));
 const {UnderTheHood} = require('./src/components/UnderTheHood.tsx');
 assert(render(React.createElement(UnderTheHood, {
   history: [{source: 'cached-demo', task: 'extract', live_error: 'Oops'}], status: {}
@@ -175,6 +185,56 @@ const offline = render(React.createElement(Compare,{session:'',pages:[],status:{
 assert(offline.includes('Recorded test examples'));
 assert(offline.includes('Always available offline'));
 const {monthlyCost,sessionCosts,Cost} = require('./src/components/Cost.tsx');
+const {logTicks,runLabel} = require('./src/components/Training.tsx');
+const {visibleHardPages,HARD_SET_LABELS} = require('./src/components/Results.tsx');
+const hardPages = Array.from({length:20},(_,i)=>({id:`p${i}`,row_f1:{}}));
+const hardBreakdown = {splits:{test_unseen_layout:{models:{},hardest_pages:hardPages}}};
+assert.equal(visibleHardPages(hardBreakdown,'test_unseen_layout',false).length,8);
+assert.equal(visibleHardPages(hardBreakdown,'test_unseen_layout',true).length,20);
+assert.equal(visibleHardPages(hardBreakdown,'test_cord',false).length,0);
+assert.equal(HARD_SET_LABELS.test_cord,'Real receipts');
+assert.deepEqual(logTicks([0.003,0.06]),[0.001,0.01,0.1]);
+assert.deepEqual(logTicks([0.01,1]),[0.01,0.1,1]);
+assert.deepEqual(logTicks([0,-1,NaN,Infinity]),[0.01,0.1,1]);
+assert.deepEqual(logTicks([0.1]),[0.1,1]);
+const {statusSummary,models} = require('./src/models.ts');
+const uniform = endpoint => Object.fromEntries(models.map(m=>[m.key,endpoint]));
+const ready = {workers:{idle:1}};
+const asleep = {workers:{idle:0,running:0,initializing:0},jobs:{inQueue:0}};
+const waking = {workers:{initializing:1}};
+assert.equal(statusSummary(uniform({offline:true})),'Live models off · recorded results still work');
+assert.equal(statusSummary({'ft':{offline:true},'8b':{unavailable:true}}),'Live models off · recorded results still work');
+assert.equal(statusSummary(uniform(asleep)),'Live models asleep · first read wakes them (can take minutes)');
+assert.equal(statusSummary(uniform(ready)),'All 3 models ready');
+assert.equal(statusSummary(uniform(waking)),'Live models waking up');
+assert.equal(statusSummary({...uniform(ready),ft:asleep}),null);
+const {defaultCompareMode} = require('./src/components/Compare.tsx');
+for(const endpoint of [ready,asleep,waking]) assert.equal(defaultCompareMode(null,[{id:'p'}],uniform(endpoint)),'live');
+assert.equal(defaultCompareMode(null,[{id:'p'}],uniform({offline:true})),'recorded');
+assert.equal(defaultCompareMode(null,[],uniform(ready)),'recorded');
+assert.equal(defaultCompareMode('p',[{id:'p'}],uniform(ready)),'recorded');
+assert.equal(defaultCompareMode('',[{id:'p'}],uniform(ready)),'recorded');
+assert.equal(defaultCompareMode(null,[{id:'p'}],{}),'recorded');
+const offlineWithPages = render(React.createElement(Compare,{session:'',pages:[{id:'p'}],status:uniform({offline:true})}));
+assert(offlineWithPages.includes('aria-current="page">Recorded test examples'));
+assert(!offlineWithPages.includes('Model state right now'));
+const history = [{id:'later',created:'2026-10-11T02:00:00Z',simulated:true,status:'done'},{id:'reported',created:'2026-10-10'},{id:'earlier',created:'2026-10-11T01:12:00+08:00',simulated:true,status:'done'}];
+assert.equal(runLabel(history[1],history),'Run 1 · reported');
+assert.equal(runLabel(history[2],history),'Run 2 · simulated, no GPU used · 11 Oct, 01:12 · done');
+assert(runLabel(history[0],history).startsWith('Run 3 ·'));
+assert(!runLabel(history[0],history).includes('later'));
+const {damageLabel,periodLabel} = require('./src/components/format.ts');
+assert.deepEqual(['clean','light','medium','heavy'].map(damageLabel),['Clean','Light','Medium','Heavy']);
+assert.equal(periodLabel('2026-01-01','2026-06-30'),'1 Jan to 30 Jun 2026');
+assert.equal(periodLabel('2025-12-01','2026-06-30'),'1 Dec 2025 to 30 Jun 2026');
+const {liveCostText,monthlyDollars} = require('./src/components/Cost.tsx');
+assert.equal(liveCostText(50000),'$6.00 to $6.60 per 1,000 pages warm on RTX 5090; $300 to $330 per month');
+assert.equal(monthlyDollars(99),'$99.00');
+assert.equal(monthlyDollars(100.5),'$100.50');
+assert.equal(monthlyCost(50000,0.2554),13);
+assert.equal(monthlyCost(50000,0.519),26);
+assert.equal(monthlyCost(50000,0.3354),17);
+
 assert.equal(monthlyCost(50000,0.26),13);
 assert.equal(monthlyCost(0,0.26),0);
 assert.equal(monthlyCost(-5,0.26),0);
@@ -194,7 +254,7 @@ assert(render(React.createElement(Cashflow,{data:{monthly:{}},jump:()=>{}})).inc
 const {PageToolbar} = require('./src/components/PageToolbar.tsx');
 assert.equal(render(React.createElement(PageToolbar,{pages:[]})), '');
 const toolbar = render(React.createElement(PageToolbar,{pages:[{id:'p1',metrics:{source:'cached-demo'},document:{transactions:[{date:'x'}]}}],selected:'p1',choose:()=>{},read:()=>{},label:()=> 'read',busy:false}));
-for (const label of ['Read this page','Download CSV','cached demo']) assert(toolbar.includes(label));
+for (const label of ['Read this page','Download CSV','Recorded answer (demo)']) assert(toolbar.includes(label));
 assert(!toolbar.includes('<select'));
 const {Memo} = require('./src/components/Memo.tsx');
 const memo = render(React.createElement(Memo,{session:'s',model:'ft',jump:()=>{}}));
@@ -221,7 +281,8 @@ const React = require('react'), {renderToStaticMarkup:render} = require('react-d
 const {DatasetTiles,ValidationReport,AnswerKey,amountBins} = require('./src/components/Data.tsx');
 const fixture = JSON.parse(fs.readFileSync('../../eval/dataset_summary.json', 'utf8'));
 const data = render(React.createElement(DatasetTiles,{summary:fixture}));
-for(const text of ['4,475','400','3,675','800','No business appears in more than one group','Statement E (held back)','Statement F (held back)','57%','One customer dominates','Bounced cheque','Indonesian rupiah','1 Jan 2026','30 Jun 2026']) assert(data.includes(text),text);
+for(const text of ['4,475','400','3,675','800','No business appears in more than one group','Statement E (held back)','Statement F (held back)','57%','One customer dominates','Bounced cheque','Indonesian rupiah','1 Jan to 30 Jun 2026']) assert(data.includes(text),text);
+for(const text of ['Clean','Light','Medium','Heavy']) assert(data.includes(text),text);
 const bins = amountBins({...fixture,transaction_amount_distribution:{money_in:{'2':'8413'},money_out:{'2':'6732'}}});
 assert.deepEqual(bins,[{range:'100s',moneyIn:8413,moneyOut:6732}]);
 const blocked = render(React.createElement(ValidationReport,{report:{valid:false,pages:3,businesses:2,entries:9,problems:[{file:'p1.meta.json',problem:'Missing business'}],leakage:{businesses:{count:1,examples:['biz']},counterparties:[]}}}));
@@ -263,7 +324,7 @@ const lines = render(React.createElement(LineTable,{example:{id:'p',doc_type:'st
 assert(lines.includes('6 Apr · ATM WITHDRAWAL · out 114,800'));assert(!lines.includes('money in 0'));
 const {Cost} = require('./src/components/Cost.tsx');
 const cost = render(React.createElement(Cost,{history:[]}));
-assert(cost.includes('value="50,000"'));assert.equal((cost.match(/warm on RTX 5090/g)||[]).length,1);assert(cost.includes('$300.00 to $330.00'));
+assert(cost.includes('value="50,000"'));assert.equal((cost.match(/warm on RTX 5090/g)||[]).length,1);assert(cost.includes('$300 to $330'));
 """
     result = subprocess.run(
         ["node", "-e", script], cwd=FRONTEND, capture_output=True, text=True
@@ -310,7 +371,9 @@ delete require.cache[require.resolve('./src/components/Cost.tsx')];const {Cost}=
 function findButton(node){if(!node||typeof node!=='object')return null;if(node.type==='button'&&node.props.children==='Copy this estimate')return node;for(const child of [node.props?.children].flat(Infinity)){const result=findButton(child);if(result)return result;}return null;}
 // Call the component with effects disabled to inspect its real click handler.
 const effect=React.useEffect;React.useEffect=()=>{};const tree=Cost({history:[]});React.useEffect=effect;React.useState=original;
-findButton(tree).props.onClick();setImmediate(()=>{assert(copied.includes('50,000 pages/month'));assert(copied.includes('Trained small model'));assert(copied.includes('RTX PRO 4500'));});
+const estimateHtml=render(tree);
+for(const text of ['$13.00','$26.00','$17.00','$0.26 per 1,000 pages','$0.52 per 1,000 pages','$0.34 per 1,000 pages']) assert(estimateHtml.includes(text),text);
+findButton(tree).props.onClick();setImmediate(()=>{assert(copied.includes('50,000 pages/month'));assert(copied.includes('Trained small model'));assert(copied.includes('RTX PRO 4500'));assert(copied.includes('$0.26 per 1,000 pages; $13.00 per month'));assert(copied.includes('$6.00 to $6.60 per 1,000 pages warm on RTX 5090; $300 to $330 per month'));});
 """
     result = subprocess.run(
         ["node", "-e", script], cwd=FRONTEND, capture_output=True, text=True
