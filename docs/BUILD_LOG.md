@@ -630,3 +630,7 @@ the bottom of each day.
     - Training: "Both keep falling, so it is learning the skill rather than memorising" overclaimed
       (training loss is flat after ~step 50); now "the held-out check is still falling at the last
       step, so there is no sign of overtraining".
+
+### 2026-10-11 16:30 SGT: Presenter button cut off on short windows
+- Randy saw the bottom of the left rail cut off, Presenter included. Measured in a test browser: the rail is a fixed 100vh with no overflow, and its content needs about 570 px, so on a shorter window (a laptop at 125% zoom) Presenter is pushed off screen and can't be reached.
+- Fix (`app/frontend/src/style.css`): the rail scrolls if it must (`overflow-y:auto`), and below 720 px tall the rail items are tighter. At 480 px the rail needs 465 px; Presenter is visible. Tall windows are unchanged. 317 tests pass.
