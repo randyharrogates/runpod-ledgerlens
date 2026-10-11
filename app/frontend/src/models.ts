@@ -15,3 +15,12 @@ export function modelState(status: Record<string, unknown>, key: string): string
   if (workers && ['idle', 'running', 'initializing'].every(key => workers[key] === 0) && Object.values(workers).every(value => value === 0) && jobs && (jobs.inQueue || 0) === 0) return 'asleep';
   return 'unavailable';
 }
+
+export function statusSummary(status: Record<string, unknown>): string | null {
+  const states = models.map(m => modelState(status, m.key));
+  if (states.every(s => s === 'offline' || s === 'unavailable')) return 'Live models off · recorded results still work';
+  if (states.every(s => s === 'asleep')) return 'Live models asleep · first read wakes them (can take minutes)';
+  if (states.every(s => s === 'ready')) return 'All 3 models ready';
+  if (states.every(s => s === 'waking up')) return 'Live models waking up';
+  return null;
+}

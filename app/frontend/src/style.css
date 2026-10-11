@@ -166,7 +166,7 @@ main {
   min-width:0;
   width:100%;
   max-width:1800px;
-  margin:auto;
+  margin:0 auto;
   padding:28px 32px
 }
 
@@ -786,7 +786,7 @@ h1 {
 .headline .bar-track {height:24px}
 .headline {padding:24px}
 .chart-group {margin:24px 0}
-.gallery {display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:var(--gap);max-height:650px;overflow:auto}
+.gallery {display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:var(--gap)}
 .gallery>section {border:1px solid var(--hairline);border-radius:14px;padding:18px}
 .gallery .score-bar {grid-template-columns:105px minmax(35px,1fr) 50px}
 .gallery button {margin-top:18px}
@@ -896,3 +896,37 @@ dl>div {flex-wrap:wrap}
 
 .page-thumbnail {display:block;width:100%;padding:0;background:transparent}
 .estimate button:focus-visible {outline-color:var(--ground)}
+
+.scores-download {justify-self:end}
+button.secondary {background:transparent;color:var(--text);border:1px solid var(--hairline);width:auto}
+.gallery>section {display:flex;flex-direction:column}
+.gallery button {margin-top:auto;align-self:flex-start}
+.gallery .score-bars {margin-bottom:18px}
+.summary-tiles .period {font-size:20px;white-space:nowrap}
+@media (max-width:600px) {
+  .review-table {overflow:visible;max-height:none}
+  .review-table .editable-rows {display:block;min-width:0;width:100%;table-layout:auto}
+  .editable-rows colgroup,.editable-rows thead {display:none}
+  .editable-rows tbody {display:block}
+  .editable-rows tr {display:grid;grid-template-columns:36px minmax(0,1fr) minmax(0,1fr);border-bottom:1px solid var(--hairline);padding:8px 0}
+  .review-table .editable-rows td {min-width:0;white-space:normal;padding:5px;border:0}
+  .editable-rows td::before {display:block;font-size:10px;color:var(--muted)}
+  .editable-rows [data-field="date"] {grid-column:2 / 4}
+  .editable-rows [data-field="description"] {grid-column:1 / 4;overflow-wrap:anywhere}
+  .editable-rows [data-field="debit"] {grid-column:2}
+  .editable-rows [data-field="credit"] {grid-column:3}
+  .editable-rows [data-field="balance"] {grid-column:2}
+  .statement-rows td:last-child {grid-column:3;align-self:end}
+  .editable-rows [data-field="quantity"] {grid-column:1}
+  .editable-rows [data-field="unit_price"] {grid-column:2}
+  .editable-rows [data-field="amount"] {grid-column:3}
+  .editable-rows [data-field="debit"]::before {content:"Money out"}
+  .editable-rows [data-field="credit"]::before {content:"Money in"}
+  .editable-rows [data-field="balance"]::before {content:"Balance"}
+  .editable-rows [data-field="quantity"]::before {content:"Quantity"}
+  .editable-rows [data-field="unit_price"]::before {content:"Unit price"}
+  .editable-rows [data-field="amount"]::before {content:"Amount"}
+  .editable-rows .cell-content,.editable-rows .cell-value {max-width:100%;white-space:normal;overflow-wrap:anywhere}
+  .editable-rows textarea {width:100%;min-width:0}
+}
+.gallery + button {margin-top:var(--gap)}

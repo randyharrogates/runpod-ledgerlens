@@ -28,3 +28,9 @@ export function monthName(value: string): string {
   return new Date(`${value}-01T12:00:00Z`).toLocaleDateString('en-GB', {month:'short',year:'numeric',timeZone:'UTC'});
 }
 export const metadata = (meta: Record<string,unknown>, currency?: string) => `${layoutName(String(meta.layout_id || 'Layout not reported'))}${['stmt_e','stmt_f'].includes(String(meta.layout_id)) ? ' (held back)' : ''} · ${String(meta.strength || 'unknown')} photo damage${currency ? ` · ${currencyName(currency)}` : ''}`;
+
+export const damageLabel = (value: string) => value.charAt(0).toUpperCase() + value.slice(1);
+export function periodLabel(start: string, end: string): string {
+  const first = printedDate(start);
+  return `${start.slice(0,4) === end.slice(0,4) ? first.replace(/ \d{4}$/, '') : first} to ${printedDate(end)}`;
+}

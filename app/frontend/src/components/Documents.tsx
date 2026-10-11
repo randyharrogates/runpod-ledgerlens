@@ -56,7 +56,7 @@ export function Documents({
               </details>
             )}
             {page.metrics?.source === 'cached-demo' && !page.metrics?.live_error && (
-              <strong className="cached">cached demo</strong>
+              <strong className="cached">Recorded answer (demo)</strong>
             )}
             <select aria-label={`Document type ${page.id}`}
               value={types[page.id] || page.document?.doc_type || page.doc_type || 'statement'}
