@@ -45,7 +45,7 @@ assert(evaluation.includes('—'));
 assert(!evaluation.includes('<strong>—</strong>'));
 const {modelState} = require('./src/models.ts');
 assert.equal(modelState({}, 'ft'), 'unavailable');
-for (const [payload, expected] of [[{offline:true}, 'offline'], [{unavailable:true}, 'unavailable'], [{workers:{idle:1}}, 'ready'], [{workers:{running:1}}, 'ready'], [{workers:{initializing:1}}, 'waking up'], [{workers:{idle:0},jobs:{inQueue:1}}, 'waking up'], [{workers:{idle:0,running:0,initializing:0},jobs:{inQueue:0}}, 'asleep'], [{workers:{}}, 'unavailable']]) assert.equal(modelState({ft:payload}, 'ft'), expected);
+for (const [payload, expected] of [[{offline:true}, 'offline'], [{unavailable:true}, 'unavailable'], [{workers:{idle:1}}, 'on standby'], [{workers:{running:1}}, 'ready'], [{workers:{initializing:1}}, 'waking up'], [{workers:{idle:0},jobs:{inQueue:1}}, 'waking up'], [{workers:{idle:0,running:0,initializing:0},jobs:{inQueue:0}}, 'asleep'], [{workers:{}}, 'unavailable']]) assert.equal(modelState({ft:payload}, 'ft'), expected);
 const {Term} = require('./src/components/Term.tsx');
 for (const [name, definition] of Object.entries(require('./src/glossary.ts').glossary)) {
   const term = render(React.createElement(Term, {name}));
@@ -212,7 +212,8 @@ const waking = {workers:{initializing:1}};
 assert.equal(statusSummary(uniform({offline:true})),'Live models off · recorded results still work');
 assert.equal(statusSummary({'ft':{offline:true},'8b':{unavailable:true}}),'Live models off · recorded results still work');
 assert.equal(statusSummary(uniform(asleep)),'Live models asleep · first read wakes them (can take minutes)');
-assert.equal(statusSummary(uniform(ready)),'All 3 models ready');
+assert.equal(statusSummary(uniform(ready)),'Live models on standby · the first read can take a few minutes');
+assert.equal(statusSummary(uniform({workers:{running:1}})),'All 3 models ready');
 assert.equal(statusSummary(uniform(waking)),'Live models waking up');
 assert.equal(statusSummary({...uniform(ready),ft:asleep}),null);
 const {defaultCompareMode} = require('./src/components/Compare.tsx');
