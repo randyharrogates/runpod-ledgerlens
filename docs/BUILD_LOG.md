@@ -608,3 +608,25 @@ the bottom of each day.
     on the RTX PRO 4500, which is no longer true, so it now says the phone sets ran live on Serverless
     (RTX 5090, $1.58/h). "What the test tells us" gains a phone finding computed from summary.json
     (67.2% vs 41.1% and 25.8%, down from 98.4% clean; no photographed page adds up). 317 tests pass.
+
+- **14:40–15:00 — ui-revamp merged (Randy approved); walked every page live; fixes from looking.**
+  - Fast-forwarded `main` to the `ui-revamp` branch (04b53ec, 10 commits): new shell, Compare, Data,
+    Training (simulated unless `TRAINING_ENABLED=1`), Results, Cost, Presenter tour. 316/317 tests:
+    a frontend test read `docs/ui-mockups/tour-script.md`, untracked in the branch's worktree; now tracked.
+  - Live walk-through with all three endpoints: sample business read on the fine-tuned 4B (first page
+    cold, ~2.5 min; then ~6 s per page; RTX 5090), p1 18/18 balances add up, p4 1 to check; flags
+    and memo correct (outflow 55,041.59; no unverified numbers); Compare 18/18 vs 11/18 vs 11/18.
+  - Fixed from looking (not caught by tests):
+    - Header said "All 3 models ready" and the first read still cold-started: Runpod counts
+      scaled-down workers as idle. "Ready" now needs a running worker; idle shows "on standby · the
+      first read can take a few minutes". Before the first status poll it says "Checking live
+      models…" instead of "Live models off".
+    - Tour step 1 called the synthetic sample "photographed on a phone"; now "made to look like a
+      phone photo; the business and bank are fictional".
+    - Results: on screens under ~1,400 px the side-by-side cards hid the base-4B column behind a
+      sideways scroll; cards now stack there. Checked at 1200 and 1512 px: no hidden columns.
+    - Cost: live rates for the fine-tuned and base 4B said "not measured yet"; they now come from the
+      clean phone-set run (all three live on one RTX 5090): $2.48 / $5.26 / $3.04 per 1,000 pages.
+    - Training: "Both keep falling, so it is learning the skill rather than memorising" overclaimed
+      (training loss is flat after ~step 50); now "the held-out check is still falling at the last
+      step, so there is no sign of overtraining".

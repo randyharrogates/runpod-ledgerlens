@@ -11,7 +11,7 @@ cd ../..
 DEMO_MODE=1 uv run uvicorn app.backend.main:app --host 0.0.0.0 --port 8090
 ```
 
-Open http://localhost:8090. For live extraction, unset DEMO_MODE and configure the endpoints. Vite development mode (`npm run dev`) proxies API calls to port 8090. Regenerate the sample before presenting it. Generation uses ledgerlens.datagen with its headless Chromium renderer and requires a working local Chromium installation. Seed 4 selects an SGD business in the non-held-out stmt_b layout: four consecutive statements (clean, light, medium, heavy) and one invoice, with ground truth and rendering metadata. It prints the seed and selected anomalies. Rendering failures exit clearly and preserve existing samples; there is no text-dump fallback. The legacy bundled images have not been replaced in this sandbox because Chromium is blocked here.
+Open http://localhost:8090. For live extraction, unset DEMO_MODE and configure the endpoints. Vite development mode (`npm run dev`) proxies API calls to port 8090. Regenerate the sample before presenting it. Generation uses ledgerlens.datagen with its headless Chromium renderer and requires a working local Chromium installation. Seed 4 selects an SGD business in the non-held-out stmt_b layout: four consecutive statements (clean, light, medium, heavy) and one invoice, with ground truth and rendering metadata. It prints the seed and selected anomalies. Rendering failures exit clearly and preserve existing samples; there is no text-dump fallback.
 
 Environment variables:
 

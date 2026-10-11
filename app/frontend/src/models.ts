@@ -19,6 +19,7 @@ export function modelState(status: Record<string, unknown>, key: string): string
 }
 
 export function statusSummary(status: Record<string, unknown>): string | null {
+  if (Object.keys(status).length === 0) return 'Checking live models…';
   const states = models.map(m => modelState(status, m.key));
   if (states.every(s => s === 'offline' || s === 'unavailable')) return 'Live models off · recorded results still work';
   if (states.every(s => s === 'asleep')) return 'Live models asleep · first read wakes them (can take minutes)';
