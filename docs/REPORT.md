@@ -15,7 +15,8 @@ why). Only measured numbers appear here; estimates say so.
 - **Answer: yes, and by a wide margin on our documents.** The fine-tuned 4B scores a row F1 of 0.96
   (date, debit and credit of each row exactly right) on statement layouts it never saw in training (8B: 58%), 77% on real receipts (8B: 40%), and is
   2× faster per page on the same GPU. Its weak spot is heavy photo damage (87%). Served live, it
-  costs about half the 8B per page.
+  costs about half the 8B per page. On real phone photos of printed pages it drops to 67% (clean
+  copies of the same pages: 98%) but still leads the 8B (41%); no model's page adds up from a photo.
 
 ## 2. What was built
 
@@ -59,7 +60,7 @@ why). Only measured numbers appear here; estimates say so.
   - A. 1,499 synthetic pages in two statement layouts the model never saw in training;
   - A′. 291 synthetic pages in the six training layouts, from businesses not in training;
   - B. 98 real CORD receipts (CORD's own test split);
-  - C. phone photos of 20 printed test pages (_pending: needs the photos_).
+  - C. phone photos of 18 printed test pages, against clean copies of the same 18 pages.
 - **Same conditions for all three:** same Pod GPU, same prompt, same pixel cap (2 MP), same
   structured-output schema, greedy decoding, pages batched by vLLM.
 - **Headline = the model's own answer.** A second column adds the code's balance check.
@@ -115,21 +116,38 @@ Where the differences come from (row F1 on A, by layout and by damage; script ov
 - Receipts are real photos of a different document type, so they show the synthetic-to-real gap
   most clearly: 0.765 for the fine-tune (which also trained on CORD's own training receipts) vs
   0.96+ on synthetic pages.
-- **Phone photos (test set C):** photos pending. The **clean baseline** for the same 20 pages is
-  measured (live on Serverless, one page at a time, RTX 5090, $1.58/h), so the photo result can be
-  read as "what the camera costs" on identical content:
+- **Phone photos (test set C):** 20 test pages were printed on paper and photographed on a phone.
+  18 photos are usable: page 17 was not photographed and page 01 was shot off a laptop screen, so
+  both are left out. The photos reached us through a chat app, which shrank them to 1280 px on the
+  long side (about 1.1 MP, and the page fills only part of the frame); the clean pages are 2 MP. So
+  this measures **camera plus chat-app compression**, not the camera alone. Each photo was matched to
+  its page by the printed footer and checked by eye. All three endpoints ran live on Serverless,
+  one page at a time, RTX 5090, $1.58/h; the clean column is the same 18 pages from the clean run.
 
-  | Same 20 pages, clean | 8B | 4B | 4B fine-tuned |
-  |---|---:|---:|---:|
-  | row F1 | 0.664 | 0.682 | **0.984** |
-  | row precision / recall | 0.671 / 0.657 | 0.689 / 0.675 | 0.997 / 0.972 |
-  | header fields right | 0.928 | 0.928 | 0.972 |
-  | page adds up | 0.00 | 0.00 | 0.81 |
-  | seconds per page (live, execution) | 12.0 | 6.9 | **5.6** |
-  | $ per 1,000 pages (live) | $5.26 | $3.04 | **$2.48** |
+  | Same 18 pages | 8B clean | 8B photo | 4B clean | 4B photo | 4B-ft clean | 4B-ft photo |
+  |---|---:|---:|---:|---:|---:|---:|
+  | row F1 | 0.671 | 0.411 | 0.723 | 0.258 | **0.984** | **0.672** |
+  | row precision / recall | 0.68 / 0.66 | 0.42 / 0.41 | 0.73 / 0.72 | 0.28 / 0.24 | 1.00 / 0.97 | 0.71 / 0.64 |
+  | header fields right | 0.938 | 0.802 | 0.932 | 0.698 | 0.975 | 0.833 |
+  | page adds up | 0.00 | 0.00 | 0.00 | 0.00 | 0.79 | 0.00 |
+  | valid JSON | 1.00 | 1.00 | 1.00 | 0.89 | 1.00 | 0.94 |
+  | red flags found (recall) | 0.67 | 0.47 | 0.73 | 0.13 | 0.93 | 0.73 |
+  | seconds per page (live, execution) | 12.0 | 11.5 | 6.9 | 8.6 | 5.6 | **5.4** |
+  | $ per 1,000 pages (live) | $5.26 | $5.03 | $3.04 | $3.77 | $2.48 | **$2.37** |
 
-  Both base models reconcile none of the 20 pages; their errors are mostly debit/credit direction
-  (the balance check lifts the 8B from 0.66 to 0.83).
+  - **The fine-tune still wins on photos**, and by more: 0.67 against 0.41 for the 8B and 0.26 for
+    the base 4B. The ranking and the cost result hold; the near-perfect accuracy does not.
+  - **No model's page adds up from a photo.** One misread digit in a balance breaks the check, so
+    every photographed page would go to an analyst. That is the honest state for real photos today.
+  - **What went wrong for the fine-tune, page by page** (looked at, not inferred): the median page scores
+    0.82 and 3 of 4 invoices are perfect, but three pages score zero:
+    - p07: every month read as January instead of May (dd/mm dates), so every row misses even though
+      most amounts are right. The same "Jan" confusion is its weak spot on heavy synthetic damage.
+    - p12: a rupiah invoice's "8,383,500" read as "8383.500", so all amounts are 1,000× too small.
+    - p16: the answer has an impossible date (30 Feb), so it is rejected as invalid.
+    - Elsewhere: single digits misread (1,836,939 → 1,836,839), which also breaks reconciliation.
+  - Seconds per page barely move for the fine-tune (5.6 → 5.4) and the 8B (12.0 → 11.5); the base 4B
+    took longer on photos (6.9 → 8.6).
 
 ### What the schema fix changed
 The first full run allowed an amount to be a JSON number of any length; base models sometimes wrote
@@ -183,14 +201,17 @@ Serverless and ~$0.52 batched on a Pod. A lender processing month-end files in b
 
 - Statements and invoices are synthetic. Real-document evidence is CORD (receipts, a different
   document type) and the phone photos (real camera and paper, synthetic content).
+- The phone photos are 18 pages from one phone, compressed by a chat app to about half the pixels of
+  the clean pages; camera and compression are measured together. Small set: treat differences of a few points as noise.
 - The fine-tune saw real CORD training receipts; the base models saw none.
 - A real deployment would start with about 50 labelled real statements from the lender, then run
   next to analysts (shadow mode) before anyone relies on it.
 
 ## 8. What's next
 
-1. **Phone photos (test set C):** score all three endpoints on the 20 printed, photographed test pages
-   and compare with the clean baseline above (commands in `train/README.md`).
+1. **Phone photos:** re-shoot at full camera resolution (no chat app) to separate the camera from the
+   compression; train with real-photo-like damage (lower resolution, perspective); add a month check
+   against the statement period and reject 1,000× amount slips against the printed total.
 2. **Heavy damage:** train with more heavily damaged pages, and accept a page with one impossible
    date instead of rejecting it (flag that row for the analyst).
 3. **Rupiah amounts for the base 8B:** one prompt line on thousands grouping, then re-score CORD.

@@ -36,7 +36,7 @@ def photos_for(tmp_path, pages):
         exif[274] = 6
         # Reverse names so lexical order disagrees with camera order.
         Image.new("RGB", (20, 10), (index * 10, 0, 0)).save(
-            directory / f"{len(pages) - index:02d}.jpg", exif=exif
+            directory / f"photo_{len(pages) - index:02d}.jpg", exif=exif
         )
     return directory
 
@@ -98,6 +98,59 @@ def test_reject_photos(phone, tmp_path):
     heic.unlink()
     next(photos.iterdir()).unlink()
     with pytest.raises(ValueError, match="Photo count 19.*20"):
+        phone_set.ingest(directory, photos, tmp_path / "data")
+
+
+@pytest.mark.parametrize("partial", [False, True])
+def test_ingest_numbered_photos(phone, tmp_path, capsys, partial):
+    directory, _, pages = phone
+    photos = photos_for(tmp_path, pages)
+    for photo in photos.iterdir():
+        number = int(photo.stem.removeprefix("photo_"))
+        photo.rename(photos / f"{number:03d}.jpg")
+    missing = [1, 17] if partial else []
+    for number in missing:
+        (photos / f"{number:03d}.jpg").unlink()
+    out = tmp_path / "data"
+    rows = phone_set.ingest(directory, photos, out)
+    selected = [page for page in pages if page["order"] not in missing]
+    assert [row["id"] for row in rows] == [page["page_id"] for page in selected]
+    assert rows == read_rows(out, "test_phone")
+    contact = (out / "pairs.html").read_text()
+    positions = []
+    for page, row in zip(selected, rows, strict=True):
+        number = page["order"]
+        with Image.open(row["image"]) as image:
+            assert abs(image.getpixel((5, 5))[0] - (20 - number) * 10) < 4
+        positions.append(contact.index(f"{number:02d}: {page['page_id']}"))
+        assert f"{number:03d}.jpg" in contact
+    assert positions == sorted(positions)
+    stdout = capsys.readouterr().out
+    if partial:
+        assert (
+            f"Missing pages: 01 {pages[0]['page_id']}, 17 {pages[16]['page_id']}"
+            in stdout
+        )
+        assert all(pages[number - 1]["page_id"] not in contact for number in missing)
+    else:
+        assert "Missing pages:" not in stdout
+
+
+@pytest.mark.parametrize(
+    ("names", "message"),
+    [
+        (["02.jpg", "2.png"], "Duplicate photo number 2"),
+        (["21.jpg"], "Photo number 21 has no matching manifest order"),
+        ([], "No photos found"),
+    ],
+)
+def test_reject_numbered_photos(phone, tmp_path, names, message):
+    directory, _, _ = phone
+    photos = tmp_path / "photos"
+    photos.mkdir()
+    for name in names:
+        (photos / name).write_bytes(b"not decoded")
+    with pytest.raises(ValueError, match=message):
         phone_set.ingest(directory, photos, tmp_path / "data")
 
 

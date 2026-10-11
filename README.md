@@ -79,8 +79,21 @@ of each other on every set, so the models rarely invent or drop rows. Full resul
 | $ per 1,000 pages, batched ($0.72/h) | 0.52 | 0.34 | **0.26** |
 
 Served live on Serverless (warm, one page at a time): 8B ~14 s per page (≈ $6 per 1,000), fine-tuned
-4B 7–11 s depending on the GPU it gets (RTX 5090 / 4090; ≈ $3 per 1,000 either way). The fine-tune's weak spot is heavy photo damage (row F1 0.87). Phone photos
-of printed pages (the third test set) are pending.
+4B 7–11 s depending on the GPU it gets (RTX 5090 / 4090; ≈ $3 per 1,000 either way). The fine-tune's weak spot is heavy photo damage (row F1 0.87).
+
+**Phone photos of printed pages** (18 pages, live on Serverless, RTX 5090; the photos came through a
+chat app at about 1.1 MP, so this measures camera plus compression):
+
+| Same 18 pages, row F1 | 8B, no training | 4B, no training | **4B fine-tuned** |
+|---|---:|---:|---:|
+| Clean | 0.671 | 0.723 | **0.984** |
+| Phone photo | 0.411 | 0.258 | **0.672** |
+| Page adds up, photo | 0 of 18 | 0 of 18 | 0 of 18 |
+| $ per 1,000 pages, photo (live) | $5.03 | $3.77 | **$2.37** |
+
+The fine-tune still leads by a wide margin, but real photos cost it about 0.3 of row F1 and no
+photographed page reconciles, so every photo goes to an analyst. Its three zero pages: months read as
+January, a rupiah amount read as decimals, and an impossible date (details in the report).
 
 ## Data
 
@@ -116,7 +129,7 @@ uv sync && uv run ruff check . && uv run ruff format --check . && uv run pytest 
 ## Limitations and the synthetic-to-real gap
 
 - Statements and invoices are synthetic. The real-document checks are CORD receipts (a different
-  document type) and phone photos of printed synthetic pages. A real lender deployment would start
+  document type) and 18 phone photos of printed synthetic pages (one phone, chat-app compressed). A real lender deployment would start
   with ~50 labelled real statements and a shadow period next to analysts.
 - The fine-tune sees real CORD train receipts; the 8B baseline sees none. CORD test receipts are
   never trained on.

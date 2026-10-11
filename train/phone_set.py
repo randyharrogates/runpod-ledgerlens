@@ -178,6 +178,7 @@ def photo_time(path: Path):
 
 
 def ingest(phone: Path, photos: Path, out: Path):
+    """Pair numbered photos by manifest order, or a full set by camera time."""
     manifest = json.loads((phone / "manifest.json").read_text())
     pages = manifest["pages"]
     synth = Path(manifest["synth"])
@@ -192,11 +193,30 @@ def ingest(phone: Path, photos: Path, out: Path):
             "mkdir jpg && sips -s format jpeg *.HEIC --out jpg"
         )
     files = [path for path in files if path.suffix.lower() in PHOTO_SUFFIXES]
-    if len(files) != len(pages):
+    missing = []
+    if not files:
+        raise ValueError("No photos found")
+    if all(path.stem.isdigit() for path in files):
+        orders = {page["order"] for page in pages}
+        numbered = {}
+        for path in files:
+            number = int(path.stem)
+            if number not in orders:
+                raise ValueError(
+                    f"Photo number {number} has no matching manifest order"
+                )
+            if number in numbered:
+                raise ValueError(f"Duplicate photo number {number}")
+            numbered[number] = path
+        missing = [page for page in pages if page["order"] not in numbered]
+        pages = [page for page in pages if page["order"] in numbered]
+        files = [numbered[page["order"]] for page in pages]
+    elif len(files) != len(pages):
         raise ValueError(
             f"Photo count {len(files)} must equal manifest count {len(pages)}"
         )
-    files.sort(key=photo_time)
+    else:
+        files.sort(key=photo_time)
     ids = [safe_name(page["page_id"]) for page in pages]
     if not pages or len(ids) != len(set(ids)):
         raise ValueError("Manifest must contain distinct pages")
@@ -243,6 +263,11 @@ def ingest(phone: Path, photos: Path, out: Path):
     print(
         f"Open {out / 'pairs.html'} and confirm all photo/clean-page pairings before scoring."
     )
+    if missing:
+        print(
+            "Missing pages: "
+            + ", ".join(f"{page['order']:02d} {page['page_id']}" for page in missing)
+        )
     return rows
 
 
