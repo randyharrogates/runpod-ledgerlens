@@ -3,7 +3,7 @@ export const tour = [
     "route": "/",
     "readStep": 2,
     "title": "Read statements",
-    "words": "This is a small business's bank statement, photographed on a phone. I load the sample business, pick our trained small model and read every page. Each line lands in the table on the right, and the app re-adds every running balance: a tick means the printed balance matches. The orange line is a returned cheque, flagged on its own.",
+    "words": "This is a small business's bank statement, made to look like a phone photo; the business and bank are fictional. I load the sample business, pick our trained small model and read every page. Each line lands in the table on the right, and the app re-adds every running balance: a tick means the printed balance matches. The orange line is a returned cheque, flagged on its own.",
     "start": 0,
     "end": 40,
     "highlight": "rows",
