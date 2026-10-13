@@ -11,6 +11,30 @@ an 8B model zero-shot on extraction quality (row F1), speed and cost per 1,000 p
 > Everything here is fictional: synthetic businesses and fictional banks. The only real documents
 > are the public CORD v2 receipts (CC BY 4.0).
 
+## Runpod Serverless checklist
+
+| A Serverless worker needs | Where it is |
+|---|---|
+| A `handler.py` for serverless requests | [`worker/handler.py`](worker/handler.py): starts vLLM once per worker, then serves `extract` (page image to checked JSON), `memo` (streamed text) and `health` |
+| A Docker image with the handler and the model | [`worker/Dockerfile`](worker/Dockerfile), built by Runpod's GitHub integration from the `deploy` branch. **The weights are deliberately not baked in** (see below) |
+| A deployed Serverless endpoint | 8B `szucrtrufff80a`, fine-tuned 4B `5078uudfkeaw2v`, base 4B `cuvgn5z2av09my` |
+| Accept an input, return a generated output | Input is a document photo (plus a text task); output is validated JSON rows and a streamed credit memo. [Call it with curl](#call-the-endpoint-with-curl) |
+| Show it working | The demo app (`app/`, with a 3-minute Presenter tour) calls the live endpoints |
+| Code, configuration and clear docs | This README, [`worker/README.md`](worker/README.md), [`docs/REPORT.md`](docs/REPORT.md), [`docs/BUILD_LOG.md`](docs/BUILD_LOG.md), [`docs/DECISIONS.md`](docs/DECISIONS.md) |
+
+**Why the model is not inside the image.** A common pattern is to bake the model into the Docker
+image. I load it from Runpod's own storage instead:
+
+- **8B:** Runpod's **model cache**. 16.3 GiB of weights load in 5.7 s with no download, and the image
+  stays small, so builds and worker pulls stay fast. Baking would add ~16 GiB to every build and
+  every cold pull.
+- **Fine-tuned 4B:** a **network volume**, where the training Pod wrote the merged weights. Swapping
+  in a new fine-tune needs no rebuild or upload.
+
+Baking still works if a customer wants a single sealed image: the handler reads any local
+`MODEL_PATH`, and the Dockerfile has the two lines to uncomment (`COPY` the weights, set
+`MODEL_PATH`). Health then reports `model_source: "baked"`.
+
 ## What it does
 
 1. **Extract.** A page image goes to a Serverless endpoint. vLLM reads it into a strict JSON schema
@@ -125,6 +149,37 @@ uv sync && uv run ruff check . && uv run ruff format --check . && uv run pytest 
   `uv run python worker/client.py extract --endpoint-id <id> --image page.png --doc-type statement`
 - **Training and evaluation on a GPU Pod:** `train/README.md` and `train/run_pod.sh`
   (`train/run_pod.sh` runs every stage, resumable by stage markers).
+
+### Call the endpoint with curl
+
+Works the same from Postman. Use `/run` and poll `/status`: `/runsync` holds one connection for the
+whole job, and Runpod dropped it during a cold start. Workers scale to zero when idle, so the first
+call can take 3 to 10 minutes while a worker starts.
+
+```sh
+export RUNPOD_API_KEY=<your key>   # never commit it
+EP=szucrtrufff80a                  # 8B; the fine-tuned 4B is 5078uudfkeaw2v
+
+# 1. Health check: starts a worker and reports the model and where it loaded from
+curl -s -X POST "https://api.runpod.ai/v2/$EP/run" \
+  -H "Authorization: Bearer $RUNPOD_API_KEY" -H "Content-Type: application/json" \
+  -d '{"input":{"task":"health"}}'
+# -> {"id":"<job id>","status":"IN_QUEUE"}
+
+# 2. Read one statement page (a sample page ships in app/sample/)
+printf '{"input":{"task":"extract","doc_type":"statement","image_base64":"%s"}}' \
+  "$(base64 < app/sample/biz_0000_p001.png | tr -d '\n')" > /tmp/page.json
+curl -s -X POST "https://api.runpod.ai/v2/$EP/run" \
+  -H "Authorization: Bearer $RUNPOD_API_KEY" -H "Content-Type: application/json" \
+  -d @/tmp/page.json
+
+# 3. Poll until "status" is "COMPLETED". "output" is a one-item list: the validated document,
+#    or an error message that says what was wrong with the input
+curl -s "https://api.runpod.ai/v2/$EP/status/<job id>" -H "Authorization: Bearer $RUNPOD_API_KEY"
+```
+
+The memo task streams: send `{"input":{"task":"memo","analysis":{...}}}` to `/run`, then read
+`/stream/<job id>` for the text as it is written. `worker/client.py` does all of this for you.
 
 ## Limitations and the synthetic-to-real gap
 

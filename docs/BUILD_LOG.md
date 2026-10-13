@@ -634,3 +634,8 @@ the bottom of each day.
 ### 2026-10-11 16:30 SGT: Presenter button cut off on short windows
 - Randy saw the bottom of the left rail cut off, Presenter included. Measured in a test browser: the rail is a fixed 100vh with no overflow, and its content needs about 570 px, so on a shorter window (a laptop at 125% zoom) Presenter is pushed off screen and can't be reached.
 - Fix (`app/frontend/src/style.css`): the rail scrolls if it must (`overflow-y:auto`), and below 720 px tall the rail items are tighter. At 480 px the rail needs 465 px; Presenter is visible. Tall windows are unchanged. 317 tests pass.
+
+### 2026-10-13 21:58 SGT: README gets a Serverless checklist, explains unbaked weights, adds curl
+- Review before publishing found three gaps. (1) The repo was private. (2) A common Serverless pattern bakes the model into the image; we load it from the model cache (8B) and a network volume (fine-tuned 4B). Now stated in the README as a deliberate choice, with the reasons and how to bake instead (`MODEL_PATH` plus the commented Dockerfile lines). (3) There was no copy-paste request for Postman or curl users.
+- README: new "Runpod Serverless checklist" table near the top, and a "Call the endpoint with curl" section under Run it (`/run` then `/status`, `/stream` for the memo; not `/runsync`, which dropped during a cold start). The payload recipe was checked locally: valid JSON, and the sample PNG decodes. No live call was made, so no spend.
+- Secret scan before going public: 221 tracked files and the full history; only the fake token in `tests/app/test_training.py`.
