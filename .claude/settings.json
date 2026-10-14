@@ -1,0 +1,14 @@
+{
+  "enabledPlugins": {
+    "runpod@runpod": true
+  },
+  "permissions": {
+    "deny": [
+      "Read(./.env)",
+      "Read(./.env.*)",
+      "Edit(./.env)",
+      "Edit(./.env.*)",
+      "Read(~/.runpod/config.toml)"
+    ]
+  }
+}
