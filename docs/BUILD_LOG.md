@@ -744,3 +744,10 @@ the bottom of each day.
 - Endpoint `cuvgn5z2av09my` (`ledgerlens-4b-base`), edited in the console: network volume `ledgerlens` (`0kelufi0wo`) attached, which pins it to EU-RO-1. At that moment EU-RO-1 showed 32 GB PRO unavailable and 24 GB PRO low supply, so the plain 24 GB pool ($0.69/h) was added as third choice; enabled GPUs now RTX 5090, 4090, A5000, L4, 3090. Workers still min 0 / max 2.
 - Template `nygdqtrllt` env (CLI): `READER_MODEL=reader`, `VLLM_CACHE_ROOT=/runpod-volume/vllm-cache`, `VLLM_EXTRA_ARGS=--enable-lora --max-loras 2 --max-lora-rank 16 --lora-modules reader=/runpod-volume/ledgerlens/main/adapter --compilation-config '{"cudagraph_specialize_lora": false, "cudagraph_capture_sizes": [1, 2, 4, 8, 16]}'`; model stays `Qwen/Qwen3-VL-4B-Instruct` from the model cache.
 - No live call yet; waiting for the build.
+
+### 2026-10-15 00:30 SGT: First live test on the agent endpoint hit a stale worker
+- Live app started on port 8091 with `RUNPOD_ENDPOINT_AGENT=cuvgn5z2av09my` (plus the 8B/FT/4B ids). Opening the chat page sent the warm-up `health`; "Load sample business" sent a `read` of 5 pages.
+- Cold start: `health` came back after 342.4 s queue time (engine load 224.2 s), status ready, model from the cache. So vLLM starts fine with the LoRA flags, the adapter from the volume and the trimmed CUDA graphs.
+- But the `read` failed and all five pages showed "couldn't read". A one-page `read` straight to the warm worker returned `"task must be extract, memo, or health"`: worker `frt86tfnqpkh1c` was running the old `9268e8075` image. It was created during the rollout, before the new build (`f04b19d99`) finished, and Runpod kept reusing it; the template already pointed at the new image.
+- Fix: `runpodctl serverless update cuvgn5z2av09my --workers-max 0`, then back to 2, which removed the stale worker. Retesting on a fresh worker.
+- App gap found: a failed read left pages at "couldn't read" with only "Reading stopped" as the reason; the worker's error text never reached the user. To fix.
