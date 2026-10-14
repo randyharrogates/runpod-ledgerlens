@@ -674,3 +674,29 @@ the bottom of each day.
 - Each turn shows the step trail with times (router, triage and reader per page, analyst, writer per section, checker, tool calls), the route and its reason, then either the five memo sections filling in at once (with "rewritten once" when the checker sent one back) or the answer, and a footer with total time, queue/cold start, execution time, tokens, GPU and cost. Citations open the row in the Read tab.
 - Offline demo: sample pages "read" from their ground truth; suggested prompts replay event streams recorded from the live agent (`app/sample/agent/`), labelled "Recorded run". The Presenter tour starts on this page (now 8 steps, 3:30).
 - Implemented by Codex from a written brief. Review fixes: the original Presenter made generic instead of copied, demo notice labelled as such, metrics footer shows only measured values, sample button hidden once pages exist, compact page chips. Checked in a browser at 1280 and 400 px (no sideways scroll). 480 tests pass; frontend builds.
+
+### 2026-10-14 21:08 SGT: Reader as a LoRA adapter matches the merged model (gate E1)
+- Why: the chat agent should run on one engine, the base Qwen3-VL-4B with the trained reader switched on per request as a LoRA adapter, instead of the merged fine-tune. That only works if the adapter reads pages as well as the merged weights, at a similar speed.
+- Pod `02h4ri0q6a44u1`: RTX PRO 4500 Blackwell 32 GB, $0.72/h, EU-RO-1, network volume at `/workspace`, vLLM 0.31.0. Runbook `train/lora_serve_check.sh`; benchmark `train/serve_bench.py` (the worker's exact extract request). Data: the first 200 pages of `test_unseen_layout`. Started 19:46 SGT; SSH took ~10 min to reach because port 22 wasn't exposed at create (`runpodctl pod update --ports "22/tcp"`).
+- Accuracy (scored with `ledgerlens.eval.score`):
+
+| Reader | Pages | Row F1 (micro) | Mean page F1 | Header fields | Invalid JSON |
+|---|---|---|---|---|---|
+| Merged fine-tune | 200 | 0.9647 | 0.9684 | 0.9872 | 0 |
+| Base 4B + reader LoRA | 200 | 0.9643 | 0.9681 | 0.9872 | 0 |
+
+  187 of 200 outputs are byte-identical; the difference is 0.0004 against a 0.01 limit. **E1 passes: one base engine with adapters (topology A).**
+- Speed, same GPU:
+
+| Run | Pages | Seconds | Per page | Output tokens/s |
+|---|---|---|---|---|
+| Merged, one at a time | 20 | 205.7 | 10.3 | 84 |
+| LoRA, one at a time | 20 | 229.7 | 11.5 | 75 |
+| Merged, 8 at once | 200 | 343.6 | 1.72 | 513 |
+| LoRA, 8 at once | 200 | 372.5 | 1.86 | 473 |
+| Base 4B (no adapter), 8 at once | 40 | 96.6 | 2.41 | 469 |
+
+  The adapter costs ~11% one at a time and ~8% at 8 concurrent pages.
+- Server start (to `/health`), weights read from the network volume: merged 849.8 s (first start: cold volume plus first compile), LoRA 547.6 s (probably reused the merged model's compile cache, same architecture), LoRA with `cudagraph_specialize_lora: false` and an empty compile cache 752.7 s. These are first-read numbers on a cold network volume, not the Serverless cold start; the warm-restart and trimmed-graph stages are still running.
+- Merged model logs a transformers warning about an "incorrect regex pattern" in its tokenizer. Checked: the tokenizer files differ only in format; vocab, added tokens and chat template are identical, and sample strings (dates, amounts, Chinese, Bahasa, JSON) encode to the same ids. Harmless.
+- Spend so far: Pod ≈ 1.4 h ≈ $1.0. Balance $198.38.
