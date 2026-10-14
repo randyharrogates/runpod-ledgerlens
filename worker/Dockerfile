@@ -21,9 +21,6 @@ COPY src/ledgerlens /app/src/ledgerlens
 RUN pip install --no-cache-dir --no-deps /app
 COPY worker /app/worker
 
-# Optional fine-tuned weights: enable these lines after supplying MODEL_DIR.
-ARG MODEL_DIR=
-# COPY ${MODEL_DIR}/ /models/ft/
-# ENV MODEL_PATH=/models/ft
+# For weights inside the image, use worker/Dockerfile.baked.
 
 CMD ["python3", "-u", "/app/worker/handler.py"]
