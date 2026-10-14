@@ -23,6 +23,7 @@ from PIL import Image
 from pydantic import BaseModel, ValidationError
 from starlette.concurrency import run_in_threadpool
 
+from app.backend.chat import router as chat_router
 from app.backend.datasets import router as datasets_router
 from app.backend.insights import router as insights_router
 from app.backend.training import router as training_router
@@ -62,6 +63,7 @@ async def lifespan(app):
 
 
 app = FastAPI(title="LedgerLens", lifespan=lifespan)
+app.include_router(chat_router)
 app.include_router(insights_router)
 app.include_router(datasets_router)
 app.include_router(training_router)
@@ -564,7 +566,7 @@ def cached_memo(computed):
     )
 
 
-def memo_chunks(endpoint, payload, key):
+def memo_chunks(endpoint, payload, key, on_job=None, stop=None):
     """Poll Runpod incrementally rather than buffering worker.client's stream."""
     with httpx.Client(headers={"Authorization": f"Bearer {key}"}, timeout=30) as client:
         response = client.post(
@@ -572,8 +574,12 @@ def memo_chunks(endpoint, payload, key):
         )
         response.raise_for_status()
         job = response.json()["id"]
+        if on_job:
+            on_job(job)
         deadline = time.monotonic() + 900
         while time.monotonic() < deadline:
+            if stop is not None and stop.is_set():
+                return
             response = client.get(f"https://api.runpod.ai/v2/{endpoint}/stream/{job}")
             response.raise_for_status()
             result = response.json()
@@ -676,7 +682,7 @@ def status():
         if time.monotonic() - STATUS["time"] < 3:
             return STATUS["value"]
         value = {}
-        for model in ("8b", "ft", "4b"):
+        for model in ("8b", "ft", "4b", "agent"):
             endpoint, key = config(model)
             if not endpoint:
                 value[model] = {"offline": True}

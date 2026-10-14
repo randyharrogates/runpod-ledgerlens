@@ -18,6 +18,7 @@ const Training = lazy(() => import('./components/Training').then(m => ({default:
 import { getJSON } from './request';
 import { TrainingRun, PodAlert } from './components/PodAlert';
 import { Presenter } from './components/Presenter';
+import { Assistant } from './components/Assistant';
 import { tour } from './tour';
 import './style.css';
 
@@ -121,6 +122,7 @@ function App() {
     );
   }
   const routes = [
+    ['/assistant', 'Assistant', 'Credit assistant', 'M4 4h16v12H9l-5 4z M8 8h8 M8 12h5'],
     ['/', 'Read', 'Read statements', 'M6 3h8l4 4v14H6z M14 3v5h4 M9 12h6 M9 16h6'],
     ['/compare', 'Compare', 'Compare models', 'M3 5h7v14H3z M14 5h7v14h-7z'],
     ['/data', 'Data', 'Explore data', 'M4 6c0-4 16-4 16 0s-16 4-16 0v12c0 4 16 4 16 0V6 M4 12c0 4 16 4 16 0'],
@@ -160,11 +162,11 @@ function App() {
       <main>
         <PodAlert runs={runs} />
         <header>
-          <div><h1>{route?.[2] || 'Page not found'}</h1><p>{path === '/' ? 'Add photos of statements, check what was read, and fix any cell that is wrong.' : path === '/compare' ? 'See which lines each model reads right.' : path === '/results' ? 'Every score, including where the models fail.' : path === '/cost' ? 'Estimate the cost of reading your pages.' : path === '/data' ? 'Browse the practice documents the models learned from and were tested on.' : path === '/training' ? 'Replay the reported run or set up a new one. Nothing is rented until you confirm.' : 'Page not found.'}</p></div>
+          <div><h1>{route?.[2] || 'Page not found'}</h1><p>{path === '/' ? 'Add photos of statements, check what was read, and fix any cell that is wrong.' : path === '/compare' ? 'See which lines each model reads right.' : path === '/results' ? 'Every score, including where the models fail.' : path === '/cost' ? 'Estimate the cost of reading your pages.' : path === '/data' ? 'Browse the practice documents the models learned from and were tested on.' : path === '/assistant' ? 'Ask for a credit memo or about the documents. Pages are read as soon as you attach them.' : path === '/training' ? 'Replay the reported run or set up a new one. Nothing is rented until you confirm.' : 'Page not found.'}</p></div>
           <div className="model-status" aria-label="Model status">{statusSummary(status) ? <span className={modelState(status, 'ft') === 'ready' ? 'ready' : ''}>{statusSummary(status)}</span> : models.map(m => <span key={m.key} className={modelState(status, m.key) === 'ready' ? 'ready' : ''}>{m.name} · {modelState(status, m.key)}</span>)}</div>
         </header>
         {error && <p role="alert" className="error">{error}</p>}
-        <Suspense fallback={<p role="status">Loading page…</p>}>{path === '/data' ? <Data /> : path === '/training' ? <Training runs={runs} refresh={refreshRuns} /> : path === '/compare' ? <Compare session={session} pages={pages} status={status} /> : path === '/results' ? <Results /> : path === '/cost' ? <Cost history={history} /> : path !== '/' ? <article className="placeholder"><h2>{route ? 'Coming next' : 'Page not found'}</h2><RouterLink href="/">Read statements →</RouterLink></article> : <>
+        <Suspense fallback={<p role="status">Loading page…</p>}>{path === '/assistant' ? <Assistant session={session} pages={pages} refresh={refresh} status={status} jump={jump} /> : path === '/data' ? <Data /> : path === '/training' ? <Training runs={runs} refresh={refreshRuns} /> : path === '/compare' ? <Compare session={session} pages={pages} status={status} /> : path === '/results' ? <Results /> : path === '/cost' ? <Cost history={history} /> : path !== '/' ? <article className="placeholder"><h2>{route ? 'Coming next' : 'Page not found'}</h2><RouterLink href="/">Read statements →</RouterLink></article> : <>
         <nav className="steps" aria-label="Read statements steps">{['Documents', 'Review', 'Analysis', 'Memo'].map((value, i) => <button key={value} aria-current={tab === value ? 'step' : undefined} onClick={() => setTab(value)}>{i + 1} {['Add pages', 'Check rows', 'Cash flow and red flags', 'Credit memo'][i]}</button>)}</nav>
         <div className="read-controls">
           {pages.length > 0 ? <PageToolbar pages={pages} selected={selected} busy={busy} label={pageLabel} choose={id => {setSelected(id); setRow(-1); setTab('Review');}} read={page => void action(() => api.extract(session, page.id, model, types[page.id] || page.document?.doc_type || page.doc_type || 'statement'))} /> : <Documents session={session} refresh={refresh} busy={busy} pages={pages} action={action} model={model} types={types} setTypes={setTypes} setSelected={setSelected} setRow={setRow} setTab={setTab} setError={setError} />}

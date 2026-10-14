@@ -352,16 +352,17 @@ const fs=require('fs'), assert=require('assert'), ts=require('typescript');
 require.extensions['.tsx']=require.extensions['.ts']=(module,filename)=>module._compile(ts.transpileModule(fs.readFileSync(filename,'utf8'),{compilerOptions:{target:ts.ScriptTarget.ES2022,esModuleInterop:true,module:ts.ModuleKind.CommonJS,jsx:ts.JsxEmit.ReactJSX}}).outputText,filename);
 const React=require('react'), {renderToStaticMarkup:render}=require('react-dom/server');
 const {tour}=require('./src/tour.ts');
-assert.equal(tour.length,7);assert(tour.every(s=>s.route.startsWith('/') && s.words && s.title && s.end>s.start));assert(tour[6].end<=180);assert.equal(tour.reduce((sum,s)=>sum+s.end-s.start,0),180);
+assert.equal(tour.length,8);assert(tour.every(s=>s.route.startsWith('/') && s.words && s.title && s.end>s.start));assert(tour[7].end<=210);assert.equal(tour.reduce((sum,s)=>sum+s.end-s.start,0),210);
 const source=fs.readFileSync('../../docs/ui-mockups/tour-script.md','utf8');
-const words=[...source.matchAll(/\n"(.*?)"/g)].map(m=>m[1]);assert.deepEqual(tour.map(s=>s.words),words);
-assert.equal(tour[3].query,'?example=biz_0007_p006');assert.deepEqual(tour.map(s=>s.route),['/','/','/','/compare','/results','/cost','/training']);assert.deepEqual(tour.slice(0,3).map(s=>s.readStep),[2,2,3]);assert.deepEqual(tour[2].readSteps,[3,4]);
-const {Presenter,clockText}=require('./src/components/Presenter.tsx');
+const words=[...source.matchAll(/\n"(.*?)"/g)].map(m=>m[1]);assert.deepEqual(tour.slice(1).map(s=>s.words),words);
+assert.equal(tour[4].query,'?example=biz_0007_p006');assert.deepEqual(tour.map(s=>s.route),['/assistant','/','/','/','/compare','/results','/cost','/training']);assert.deepEqual(tour.slice(1,4).map(s=>s.readStep),[2,2,3]);assert.deepEqual(tour[3].readSteps,[3,4]);
+const {clockText}=require('./src/components/Presenter.tsx');
+const {Presenter}=require('./src/components/Presenter.tsx');
 const panel=render(React.createElement(Presenter,{index:0,go:()=>{},exit:()=>{},readMemo:()=>{}}));
-for(const text of ['Step 1 of 7','Back','Next','Exit','Collapse','3:00','0:00–0:40','Presenter tour'])assert(panel.includes(text),text);
+for(const text of ['Step 1 of 8','Back','Next','Exit','Collapse','3:30','0:00–0:30','Presenter tour'])assert(panel.includes(text),text);
 assert(panel.includes(tour[0].words.replaceAll("'",'&#x27;')));
 assert.equal(clockText(180),'3:00');assert.equal(clockText(9),'0:09');
-assert(render(React.createElement(Presenter,{index:2,go:()=>{},exit:()=>{},readMemo:()=>{}})).includes('Open credit memo (Read step 4)'));
+assert(render(React.createElement(Presenter,{index:3,go:()=>{},exit:()=>{},readMemo:()=>{}})).includes('Open credit memo (Read step 4)'));
 const f=require('./src/components/format.ts');assert.equal(f.dollars(2.7),'$2.70');assert.equal(f.number(50000),'50,000');assert.equal(f.printedDate('2026-04-06'),'6 Apr 2026');
 const {RunView,StageTimeline,stageWidth,TrainingPlanView}=require('./src/components/Training.tsx');
 const summary=JSON.parse(fs.readFileSync('../../eval/summary.json','utf8'));
@@ -391,3 +392,53 @@ findButton(tree).props.onClick();setImmediate(()=>{assert(copied.includes('50,00
         ["node", "-e", script], cwd=FRONTEND, capture_output=True, text=True
     )
     assert result.returncode == 0, result.stderr
+
+
+def test_assistant_turns_and_split_post_stream():
+    if not shutil.which("node") or not (FRONTEND / "node_modules/typescript").exists():
+        pytest.skip("Frontend node_modules and Node are required")
+    script = r"""
+const fs=require('fs'), assert=require('assert'), ts=require('typescript');
+require.extensions['.tsx']=require.extensions['.ts']=(module,filename)=>module._compile(ts.transpileModule(fs.readFileSync(filename,'utf8'),{compilerOptions:{target:ts.ScriptTarget.ES2022,esModuleInterop:true,module:ts.ModuleKind.CommonJS,jsx:ts.JsxEmit.ReactJSX}}).outputText,filename);
+const React=require('react'), {renderToStaticMarkup:render}=require('react-dom/server');
+const {reduceTurn,TurnView,sections}=require('./src/components/Assistant.tsx');
+const previous=Object.fromEntries(sections.map(([id])=>[id,'Previous '+id]));
+const events=[
+ {type:'route',intent:'edit_memo',reason:'Shorten the requested section.'},
+ {type:'step',name:'reader',page_id:'p1',status:'start'},
+ {type:'step',name:'reader',page_id:'p1',status:'done',ms:1200},
+ {type:'tool',name:'find_rows',arguments:'{"month":"2026-03"}',result:{rows:[{},{}],count:2}},
+ {type:'deltas',parts:[{part:'red_flags',text:'Unchecked draft'}]},
+ {type:'section_reset',section:'red_flags'},
+];
+const reset=reduceTurn(events,previous);
+assert.equal(reset.cards.red_flags.text,'');
+assert.equal(reset.cards.red_flags.resetting,true);
+assert(render(React.createElement(TurnView,{turn:reset,jump:()=>{}})).includes('rewriting after a check'));
+events.push({type:'deltas',parts:[{part:'red_flags',text:'Checked [p1:r4]'}]},
+ {type:'section',section:'red_flags',text:'Final [p1:r4]',problems:['Check this figure'],rewritten:true},
+ {type:'final',intent:'edit_memo',memo:{...previous,red_flags:'Final [p1:r4]'}},
+ {type:'metrics',total_s:4,delayTime:2000,executionTime:1500,usage:{prompt_tokens:123,completion_tokens:45},gpu:'Test GPU',cost:0.001,source:'recorded'});
+const turn=reduceTurn(events,previous);
+assert.equal(turn.steps.filter(s=>s.type==='step').length,1);
+assert.equal(turn.cards.red_flags.text,'Final [p1:r4]');
+assert.equal(turn.cards.red_flags.resetting,false);
+const html=render(React.createElement(TurnView,{turn,jump:()=>{}}));
+let index=-1;for(const [,heading] of sections){const next=html.indexOf('<h3>'+heading+'</h3>');assert(next>index,heading);index=next;}
+for(const text of ['rewritten once','unchanged','Check this figure','Memo edit','reader · p1','1.2 s','find_rows(month: 2026-03) · 2 results','4.0 s total','2.0 s queue','1.5 s execution','123 tokens in / 45 out','Test GPU','$0.00100','Recorded run','[p1:r4]</button>'])assert(html.includes(text),text);
+assert(!html.includes('Unchecked draft'));
+const answer=reduceTurn([{type:'deltas',parts:[{part:'answer',text:'Draft'}]},{type:'section_reset',section:'answer'},{type:'final',intent:'knowledge',answer:'Checked [p2:r1]'}]);
+assert.equal(answer.answer,'Checked [p2:r1]');
+assert.equal(reduceTurn([{type:'error',message:'Traceback (most recent call last):\n File worker.py'}]).error,'The request failed');
+assert(render(React.createElement(TurnView,{turn:answer,jump:()=>{}})).includes('[p2:r1]</button>'));
+assert(render(React.createElement(TurnView,{turn:reduceTurn([{type:'error',message:'Connection lost'}]),jump:()=>{}})).includes('The agent stopped: Connection lost. Your pages are saved; try again.'));
+(async()=>{
+ const {postEvents}=require('./src/api.ts');
+ const frames='event: deltas\r\ndata: {"parts":[{"part":"answer","text":"é"}]}\r\n\r\nevent: final\ndata: {"answer":"done"}\n\n';
+ const bytes=new TextEncoder().encode(frames);let position=0;
+ global.fetch=async()=>new Response(new ReadableStream({pull(controller){if(position===bytes.length)controller.close();else controller.enqueue(bytes.slice(position,++position));}}));
+ const received=[];await postEvents('/test',{},e=>received.push(e));
+ assert.equal(received.length,2);assert.equal(received[0].type,'deltas');assert.equal(received[0].parts[0].text,'é');assert.equal(received[1].answer,'done');
+})().catch(error=>{console.error(error);process.exitCode=1;});
+"""
+    subprocess.run(["node", "-e", script], cwd=FRONTEND, check=True)
