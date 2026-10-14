@@ -23,6 +23,17 @@ we gave up. The full timeline, with times and costs, is in `BUILD_LOG.md`.
 - **Why not OCR plus a text LLM:** OCR turns the table into loose text, and the column structure
   gets lost in between.
 
+### One base model, adapters per role
+
+- **Choice:** one Qwen3-VL-4B engine serves the credit assistant; the trained reader is a LoRA
+  switched on for page reading. vLLM uses `--enable-lora --max-loras 2 --max-lora-rank 16
+  --lora-modules reader=/runpod-volume/ledgerlens/main/adapter`.
+- **Why:** E1 on a Pod gave row F1 (micro) 0.9643 with LoRA vs 0.9647 merged, header accuracy
+  0.9872 for both, 0 invalid outputs and 187/200 outputs identical. A second engine would add
+  memory and startup work without a measured accuracy gain.
+- **Trade-off:** LoRA was ~11% slower at concurrency 1 and ~8% at concurrency 8. The writer still
+  uses the base model; a memo adapter is planned, not trained.
+
 ## 3. The data
 
 ### Synthetic statements and invoices (most of the data)
@@ -130,11 +141,37 @@ we gave up. The full timeline, with times and costs, is in `BUILD_LOG.md`.
   built from GitHub (we tried; workers failed with a registry error and did not bill).
 - **No Japan endpoint.** Decided 10 Oct: the data-residency answer is explained, not demonstrated.
 
+### Global volume for the agent endpoint
+
+- **Choice:** `cuvgn5z2av09my` uses the base 4B model cache and reader adapter on the beta global
+  volume `ledgerlens-global`, so workers can start in any data centre. The merged fine-tuned
+  endpoint `5078uudfkeaw2v` keeps its EU-RO-1 network volume.
+- **Why:** a request waited 900 s without a GPU in EU-RO-1. Runpod's stock list showed no region
+  better stocked for our GPUs. With the global volume, workers started at once in US data centres
+  on RTX PRO 6000 Blackwell MIG 1g.24gb.
+- **Alternatives:** waiting kept the request blocked; another region's network volume only moved
+  the pin. Baking the adapter into the public image would remove the pin too, but require a
+  rebuild to change it. The global volume lets us swap the adapter without a rebuild.
+- **Trade-off:** object storage has no locking or atomic rename. vLLM's compile cache stays on
+  container disk, so each cold start recompiles (~2 min; 119.7 s on a Pod). Allowing any data
+  centre does not enforce regional document residency.
+
+### Pages travel lossless
+
+- **Choice:** the app sends original bytes within the pixel cap, resized PNG otherwise, and JPEG
+  only above the 9 MB request budget. The worker never decodes below the pixel cap; that worker
+  fix still needs release.
+- **Why:** a live app test found JPEG q90 conversion plus half-size JPEG decoding turned a
+  595×841 sample scan from 15/18 exact rows (PNG) into 0/18. Upscaling gave 13/18, so we skipped it.
+- **Lesson:** test the full upload path. Direct tests of stored pages missed the app's image damage.
+
 ## 8. Where it runs
 
-- **EU-RO-1 (Romania)** for the volume and training: it had the GPUs in stock. Runpod's Asian
-  capacity today is Japan and India, H100-class only — that's the data-residency trade-off to explain.
-- **32 GB GPUs** (RTX 5090 / RTX PRO 4500): enough for the 8B at full length; cheaper than 80 GB cards.
+- **EU-RO-1 (Romania)** for training and the merged fine-tuned model's network volume. The
+  agent uses a global volume and permits any data centre; live workers ran in US data centres.
+  A lender would need to restrict hosting to its permitted regions.
+- **32 GB GPUs** (RTX 5090 / RTX PRO 4500) for the 8B at full length; **24 GB pools** also
+  serve the 4B, including RTX PRO 6000 Blackwell MIG 1g.24gb for the agent.
 - **Delete training Pods, don't stop them.** A stopped Pod may not restart if its machine is busy;
   everything that matters is on the volume.
 

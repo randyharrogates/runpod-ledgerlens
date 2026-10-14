@@ -11,13 +11,16 @@ cd ../..
 DEMO_MODE=1 uv run uvicorn app.backend.main:app --host 0.0.0.0 --port 8090
 ```
 
-Open http://localhost:8090. For live extraction, unset DEMO_MODE and configure the endpoints. Vite development mode (`npm run dev`) proxies API calls to port 8090. Regenerate the sample before presenting it. Generation uses ledgerlens.datagen with its headless Chromium renderer and requires a working local Chromium installation. Seed 4 selects an SGD business in the non-held-out stmt_b layout: four consecutive statements (clean, light, medium, heavy) and one invoice, with ground truth and rendering metadata. It prints the seed and selected anomalies. Rendering failures exit clearly and preserve existing samples; there is no text-dump fallback.
+Open http://localhost:8090. For live extraction and chat, unset DEMO_MODE and configure the endpoint IDs below. The server
+reads the key from runpodctl config unless `RUNPOD_API_KEY` is set; the browser never receives it. Vite development mode (`npm run dev`) proxies API calls to port 8090. Regenerate the sample before presenting it. Generation uses ledgerlens.datagen with its headless Chromium renderer and requires a working local Chromium installation. Seed 4 selects an SGD business in the non-held-out stmt_b layout: four consecutive statements (clean, light, medium, heavy) and one invoice, with ground truth and rendering metadata. It prints the seed and selected anomalies. Rendering failures exit clearly and preserve existing samples; there is no text-dump fallback.
 
 Environment variables:
 
 | Variable | Purpose |
 | --- | --- |
 | RUNPOD_ENDPOINT_8B | Base model endpoint ID; optional |
+| RUNPOD_ENDPOINT_AGENT | Credit assistant endpoint ID: `cuvgn5z2av09my` |
+| RUNPOD_WORKER_LOGS | Runpod worker-log polling is on by default; set to 0 to turn it off |
 | RUNPOD_ENDPOINT_4B | Base small-model endpoint ID; optional |
 | TRAINING_ENABLED | Set to 1 to permit real GPU rentals; unset uses simulation |
 | LEDGERLENS_DATA | Directory of rendered dataset pages, answer keys, metadata and splits; unset uses bundled samples and recorded summaries |
@@ -32,6 +35,14 @@ Phone and laptop need the same Wi-Fi and port 8090 reachable. iOS Safari convert
 Extraction failures fall back only for bundled sample pages. Cached ground truth is explicitly marked and carries no fabricated GPU cost. Uploaded pages remain retryable. Memo streaming polls Runpod /run and /stream incrementally, forwards worker deltas, and closes with usage/timing. The browser retains the session across refreshes, polls for phone uploads, and allows retry after connection failures. Memo retries start a fresh memo.
 
 ## Workspace pages and exports
+
+Assistant (`/assistant`): chat with live steps, attached pages, cited memo cards, and Stop.
+Demo mode replays recorded agent turns, labelled "Recorded run". Stop cancels the Runpod job;
+in-flight worker work can take ~2–2.5 min to drain before the worker idles.
+
+The live Logs drawer combines app, browser, worker and vLLM logs for the current session, with
+filters and a "Logs for this turn" link. Runpod worker logs are polled by default;
+`RUNPOD_WORKER_LOGS=0` disables that feed.
 
 Read statements: add pages, check editable rows, review cash flow and cited flags, and write a memo. Download the current page or all checked pages as CSV. Save as PDF opens the browser print dialog and prints only the memo with plain-text citations.
 

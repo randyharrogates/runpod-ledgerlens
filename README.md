@@ -15,10 +15,10 @@ an 8B model zero-shot on extraction quality (row F1), speed and cost per 1,000 p
 
 | A Serverless worker needs | Where it is |
 |---|---|
-| A `handler.py` for serverless requests | [`worker/handler.py`](worker/handler.py): starts vLLM once per worker, then serves `generate` (plain prompt to text), `extract` (page image to checked JSON), `memo` (streamed text) and `health` |
-| A Docker image with the handler and the model | [`worker/Dockerfile`](worker/Dockerfile) loads weights from model cache / volume for the three live endpoints; [`worker/Dockerfile.baked`](worker/Dockerfile.baked) bakes weights into the image |
-| A deployed Serverless endpoint | 8B `szucrtrufff80a`, fine-tuned 4B `5078uudfkeaw2v`, base 4B `cuvgn5z2av09my` |
-| Accept an input, return a generated output | `{"input":{"prompt":"..."}}` returns generated text. Document tasks return validated JSON rows and a streamed credit memo. [Call it with curl](#call-the-endpoint-with-curl) |
+| A `handler.py` for serverless requests | [`worker/handler.py`](worker/handler.py): starts vLLM once per worker, then serves `generate` (plain prompt to text), `extract` (page image to checked JSON), `memo` (streamed text), `read` (page triage and reading), `agent` (chat) and `health` |
+| A Docker image with the handler and the model | [`worker/Dockerfile`](worker/Dockerfile) loads weights from model cache / volume for the three live endpoints; [`worker/Dockerfile.baked`](worker/Dockerfile.baked) bakes weights into the image (not yet built) |
+| A deployed Serverless endpoint | 8B `szucrtrufff80a`, fine-tuned 4B `5078uudfkeaw2v`, base 4B `cuvgn5z2av09my` serves the credit assistant |
+| Accept an input, return a generated output | `{"input":{"task":"generate","prompt":"..."}}` returns generated text; a bare `prompt` goes to the chat agent on the agent endpoint. Document tasks return validated JSON rows and a streamed credit memo. [Call it with curl](#call-the-endpoint-with-curl) |
 | Show it working | The demo app (`app/`, with a 3-minute Presenter tour) calls the live endpoints |
 | Code, configuration and clear docs | This README, [`worker/README.md`](worker/README.md), [`docs/REPORT.md`](docs/REPORT.md), [`docs/BUILD_LOG.md`](docs/BUILD_LOG.md), [`docs/DECISIONS.md`](docs/DECISIONS.md) |
 
@@ -29,11 +29,15 @@ weights from Runpod storage:
   keeping the image small and builds and worker pulls fast.
 - **Fine-tuned 4B:** a **network volume**, where the training Pod wrote the merged weights.
   Swapping in a new fine-tune needs no rebuild or upload; the volume pins it to one data centre.
+- **Agent, base 4B:** Runpod's **model cache** plus the trained reader as a **LoRA adapter**
+  on the beta **global volume** `ledgerlens-global`. Workers can start in any data centre;
+  the compile cache stays on container disk because global storage has no locking or atomic rename.
 
 `worker/Dockerfile.baked` downloads the pinned 8B weights during the build and sets
 `MODEL_PATH=/models/model` and `HF_HUB_OFFLINE=1`. It includes both the handler and model,
 with no network volume, so the endpoint is not pinned to one data centre. The trade-off is
-an image about 16 GiB larger and slower builds and pulls; cold start to be measured.
+an image about 16 GiB larger and slower builds and pulls. It has not yet been built, and its
+cold start has not been measured.
 Health reports `model_source: "baked"`.
 
 ## What it does
@@ -48,20 +52,32 @@ Health reports `model_source: "baked"`.
 4. **Write.** The model writes the memo prose from those computed numbers only, streamed over
    `/stream`. Citations in the memo jump back to the evidence row.
 
+### Credit assistant
+
+The `/assistant` page answers credit questions and writes cited memo cards with live steps, Stop and Logs.
+One base Qwen3-VL-4B engine serves the router (a structured JSON plan), page triage and writer.
+The trained reader runs as a LoRA adapter; Python computes the analysis between model steps.
+The data agent uses read-only tools with tool calling for at most 3 rounds.
+The writer fills five memo sections in parallel; code checks figures, citations, headings and length,
+and each section can be rewritten at most once. See [Chat and page reading](worker/README.md#chat-and-page-reading).
+
 ## Architecture
 
 ```mermaid
 flowchart LR
-  phone[Phone / browser upload] --> app[FastAPI backend + React UI]
-  app -- "/run + /status (extract)" --> ep8[Serverless endpoint: Qwen3-VL-8B]
-  app -- "/run + /status (extract)" --> epft[Serverless endpoint: Qwen3-VL-4B fine-tuned]
+  phone["Phone / browser upload"] --> app["FastAPI backend + React UI"]
+  app -- "/run + /status (extract)" --> ep8["Serverless endpoint: Qwen3-VL-8B"]
+  app -- "/run + /status (extract)" --> epft["Serverless endpoint: Qwen3-VL-4B fine-tuned"]
   app -- "/run + /stream (memo)" --> ep8
-  ep8 --- cache[(Runpod model cache: 8B weights)]
-  epft --- vol[(Network volume EU-RO-1: merged 4B)]
-  app --> rules[Python: balance check, cash flow, red flags, citations]
-  subgraph Pod[GPU Pod, training run]
-    gen[Synthetic generator + CORD v2] --> sft[Unsloth LoRA SFT] --> merged[Merged 16-bit model]
-    merged --> pred[vLLM batch predictions] --> report[Report: row F1, s/page, $/1,000 pages]
+  app -- "/run + /stream (read, agent)" --> epagent["Serverless endpoint: base Qwen3-VL-4B + reader LoRA"]
+  epagent --- cache4[("Runpod model cache: base 4B")]
+  epagent --- globalvol[("Global volume: reader adapter")]
+  ep8 --- cache[("Runpod model cache: 8B weights")]
+  epft --- vol[("Network volume EU-RO-1: merged 4B")]
+  app --> rules["Python: balance check, cash flow, red flags, citations"]
+  subgraph Pod["GPU Pod, training run"]
+    gen["Synthetic generator + CORD v2"] --> sft["Unsloth LoRA SFT"] --> merged["Merged 16-bit model"]
+    merged --> pred["vLLM batch predictions"] --> report["Report: row F1, s/page, $/1,000 pages"]
   end
   merged --> vol
 ```
@@ -70,12 +86,13 @@ flowchart LR
 
 | Piece | Choice | Why |
 |---|---|---|
-| Worker | `worker/handler.py`: a generator handler that starts `vllm serve` in-process at cold start; tasks `extract`, `memo` (streamed), `health` | One engine per worker; streaming memo over `/stream` |
+| Worker | `worker/handler.py`: a generator handler that starts `vllm serve` in-process at cold start; tasks `generate`, `extract`, `memo`, `read`, `agent`, `health` | One engine per worker; streaming memo over `/stream` |
 | Image | `worker/Dockerfile` on `vllm/vllm-openai:v0.31.0-cu129`, built by Runpod's GitHub integration from the `deploy` branch | No local Docker; pushes to `main` never rebuild by accident (`scripts/release-worker.sh` ships) |
 | 8B weights | Runpod **model cache** (`Qwen/Qwen3-VL-8B-Instruct`, pinned commit) | 16.3 GiB loaded in 5.7 s; no download at cold start |
 | Fine-tuned 4B weights | **Network volume** (`MODEL_PATH`), same image and template | No rebuild or upload to swap models; pins the endpoint to EU-RO-1 |
+| Agent endpoint | `cuvgn5z2av09my`: base 4B model cache + reader LoRA on global volume `ledgerlens-global` | One engine for chat and reading; workers can start in any data centre |
 | Scaling | Active 0, max 2, idle 60 s, FlashBoot on, queue-delay scaling 4 s, timeout 600 s | Nothing bills while idle; one Active worker only for the demo hour |
-| GPUs | 32 GB class (RTX 5090 / RTX PRO 4500), CUDA ≥ 12.9 | The 8B in bf16 fits 32 GB at 8,192 tokens; older drivers can't start the image |
+| GPUs | 32 GB class (RTX 5090 / RTX PRO 4500), CUDA ≥ 12.9; the 4B agent endpoint also allows 24 GB pools (it has run on RTX PRO 6000 Blackwell MIG 1g.24gb) | The 8B in bf16 fits 32 GB at 8,192 tokens; older drivers can't start the image |
 | Safety | Image size checked before decoding (decompression bombs); engine start failures fail jobs fast with the error instead of crash-looping paid workers | Both found or hardened during the build (see `docs/BUILD_LOG.md`) |
 
 ### Measured (8B, RTX 5090, 9 Oct)
@@ -144,7 +161,8 @@ uv sync && uv run ruff check . && uv run ruff format --check . && uv run pytest 
 ```
 
 - **Demo app, offline** (cached sample results): see `app/README.md`; `DEMO_MODE=1`, port 8090.
-- **Demo app, live:** set `RUNPOD_ENDPOINT_8B` (and `RUNPOD_ENDPOINT_FT`); the key is read from
+- **Demo app, live:** set `RUNPOD_ENDPOINT_8B`, `RUNPOD_ENDPOINT_FT` and
+  `RUNPOD_ENDPOINT_AGENT=cuvgn5z2av09my`; the key is read from
   `runpodctl`'s config, never from the browser.
 - **One page from the command line:**
   `uv run python worker/client.py extract --endpoint-id <id> --image page.png --doc-type statement`
@@ -164,7 +182,7 @@ EP=szucrtrufff80a                  # 8B; the fine-tuned 4B is 5078uudfkeaw2v
 # 0. Send a plain prompt, then poll until COMPLETED; output is a one-item list with generated text
 curl -s -X POST "https://api.runpod.ai/v2/$EP/run" \
   -H "Authorization: Bearer $RUNPOD_API_KEY" -H "Content-Type: application/json" \
-  -d '{"input":{"prompt":"In two sentences, what does a returned cheque tell a lender about a small business?"}}'
+  -d '{"input":{"task":"generate","prompt":"In two sentences, what does a returned cheque tell a lender about a small business?"}}'
 curl -s "https://api.runpod.ai/v2/$EP/status/<job id>" -H "Authorization: Bearer $RUNPOD_API_KEY"
 
 # 1. Health check: starts a worker and reports the model and where it loaded from
@@ -183,6 +201,17 @@ curl -s -X POST "https://api.runpod.ai/v2/$EP/run" \
 # 3. Poll until "status" is "COMPLETED". "output" is a one-item list: the validated document,
 #    or an error message that says what was wrong with the input
 curl -s "https://api.runpod.ai/v2/$EP/status/<job id>" -H "Authorization: Bearer $RUNPOD_API_KEY"
+```
+
+For chat, use the agent endpoint. A bare `prompt` also becomes the agent's message here.
+
+```sh
+EP=cuvgn5z2av09my                  # agent: base 4B + reader LoRA
+curl -s -X POST "https://api.runpod.ai/v2/$EP/run" \
+  -H "Authorization: Bearer $RUNPOD_API_KEY" -H "Content-Type: application/json" \
+  -d '{"input":{"task":"agent","message":"What does a returned cheque usually tell a lender?"}}'
+# Poll /stream until the job completes
+curl -s "https://api.runpod.ai/v2/$EP/stream/<job id>" -H "Authorization: Bearer $RUNPOD_API_KEY"
 ```
 
 The memo task streams: send `{"input":{"task":"memo","analysis":{...}}}` to `/run`, then read
