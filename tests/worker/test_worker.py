@@ -150,9 +150,9 @@ def test_memo(monkeypatch):
 
     monkeypatch.setattr(worker, "vllm_client", fake)
     result = list(worker.handler({"input": {"task": "memo", "analysis": {}}}))
-    assert result[:2] == [{"delta": "Summary"}, {"delta": " [p1:r2]"}]
-    assert result[2]["done"] and result[2]["usage"] == {"total_tokens": 8}
-    assert result[2]["gpu"] == "test GPU"
+    assert "".join(item["delta"] for item in result[:-1]) == "Summary [p1:r2]"
+    assert result[-1]["done"] and result[-1]["usage"] == {"total_tokens": 8}
+    assert result[-1]["gpu"] == "test GPU"
 
 
 def test_gpu_name_falls_back_to_the_driver_file(monkeypatch, tmp_path):
@@ -696,12 +696,62 @@ def test_generate_stream(monkeypatch):
 
     monkeypatch.setattr(worker, "vllm_client", fake)
     result = list(worker.handler({"input": {"prompt": "hi", "stream": True}}))
-    assert result[:2] == [{"delta": "Hello"}, {"delta": " world"}]
-    assert result[2]["done"] and result[2]["task"] == "generate"
-    assert result[2]["text"] == "Hello world"
-    assert result[2]["usage"] == {"total_tokens": 3}
-    assert result[2]["gpu"] == "test GPU" and result[2]["model"]
-    assert "timing" in result[2]
+    assert "".join(item["delta"] for item in result[:-1]) == "Hello world"
+    assert result[-1]["done"] and result[-1]["task"] == "generate"
+    assert result[-1]["text"] == "Hello world"
+    assert result[-1]["usage"] == {"total_tokens": 3}
+    assert result[-1]["gpu"] == "test GPU" and result[-1]["model"]
+    assert "timing" in result[-1]
+
+
+def test_stream_flush_chars(monkeypatch):
+    monkeypatch.setattr(worker, "STREAM_FLUSH_CHARS", 5)
+    monkeypatch.setattr(worker.time, "monotonic", lambda: 0)
+
+    def fake(payload):
+        for delta in ("", "Hello", " world", "!", ""):
+            yield {"choices": [{"delta": {"content": delta}}]}
+
+    monkeypatch.setattr(worker, "vllm_client", fake)
+    result = list(worker.handler({"input": {"task": "memo", "analysis": {}}}))
+    chunks = [item["delta"] for item in result[:-1]]
+    assert chunks == ["Hello", " world", "!"]
+    assert all(len(chunk) >= 5 for chunk in chunks[:-1])
+    assert all(chunks)
+    assert "".join(chunks) == "Hello world!"
+    assert result[-1]["done"]
+
+
+def test_stream_flush_time(monkeypatch):
+    monkeypatch.setattr(worker, "STREAM_FLUSH_CHARS", 64)
+    monkeypatch.setattr(worker, "STREAM_FLUSH_SECONDS", 0.2)
+    clock_values = iter((0, 0, 0.1, 0.2, 0.3, 0.4, 0.4))
+    monkeypatch.setattr(worker.time, "monotonic", lambda: next(clock_values))
+
+    def fake(payload):
+        for delta in ("a", "b", "c", "d"):
+            yield {"choices": [{"delta": {"content": delta}}]}
+
+    monkeypatch.setattr(worker, "vllm_client", fake)
+    result = list(worker.handler({"input": {"task": "memo", "analysis": {}}}))
+    assert result[:-1] == [{"delta": "ab"}, {"delta": "cd"}]
+    assert result[-1]["done"]
+
+
+def test_stream_flush_before_done(monkeypatch):
+    monkeypatch.setattr(worker, "STREAM_FLUSH_CHARS", 64)
+    monkeypatch.setattr(worker.time, "monotonic", lambda: 0)
+
+    def fake(payload):
+        yield {"choices": [{"delta": {"content": "tail"}}]}
+        yield {"choices": [], "usage": {"total_tokens": 1}}
+
+    monkeypatch.setattr(worker, "vllm_client", fake)
+    result = list(worker.handler({"input": {"prompt": "hi", "stream": True}}))
+    assert len(result) == 2
+    assert result[0] == {"delta": "tail"}
+    assert result[1]["done"] and result[1]["text"] == "tail"
+    assert result[1]["usage"] == {"total_tokens": 1}
 
 
 def test_generate_image(monkeypatch):

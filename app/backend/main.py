@@ -42,6 +42,7 @@ LOCK = threading.Lock()
 STATUS_LOCK = threading.Lock()
 STATUS: dict = {"time": 0, "value": {}}
 MAX_BYTES = 15 * 1024 * 1024
+STREAM_POLL_SECONDS = 0.25
 
 
 @asynccontextmanager
@@ -628,7 +629,7 @@ def memo_chunks(endpoint, payload, key):
                 return
             if result.get("status") in ("FAILED", "CANCELLED", "TIMED_OUT"):
                 raise RuntimeError("Memo failed")
-            time.sleep(1)
+            time.sleep(STREAM_POLL_SECONDS)
     raise TimeoutError("Memo timed out")
 
 
