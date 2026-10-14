@@ -74,7 +74,7 @@ export function LogsDrawer({open, onClose, session, initial}: {
       <label><input type="checkbox" checked={thisSession} onChange={e => setThisSession(e.target.checked)} /> This session only</label>
       {turn && <button className="secondary logs-turn" onClick={() => setTurn('')}>This turn only{initial?.jobId ? ` · job ${initial.jobId}` : ''} ×</button>}
     </div>
-    <div className="logs-status"><small>{live ? 'Live' : 'Reconnecting…'}</small>{paused && <button className="link-button" onClick={() => {
+    <div className="logs-status"><small><span className={`logs-status-dot ${live ? 'logs-live' : 'logs-reconnecting'}`} />{live ? 'Live' : 'Reconnecting…'}</small>{paused && <button className="link-button" onClick={() => {
       if (list.current) list.current.scrollTop = list.current.scrollHeight;
       setPaused(false);
     }}>Paused · Jump to latest</button>}</div>
