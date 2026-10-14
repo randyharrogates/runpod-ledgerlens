@@ -140,7 +140,7 @@ pages and 9 MiB of JSON, including base64. Inputs and model output remain data.
 The dimension check runs before image decoding for both triage and extraction.
 
 Every chat/read event has a `type`: `step`, `triage`, `rows`, `route`, `deltas`,
-`section_reset`, `section`, `tool`, `final`, or `error`. Deltas contain
+`section_reset`, `section`, `tool`, `log`, `final`, or `error`. Deltas contain
 `parts: [{part, text}]`; `part` is a memo section id or `answer`. Concurrent text
 shares one queue and is batched with `STREAM_FLUSH_CHARS` (64) and
 `STREAM_FLUSH_MS` (200). Non-text events flush buffered text first.
@@ -168,3 +168,18 @@ and `MEMO_MODEL=memo`. Runpod's concurrency modifier caps concurrent jobs at
 `MAX_CONCURRENCY`; page and section requests within each job run concurrently.
 Offline tests inject an async `Engine` substitute; the legacy tasks continue via
 `sync_handler` in a thread.
+
+`log` events carry `entries: [{level, source, message}]` (source `worker` or
+`vllm`, optional `page_id`, `section`, `ms`, `model`): model call timings and
+token counts, the route, checker rewrites, tool errors, reader validation
+failures (location and type only) and exceptions. They never contain prompts,
+images, documents or answers. Each yield is one HTTP request to Runpod, so log
+lines are batched: they are sent with the next text flush, on the same 200 ms
+deadline, at 20 lines, or just before `final`/`error`; ordinary progress events
+do not flush them.
+
+vLLM's stdout and stderr go to a file that a thread copies to the container's
+stderr, so Runpod's Logs tab shows them; the last 80 lines still form the
+startup-failure message. While a job runs, vLLM lines with `WARNING`, `ERROR`
+or `Traceback` (at most 50) are added to its `log` events. The engine is
+shared, so with concurrent jobs such a line may belong to another job.

@@ -115,7 +115,8 @@ def test_payload_cap_history_and_memo(client, monkeypatch):
         inputs,
     )
     events = parse(client.post(f"/api/sessions/{s}/chat", json={"message": "Write it"}))
-    assert events[0]["type"] == "notice"
+    assert events[0]["type"] == "turn"
+    assert events[1]["type"] == "notice"
     assert [d["page_id"] for d in inputs[0]["documents"]] == ["p1"]
     assert [d["page_id"] for d in inputs[0]["new_pages"]] == [
         f"p{i}" for i in range(2, 9)
@@ -162,6 +163,8 @@ def test_disconnect_cancels_and_records_nothing(client, monkeypatch):
 
     async def run():
         response = await chat.chat(s, chat.ChatRequest(message="Question"))
+        await anext(response.body_iterator)
+        await anext(response.body_iterator)
         await anext(response.body_iterator)
         await response.body_iterator.aclose()
 
@@ -214,14 +217,14 @@ def test_demo_recording_and_notices(client, monkeypatch, tmp_path):
         events = parse(
             client.post(f"/api/sessions/{s}/chat", json={"message": message})
         )
-        assert events[0]["answer"] == chat.DEMO_NOTICE
+        assert events[1]["answer"] == chat.DEMO_NOTICE
     other, other_session = setup(client)
     events = parse(
         client.post(
             f"/api/sessions/{other}/chat", json={"message": chat.SUGGESTIONS[1][0]}
         )
     )
-    assert events[0]["answer"] == chat.DEMO_NOTICE
+    assert events[1]["answer"] == chat.DEMO_NOTICE
     assert other_session["pages"]["p1"]["status"] == "uploaded"
 
 
@@ -234,7 +237,7 @@ def test_offline_read(client, monkeypatch):
     assert all(page["document"] for page in main.SESSIONS[s]["pages"].values())
     other, session = setup(client)
     events = parse(client.post(f"/api/sessions/{other}/read", json={}))
-    assert events[0]["valid"] is False
+    assert events[1]["valid"] is False
     assert session["pages"]["p1"]["status"] == "error"
 
 
@@ -283,6 +286,7 @@ def test_chat_waits_for_read(client, monkeypatch):
         await started.wait()
         response = await chat.chat(s, chat.ChatRequest(message="Question"))
         iterator = response.body_iterator
+        assert "turn" in await anext(iterator)
         assert "Waiting" in await anext(iterator)
         chat_task = asyncio.create_task(consume(response))
         await asyncio.sleep(0.01)
@@ -319,6 +323,7 @@ def test_disconnect_while_polling(client, monkeypatch):
         nonlocal loop
         loop = asyncio.get_running_loop()
         response = await chat.chat(s, chat.ChatRequest(message="Question"))
+        await anext(response.body_iterator)
         task = asyncio.create_task(anext(response.body_iterator))
         await submitted.wait()
         task.cancel()
@@ -338,6 +343,7 @@ def test_disconnect_after_final_does_not_record(client, monkeypatch):
 
     async def run():
         response = await chat.chat(s, chat.ChatRequest(message="Question"))
+        assert "turn" in await anext(response.body_iterator)
         assert "final" in await anext(response.body_iterator)
         await response.body_iterator.aclose()
 

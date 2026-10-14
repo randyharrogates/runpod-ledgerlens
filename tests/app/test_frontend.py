@@ -442,3 +442,81 @@ assert(render(React.createElement(TurnView,{turn:reduceTurn([{type:'error',messa
 })().catch(error=>{console.error(error);process.exitCode=1;});
 """
     subprocess.run(["node", "-e", script], cwd=FRONTEND, check=True)
+
+
+def test_unified_logs_and_turn_links():
+    if not shutil.which("node") or not (FRONTEND / "node_modules/typescript").exists():
+        pytest.skip("Frontend node_modules and Node are required")
+    script = r"""
+const fs=require('fs'), assert=require('assert'), ts=require('typescript');
+require.extensions['.tsx']=require.extensions['.ts']=(module,filename)=>module._compile(ts.transpileModule(fs.readFileSync(filename,'utf8'),{compilerOptions:{target:ts.ScriptTarget.ES2022,esModuleInterop:true,module:ts.ModuleKind.CommonJS,jsx:ts.JsxEmit.ReactJSX}}).outputText,filename);
+const React=require('react'), {renderToStaticMarkup:render}=require('react-dom/server');
+const {filterLogs,BrowserLogQueue}=require('./src/logs.ts');
+const entries=[
+ {id:1,ts:1,source:'app',level:'info',message:'Started',session:'s1',turn:'t1'},
+ {id:2,ts:2,source:'browser',level:'warning',message:'<script>alert(1)</script>',session:'s1'},
+ {id:3,ts:3,source:'worker',level:'error',message:'Failed',job_id:'job-1',session:'s1',turn:'t1',page_id:'p1',task:'reader'},
+ {id:4,ts:4,source:'vllm',level:'debug',message:'Ready',session:'s2'},
+ {id:5,ts:5,source:'app',level:'warning',message:'Retry',session:'s2',turn:'t2'},
+ {id:6,ts:6,source:'worker',level:'info',message:'Done',session:'s1',turn:'t1'},
+];
+const all={source:'',errorsOnly:false,text:'',session:'',turn:''};
+const ids=filter=>filterLogs(entries,{...all,...filter}).map(e=>e.id);
+assert.deepEqual(ids({source:'worker'}),[3,6]);assert.deepEqual(ids({errorsOnly:true}),[2,3,5]);
+assert.deepEqual(ids({text:'STARTED'}),[1]);assert.deepEqual(ids({text:'JOB-1'}),[3]);
+assert.deepEqual(ids({text:'READER'}),[3]);assert.deepEqual(ids({text:'P1'}),[3]);
+assert.deepEqual(ids({session:'s1'}),[1,2,3,6]);assert.deepEqual(ids({turn:'t1'}),[1,3,6]);
+assert.deepEqual(ids({source:'worker',errorsOnly:true,session:'s1',turn:'t1',text:'JOB'}),[3]);
+const {LogRows,LogsDrawer}=require('./src/components/Logs.tsx');
+const rows=render(React.createElement(LogRows,{entries,filter:all}));
+for(const text of ['log-source log-app','log-source log-browser','log-level log-error','data-level="warning"','job job-1','&lt;script&gt;'])assert(rows.includes(text),text);
+assert(!rows.includes('<script>'));assert(render(React.createElement(LogRows,{entries,filter:{...all,text:'missing'}})).includes('No log lines match these filters.'));
+const drawer=render(React.createElement(LogsDrawer,{open:true,onClose:()=>{},session:'s1',initial:{turn:'t1',jobId:'job-1'}}));
+for(const text of ['Errors only','This session only','placeholder="Search logs"','This turn only','job-1','aria-modal="false"'])assert(drawer.includes(text),text);
+assert.equal(render(React.createElement(LogsDrawer,{open:false,onClose:()=>{},session:'s1'})),'');
+const queue=new BrowserLogQueue();for(let i=0;i<105;i++)queue.push({level:'info',message:'x'.repeat(2100),url:'u'.repeat(400)});
+assert.equal(queue.dropped,5);let batch=queue.take();assert(batch.length<=20);assert.equal(batch.filter(e=>e.message==='5 browser log lines dropped').length,1);assert.equal(queue.dropped,0);
+assert(batch.some(e=>e.message.length===2000 && e.url.length===300));
+let rest=[];while((batch=queue.take())!==null){assert(batch.length<=20);rest.push(...batch);}assert(!rest.some(e=>e.message.includes('dropped')));
+const {reduceTurn,TurnView}=require('./src/components/Assistant.tsx');
+const turn=reduceTurn([{type:'turn',turn_id:'t1'},{type:'job',job_id:'job-1'}]);assert.equal(turn.turnId,'t1');assert.equal(turn.jobId,'job-1');
+assert(render(React.createElement(TurnView,{turn,jump:()=>{}})).includes('Logs for this turn'));
+const measured=reduceTurn([{type:'metrics',turn_id:'t1',job_id:'job-1',total_s:1}]);assert.equal(measured.turnId,'t1');assert.equal(measured.jobId,'job-1');
+const html=render(React.createElement(TurnView,{turn:measured,jump:()=>{}}));assert(html.includes('Logs for this turn'));assert(html.includes('job job-1'));
+
+(async()=>{
+ const logs=require('./src/logs.ts');const calls=[];let pending;
+ const oldTimeout=global.setTimeout,oldClear=global.clearTimeout;
+ global.setTimeout=fn=>{pending=fn;return 1;};global.clearTimeout=()=>{pending=undefined;};
+ const target=new EventTarget();target.location={href:'https://example.test/',origin:'https://example.test'};
+ const failure=new Error('Connection lost'),abort=new Error('Stopped');abort.name='AbortError';
+ target.fetch=async(input,options)=>{
+  const url=input instanceof Request ? input.url : String(input);calls.push({url,options});
+  if(url.includes('/fail'))throw failure;if(url.includes('/abort'))throw abort;
+  return new Response('{}',{status:url.includes('/bad')?503:200});
+ };
+ global.window=target;logs.installBrowserLogging(()=> 's1');const wrapped=target.fetch;
+ logs.installBrowserLogging(()=> 's2');assert.equal(target.fetch,wrapped);
+ const response=await target.fetch('/api/bad?secret=hidden',{method:'post'});assert.equal(response.status,503);
+ await assert.rejects(target.fetch('/api/fail'),e=>e===failure);
+ await assert.rejects(target.fetch('/api/abort'),e=>e===abort);
+ await target.fetch('https://elsewhere.test/api/bad');await target.fetch('/api/logs?since=0');
+ const event=new Event('error');Object.assign(event,{message:'Oops',filename:'main.js',lineno:4,error:new Error('Oops')});target.dispatchEvent(event);
+ const rejection=new Event('unhandledrejection');rejection.reason=new Error('Rejected');target.dispatchEvent(rejection);
+ assert(pending);pending();await Promise.resolve();
+ const post=calls.find(c=>c.url==='/api/logs/browser');assert(post);assert(post.options.keepalive);
+ const body=JSON.parse(post.options.body);assert.equal(body.session,'s1');assert.equal(body.entries.length,4);
+ assert.equal(body.entries[0].message,'POST /api/bad → 503');assert.equal(body.entries[1].message,'GET /api/fail failed: Connection lost');
+ assert(body.entries[2].message.includes('main.js:4'));assert.equal(body.entries[3].message,'Rejected');
+ assert(!post.options.body.includes('secret'));assert(!pending);
+ let memoStream;global.EventSource=class extends EventTarget {constructor(){super();memoStream=this;}};
+ require('./src/api.ts').api.memo('s1','ft');memoStream.dispatchEvent(new Event('error'));memoStream.dispatchEvent(new Event('error'));
+ pending();await Promise.resolve();const last=JSON.parse(calls[calls.length-1].options.body);
+ assert.equal(last.entries.length,1);assert.equal(last.entries[0].message,'memo stream error');
+ global.setTimeout=oldTimeout;global.clearTimeout=oldClear;delete global.window;
+})().catch(error=>{console.error(error);process.exitCode=1;});
+"""
+    result = subprocess.run(
+        ["node", "-e", script], cwd=FRONTEND, capture_output=True, text=True
+    )
+    assert result.returncode == 0, result.stderr

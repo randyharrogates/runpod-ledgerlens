@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect, useState } from 'react';
+import { lazy, Suspense, useCallback, useEffect, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import { api, Analysis, Citation, Page } from './api';
 import { Upload } from './components/MobileUpload';
@@ -20,7 +20,13 @@ import { TrainingRun, PodAlert } from './components/PodAlert';
 import { Presenter } from './components/Presenter';
 import { Assistant } from './components/Assistant';
 import { tour } from './tour';
+import { installBrowserLogging } from './logs';
+import { LogsDrawer } from './components/Logs';
 import './style.css';
+
+installBrowserLogging(() => {
+  try { return localStorage.getItem('ledgerlens-session') || ''; } catch { return ''; }
+});
 
 function App() {
   const path = usePath();
@@ -44,6 +50,14 @@ function App() {
   const [runs, setRuns] = useState<TrainingRun[]>([]);
   async function refreshRuns() { setRuns(await getJSON<TrainingRun[]>('/api/training/runs')); }
   useEffect(() => { const poll = () => { void refreshRuns().catch(() => {}); }; poll(); const timer = setInterval(poll, 5000); return () => clearInterval(timer); }, []);
+  const [logsOpen, setLogsOpen] = useState(false);
+  const [logsInitial, setLogsInitial] = useState<{turn?: string; jobId?: string}>({});
+  const closeLogs = useCallback(() => setLogsOpen(false), []);
+  useEffect(() => {
+    const show = (event: Event) => { setLogsInitial((event as CustomEvent).detail || {}); setLogsOpen(true); };
+    window.addEventListener('ledgerlens:logs', show);
+    return () => window.removeEventListener('ledgerlens:logs', show);
+  }, []);
   const [presenter, setPresenter] = useState(false);
   const [tourIndex, setTourIndex] = useState(0);
   function tourGo(index: number) { setTourIndex(index); navigate(tour[index].route + ((tour[index] as {query?: string}).query || '')); if (tour[index].readStep) setTab(['Documents','Review','Analysis','Memo'][tour[index].readStep! - 1]); }
@@ -158,6 +172,9 @@ function App() {
         <button className="presenter" aria-pressed={presenter} onClick={() => {setPresenter(!presenter); tourGo(0);}}>
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true"><path d="M7 4l13 8-13 8z" /></svg>Presenter
         </button>
+        <button className="presenter logs-toggle" aria-pressed={logsOpen} onClick={() => {setLogsInitial({}); setLogsOpen(!logsOpen);}}>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true"><path d="M5 6h14 M5 12h14 M5 18h9" /></svg>Logs
+        </button>
       </aside>
       <main>
         <PodAlert runs={runs} />
@@ -199,6 +216,7 @@ function App() {
         </>}</Suspense>
       </main>
       {presenter && <Presenter index={tourIndex} go={tourGo} exit={() => setPresenter(false)} readMemo={() => setTab('Memo')} />}
+      <LogsDrawer open={logsOpen} onClose={closeLogs} session={session} initial={logsInitial} />
     </div>
   );
 }
