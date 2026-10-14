@@ -1,5 +1,6 @@
 """Runpod streaming worker backed by a local vLLM HTTP server."""
 
+import asyncio
 import base64
 import binascii
 import io
@@ -10,6 +11,7 @@ import os
 import shlex
 import shutil
 import subprocess
+import sys
 import tempfile
 import threading
 import time
@@ -95,6 +97,10 @@ def start_engine():
         # Same pixel cap as training (ledgerlens.images), so the processor never rescales again.
         "--mm-processor-kwargs",
         json.dumps({"max_pixels": MAX_PIXELS}),
+        # The chat agent's data questions use OpenAI tool calls; Qwen3 emits Hermes-style calls.
+        "--enable-auto-tool-choice",
+        "--tool-call-parser",
+        "hermes",
         *shlex.split(os.getenv("VLLM_EXTRA_ARGS", "")),
     ]
     env = os.environ.copy()
@@ -226,7 +232,7 @@ def validate_image(encoded):
     return mime
 
 
-def prepare_image(image_bytes):
+def prepare_image(image_bytes, max_pixels=None):
     """Shrink the page exactly as training did, then re-encode it as PNG base64.
 
     The image is untrusted: a small compressed file can declare enormous dimensions (a
@@ -241,7 +247,7 @@ def prepare_image(image_bytes):
             )
         # JPEG only: let the decoder downscale while decoding instead of after.
         image.draft("RGB", (image.width // 2, image.height // 2))
-        resized = resize_image(image, MAX_PIXELS)
+        resized = resize_image(image, MAX_PIXELS if max_pixels is None else max_pixels)
     buffer = io.BytesIO()
     resized.save(buffer, format="PNG")
     return base64.b64encode(buffer.getvalue()).decode()
@@ -271,7 +277,7 @@ def gpu_name(driver_root=Path("/proc/driver/nvidia/gpus")):
     return None
 
 
-def handler(job):
+def sync_handler(job):
     global _FIRST_JOB
     with _JOB_LOCK:
         cold = _FIRST_JOB
@@ -456,6 +462,43 @@ def handler(job):
         yield {"error": f"Model request failed: {exc}"}
 
 
+async def handler(job):
+    data = job.get("input") if isinstance(job, dict) else None
+    if isinstance(data, dict) and (
+        data.get("task") in ("agent", "read")
+        or ("task" not in data and "prompt" in data)
+    ):
+        from worker.agent import Engine, run_agent, run_read
+
+        if ENGINE["status"] == "failed":
+            yield {
+                "error": f"Model engine failed to start: {ENGINE.get('error', 'unknown error')}"
+            }
+            return
+        data = dict(data)
+        if "task" not in data:
+            data.update(task="agent", message=data.get("prompt"))
+            if isinstance(data.get("image_base64"), str):
+                data["new_pages"] = [
+                    {"page_id": "p1", "image_base64": data["image_base64"]}
+                ]
+        async with Engine() as engine:
+            run = run_read if data["task"] == "read" else run_agent
+            async for event in run(data, engine):
+                yield event
+        return
+    iterator = sync_handler(job)
+    sentinel = object()
+    try:
+        while True:
+            item = await asyncio.to_thread(next, iterator, sentinel)
+            if item is sentinel:
+                break
+            yield item
+    finally:
+        await asyncio.to_thread(iterator.close)
+
+
 if os.getenv("LEDGERLENS_NO_ENGINE") != "1":
     try:
         start_engine()
@@ -464,6 +507,16 @@ if os.getenv("LEDGERLENS_NO_ENGINE") != "1":
         ENGINE.update(status="failed", error=str(exc)[-2000:])
 
 if __name__ == "__main__":
+    sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+    sys.modules.setdefault("worker.handler", sys.modules[__name__])
     import runpod
 
-    runpod.serverless.start({"handler": handler, "return_aggregate_stream": True})
+    from worker.agent import MAX_CONCURRENCY
+
+    runpod.serverless.start(
+        {
+            "handler": handler,
+            "concurrency_modifier": lambda current: MAX_CONCURRENCY,
+            "return_aggregate_stream": True,
+        }
+    )

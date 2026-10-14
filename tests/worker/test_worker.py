@@ -56,7 +56,7 @@ def test_prepare_image_rejects_decompression_bomb(monkeypatch):
 def test_extract_reports_oversized_image_as_error(monkeypatch):
     monkeypatch.setattr(worker, "MAX_INPUT_PIXELS", 1_000)
     job = {"input": extract_input()}
-    assert "Could not read image" in next(worker.handler(job))["error"]
+    assert "Could not read image" in next(worker.sync_handler(job))["error"]
 
 
 def test_extract_rejects_undecodable_image():
@@ -66,7 +66,7 @@ def test_extract_rejects_undecodable_image():
             "image_base64": base64.b64encode(b"\x89PNG\r\n\x1a\n").decode(),
         }
     }
-    assert "Could not read image" in next(worker.handler(job))["error"]
+    assert "Could not read image" in next(worker.sync_handler(job))["error"]
 
 
 @pytest.mark.parametrize(
@@ -91,7 +91,7 @@ def test_invalid_input(data, monkeypatch):
     monkeypatch.setattr(
         worker, "vllm_client", lambda _: pytest.fail("must not call model")
     )
-    result = list(worker.handler({"input": data}))
+    result = list(worker.sync_handler({"input": data}))
     assert len(result) == 1 and "error" in result[0]
 
 
@@ -121,7 +121,7 @@ def test_extract(monkeypatch):
         }
 
     monkeypatch.setattr(worker, "vllm_client", fake)
-    result = list(worker.handler({"input": extract_input()}))[0]
+    result = list(worker.sync_handler({"input": extract_input()}))[0]
     assert result["valid"] and result["document"] == document
     assert result["validation_error"] is None and "raw" not in result
     assert result["usage"] == {"total_tokens": 3}
@@ -135,7 +135,7 @@ def test_invalid_model_json(monkeypatch, raw):
         "vllm_client",
         lambda _: iter([{"choices": [{"message": {"content": raw}}]}]),
     )
-    result = list(worker.handler({"input": extract_input()}))[0]
+    result = list(worker.sync_handler({"input": extract_input()}))[0]
     assert not result["valid"] and result["raw"] == raw
     assert result["document"] is None and result["validation_error"]
 
@@ -149,7 +149,7 @@ def test_memo(monkeypatch):
         yield {"choices": [], "usage": {"total_tokens": 8}}
 
     monkeypatch.setattr(worker, "vllm_client", fake)
-    result = list(worker.handler({"input": {"task": "memo", "analysis": {}}}))
+    result = list(worker.sync_handler({"input": {"task": "memo", "analysis": {}}}))
     assert "".join(item["delta"] for item in result[:-1]) == "Summary [p1:r2]"
     assert result[-1]["done"] and result[-1]["usage"] == {"total_tokens": 8}
     assert result[-1]["gpu"] == "test GPU"
@@ -171,8 +171,8 @@ def test_cold_start_and_health(monkeypatch):
     monkeypatch.setattr(
         worker, "vllm_client", lambda _: pytest.fail("health calls no model")
     )
-    assert list(worker.handler({"input": {"task": "health"}}))[0]["cold_start"]
-    assert not list(worker.handler({"input": {"task": "health"}}))[0]["cold_start"]
+    assert list(worker.sync_handler({"input": {"task": "health"}}))[0]["cold_start"]
+    assert not list(worker.sync_handler({"input": {"task": "health"}}))[0]["cold_start"]
 
 
 def test_resolve_model(tmp_path, monkeypatch, caplog):
@@ -421,10 +421,10 @@ def test_engine_import_failure_still_starts_serverless(monkeypatch, caplog):
     assert reason in caplog.text
     module["handler"].__globals__["vllm_client"] = lambda _: pytest.fail("no model")
     for data in (extract_input(), {"task": "memo", "analysis": {}}):
-        assert list(module["handler"]({"input": data})) == [
+        assert list(module["sync_handler"]({"input": data})) == [
             {"error": "Model engine failed to start: " + reason[-2000:]}
         ]
-    health = next(module["handler"]({"input": {"task": "health"}}))
+    health = next(module["sync_handler"]({"input": {"task": "health"}}))
     assert health["status"] == "failed" and health["error"] == reason[-2000:]
     module["_STDERR"].close()
 
@@ -434,7 +434,7 @@ def test_failed_health_preserves_status_for_exited_process(monkeypatch):
 
     worker.ENGINE.update(status="failed", error="root cause")
     monkeypatch.setattr(worker, "PROCESS", SimpleNamespace(poll=lambda: 1))
-    health = next(worker.handler({"input": {"task": "health"}}))
+    health = next(worker.sync_handler({"input": {"task": "health"}}))
     assert health["status"] == "failed" and health["error"] == "root cause"
 
 
@@ -678,7 +678,7 @@ def test_generate(monkeypatch, explicit):
         }
 
     monkeypatch.setattr(worker, "vllm_client", fake)
-    result = list(worker.handler({"input": data}))
+    result = list(worker.sync_handler({"input": data}))
     assert len(result) == 1
     assert result[0]["task"] == "generate" and result[0]["text"] == "Hello"
     assert result[0]["usage"] == {"total_tokens": 2}
@@ -695,7 +695,7 @@ def test_generate_stream(monkeypatch):
         yield {"choices": [], "usage": {"total_tokens": 3}}
 
     monkeypatch.setattr(worker, "vllm_client", fake)
-    result = list(worker.handler({"input": {"prompt": "hi", "stream": True}}))
+    result = list(worker.sync_handler({"input": {"prompt": "hi", "stream": True}}))
     assert "".join(item["delta"] for item in result[:-1]) == "Hello world"
     assert result[-1]["done"] and result[-1]["task"] == "generate"
     assert result[-1]["text"] == "Hello world"
@@ -713,7 +713,7 @@ def test_stream_flush_chars(monkeypatch):
             yield {"choices": [{"delta": {"content": delta}}]}
 
     monkeypatch.setattr(worker, "vllm_client", fake)
-    result = list(worker.handler({"input": {"task": "memo", "analysis": {}}}))
+    result = list(worker.sync_handler({"input": {"task": "memo", "analysis": {}}}))
     chunks = [item["delta"] for item in result[:-1]]
     assert chunks == ["Hello", " world", "!"]
     assert all(len(chunk) >= 5 for chunk in chunks[:-1])
@@ -733,7 +733,7 @@ def test_stream_flush_time(monkeypatch):
             yield {"choices": [{"delta": {"content": delta}}]}
 
     monkeypatch.setattr(worker, "vllm_client", fake)
-    result = list(worker.handler({"input": {"task": "memo", "analysis": {}}}))
+    result = list(worker.sync_handler({"input": {"task": "memo", "analysis": {}}}))
     assert result[:-1] == [{"delta": "ab"}, {"delta": "cd"}]
     assert result[-1]["done"]
 
@@ -747,7 +747,7 @@ def test_stream_flush_before_done(monkeypatch):
         yield {"choices": [], "usage": {"total_tokens": 1}}
 
     monkeypatch.setattr(worker, "vllm_client", fake)
-    result = list(worker.handler({"input": {"prompt": "hi", "stream": True}}))
+    result = list(worker.sync_handler({"input": {"prompt": "hi", "stream": True}}))
     assert len(result) == 2
     assert result[0] == {"delta": "tail"}
     assert result[1]["done"] and result[1]["text"] == "tail"
@@ -763,9 +763,9 @@ def test_generate_image(monkeypatch):
 
     monkeypatch.setattr(worker, "vllm_client", fake)
     data = {"prompt": "hi", "image_base64": base64.b64encode(png_bytes()).decode()}
-    assert next(worker.handler({"input": data}))["text"] == "A page"
+    assert next(worker.sync_handler({"input": data}))["text"] == "A page"
     monkeypatch.setattr(worker, "MAX_INPUT_PIXELS", 10)
-    assert "Could not read image" in next(worker.handler({"input": data}))["error"]
+    assert "Could not read image" in next(worker.sync_handler({"input": data}))["error"]
 
 
 @pytest.mark.parametrize(
@@ -797,7 +797,7 @@ def test_generate_invalid(monkeypatch, fields):
     data = {"prompt": "hi", **fields}
     if fields == {"task": "generate"}:
         del data["prompt"]
-    result = list(worker.handler({"input": data}))
+    result = list(worker.sync_handler({"input": data}))
     assert len(result) == 1 and result[0]["error"]
 
 
@@ -860,7 +860,7 @@ def test_generate_engine_and_request_errors(monkeypatch, stream):
     data = {"prompt": "hi", "stream": stream}
     monkeypatch.setitem(worker.ENGINE, "status", "failed")
     monkeypatch.setitem(worker.ENGINE, "error", "unavailable")
-    assert list(worker.handler({"input": data})) == [
+    assert list(worker.sync_handler({"input": data})) == [
         {"error": "Model engine failed to start: unavailable"}
     ]
     monkeypatch.setitem(worker.ENGINE, "status", "disabled")
@@ -869,6 +869,6 @@ def test_generate_engine_and_request_errors(monkeypatch, stream):
         raise httpx.ConnectError("unavailable")
 
     monkeypatch.setattr(worker, "vllm_client", fail)
-    assert list(worker.handler({"input": data})) == [
+    assert list(worker.sync_handler({"input": data})) == [
         {"error": "Model request failed: unavailable"}
     ]
