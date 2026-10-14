@@ -4,6 +4,7 @@ import asyncio
 import io
 import json
 
+import httpx
 import pytest
 from fastapi.testclient import TestClient
 from PIL import Image
@@ -356,3 +357,41 @@ def test_read_reserves_pages_before_preparing_images(client, monkeypatch):
     fake(monkeypatch, [rows(), {"type": "final", "intent": "read"}])
     client.post(f"/api/sessions/{s}/read", json={})
     assert not session["chat"]["reading"]
+
+
+def test_failed_read_keeps_the_worker_reason(client, monkeypatch):
+    s, session = setup(client, 1)
+    fake(monkeypatch, [{"error": "task must be extract, memo, or health"}])
+    events = parse(client.post(f"/api/sessions/{s}/read", json={}))
+    assert events[-1]["type"] == "error"
+    assert session["pages"]["p1"]["status"] == "error"
+    assert session["pages"]["p1"]["error"] == "task must be extract, memo, or health"
+
+
+def test_memo_chunks_reports_the_failed_job_reason(monkeypatch):
+    class FakeHTTP:
+        def __init__(self, **_):
+            pass
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_):
+            return False
+
+        def post(self, url, json):
+            return httpx.Response(
+                200, json={"id": "job1"}, request=httpx.Request("POST", url)
+            )
+
+        def get(self, url):
+            body = (
+                {"status": "FAILED", "error": "engine down"}
+                if "/status/" in url
+                else {"status": "FAILED", "stream": []}
+            )
+            return httpx.Response(200, json=body, request=httpx.Request("GET", url))
+
+    monkeypatch.setattr(main.httpx, "Client", FakeHTTP)
+    with pytest.raises(RuntimeError, match="Worker job failed: engine down"):
+        list(main.memo_chunks("ep", {}, "key"))
