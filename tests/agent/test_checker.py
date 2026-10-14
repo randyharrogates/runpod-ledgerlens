@@ -60,6 +60,15 @@ def test_figures():
         "missing_heading",
     ]
     assert all(isinstance(p["detail"], str) for p in problems)
+    assert (
+        check_text(
+            "## Questions for the applicant.\n- Why?",
+            payload,
+            {"p1": 1},
+            required_heading="## Questions for the applicant",
+        )
+        == []
+    )
 
 
 def test_app_exports():
