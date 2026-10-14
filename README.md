@@ -201,3 +201,27 @@ train/           dataset builder (+CORD), Unsloth LoRA SFT, vLLM batch predict, 
 app/             FastAPI backend + React/Vite frontend
 docs/            DECISIONS (what we chose and why), BUILD_LOG (every step and dollar), REPORT (results)
 ```
+
+## Licence and credits
+
+The code in this repo is MIT licensed (see [`LICENSE`](LICENSE)). The models, data and libraries it
+uses keep their own licences:
+
+| What | Used for | Licence |
+|---|---|---|
+| [Qwen3-VL-8B-Instruct](https://huggingface.co/Qwen/Qwen3-VL-8B-Instruct), [Qwen3-VL-4B-Instruct](https://huggingface.co/Qwen/Qwen3-VL-4B-Instruct) (Qwen team, Alibaba Cloud) | The served models; the 4B is the base of the fine-tune | Apache 2.0 |
+| [CORD v2](https://huggingface.co/datasets/naver-clova-ix/cord-v2) (NAVER Clova) | Train split in fine-tuning; test split as the held-out real-receipt set | [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/) |
+| [vLLM](https://github.com/vllm-project/vllm) and its `vllm/vllm-openai` image | Inference in the worker and batch evaluation | Apache 2.0 |
+| [Runpod Python SDK](https://github.com/runpod/runpod-python) | The Serverless handler | MIT |
+| [Unsloth](https://github.com/unslothai/unsloth), [TRL](https://github.com/huggingface/trl), [Transformers](https://github.com/huggingface/transformers), [Datasets](https://github.com/huggingface/datasets) | LoRA fine-tuning on the Pod | Apache 2.0 |
+| [Playwright](https://github.com/microsoft/playwright-python) | Rendering synthetic pages | Apache 2.0 |
+| FastAPI, Pydantic, React, Recharts, Vite and the other packages in `pyproject.toml` and `app/frontend/package.json` | Demo app, schema, tooling | Their own permissive licences (MIT, BSD or Apache 2.0) |
+| [Sora](https://fonts.google.com/specimen/Sora), [IBM Plex Mono](https://fonts.google.com/specimen/IBM+Plex+Mono) | Demo app typefaces, loaded from Google Fonts (not bundled) | SIL Open Font License 1.1 |
+
+No CORD files are stored in this repo; `train/build_dataset.py` downloads them from Hugging Face. CORD
+citation: Park, S., Shin, S., Lee, B., Lee, J., Surh, J., Seo, M. and Lee, H. (2019). *CORD: A
+Consolidated Receipt Dataset for Post-OCR Parsing.* Document Intelligence Workshop at NeurIPS 2019.
+
+The fine-tuned 4B weights are a derivative of Qwen3-VL-4B-Instruct under Apache 2.0. They live on a
+Runpod network volume and are not published here. All businesses, people and banks in the synthetic
+documents are fictional.
