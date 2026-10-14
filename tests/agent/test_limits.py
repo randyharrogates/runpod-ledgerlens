@@ -81,3 +81,23 @@ def test_rejects_bad_input(bad):
         bad = {"message": "hello", **bad}
     with pytest.raises(ValueError):
         validate_agent_input(bad)
+
+
+def test_rows_and_memo_sections_capped():
+    rows = [{"date": "2026-01-01"}] * 501
+    with pytest.raises(ValueError, match="500 rows"):
+        validate_agent_input(
+            {
+                "message": "x",
+                "documents": [
+                    {
+                        "page_id": "p1",
+                        "doc_type": "statement",
+                        "document": {"transactions": rows},
+                    }
+                ],
+            }
+        )
+    with pytest.raises(ValueError, match="4000"):
+        validate_agent_input({"message": "x", "last_memo": {"summary": "x" * 4001}})
+    assert validate_agent_input({"message": "x", "last_memo": {"summary": "x" * 4000}})

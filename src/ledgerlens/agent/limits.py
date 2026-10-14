@@ -5,6 +5,10 @@ MAX_HISTORY_TURNS = 10
 MAX_PAGES = 8
 MAX_BODY_BYTES = 9 * 1024 * 1024
 MAX_TOOL_ROUNDS = 3
+MAX_TOOL_CALLS_PER_ROUND = 5
+# Real pages hold ~20-40 rows; red-flag detection compares rows pairwise, so cap them.
+MAX_ROWS_PER_DOCUMENT = 500
+MAX_MEMO_SECTION_CHARS = 4000
 _SECTION_IDS = {"summary", "cash_flow", "concentration", "red_flags", "questions"}
 
 
@@ -60,6 +64,11 @@ def validate_agent_input(data: dict) -> dict:
                     raise ValueError(
                         "Documents need a supported doc_type and a document object"
                     )
+                rows = page["document"].get("transactions") or page["document"].get(
+                    "line_items"
+                )
+                if isinstance(rows, list) and len(rows) > MAX_ROWS_PER_DOCUMENT:
+                    raise ValueError("At most 500 rows per document are allowed")
                 result.append(
                     {key: page[key] for key in ("page_id", "doc_type", "document")}
                 )
@@ -73,9 +82,13 @@ def validate_agent_input(data: dict) -> dict:
     if "last_memo" in data:
         memo = data["last_memo"]
         if not isinstance(memo, dict) or any(
-            key not in _SECTION_IDS or not isinstance(value, str)
+            key not in _SECTION_IDS
+            or not isinstance(value, str)
+            or len(value) > MAX_MEMO_SECTION_CHARS
             for key, value in memo.items()
         ):
-            raise ValueError("Last memo must map section ids to text")
+            raise ValueError(
+                "Last memo must map section ids to text of at most 4000 characters"
+            )
         cleaned["last_memo"] = dict(memo)
     return cleaned

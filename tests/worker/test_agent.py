@@ -528,3 +528,15 @@ def test_async_handler_failed_engine(monkeypatch, task):
     assert asyncio.run(run()) == [
         {"error": "Model engine failed to start: unavailable"}
     ]
+
+
+def test_tool_calls_per_round_capped(monkeypatch):
+    monkeypatch.setattr(agent, "MAX_TOOL_CALLS_PER_ROUND", 1)
+    engine = FakeEngine("ask_data", tools=True)
+    events = collect(
+        agent.run_agent, {"message": "Query rows", "documents": [document()]}, engine
+    )
+    tools = [e for e in events if e["type"] == "tool"]
+    assert [e["name"] for e in tools[:2]] == ["monthly_totals", "find_rows"]
+    assert "monthly" in tools[0]["result"]
+    assert tools[1]["result"] == {"error": "Too many tool calls in one round"}
