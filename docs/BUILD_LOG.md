@@ -711,3 +711,8 @@ the bottom of each day.
 
 - A saved compile cache cuts engine start by ~180 s. The rest of the ~535 s is Python importing vLLM from a virtualenv on the network volume, a Pod-only cost: on Serverless vLLM is in the image on local disk. Decision: the agent endpoint keeps its compile cache on the network volume (`VLLM_CACHE_ROOT`); it is only reused on the same GPU type.
 - Throughput with specialisation off: 200 pages in 379.6 s at 8 concurrent (vs 372.5 s with it on), so turning it off costs ~2% speed and saves a second set of CUDA graphs.
+
+### 2026-10-14 21:55 SGT: Fewer CUDA graph sizes: small gain; P0 serving check finished
+- Capture sizes trimmed to `[1, 2, 4, 8, 16]` (from vLLM's default 51 sizes): graph capture 14 + 3 s (vs 13 + 15 s), memory for graphs 0.18 GiB (vs 0.92 GiB). It changes the compile settings, so the first start recompiles (106.9 s). Reading speed unchanged: 200 pages in 380.0 s at 8 concurrent. Worth keeping for an endpoint that serves at most a few users at once; small saving (~11 s).
+- Serving settings chosen for the agent endpoint: base 4B, `--enable-lora --max-loras 2 --max-lora-rank 16`, reader adapter from the network volume, `cudagraph_specialize_lora: false`, capture sizes `[1, 2, 4, 8, 16]`, compile cache on the volume.
+- Next on the same Pod: the live chat-agent check (`train/agent_live_check.sh`).
