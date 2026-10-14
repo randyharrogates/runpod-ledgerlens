@@ -74,9 +74,29 @@ small team of agents does the work on one Runpod Serverless GPU, quickly.
   works without a GPU and never shows made-up output.
 - **Checked by looking:** screenshots at desktop and phone width.
 
+## Step 8: Run the whole agent live, three times
+- **What:** on the same rented GPU, ran nine real chat turns (memo, data questions, an edit, a
+  general question, no documents, off-topic) against the real model.
+- **Why:** unit tests use a fake model. Only the real model shows whether it follows the
+  instructions.
+- **Run 1:** the router said "no documents loaded" when five were, and its JSON overflowed. Fixed
+  by letting code decide whether documents exist and banning free whitespace in forced JSON.
+- **Run 2:** no errors, but reading the answers showed four were wrong (a memo with 2 of 5
+  sections, "largest payer" looking at money going out, no currency, no row references). Fixed by
+  always writing all five sections and making the lookup tools say what "in" and "out" mean.
+- **Run 3:** every route right; memo in 3.9 s, data answers in about 2 s, fixed replies under 1 s.
+- **Lesson:** "no errors" is not "right". Every answer was read before calling it done.
+- **What's left:** the small model still writes some vague phrases and once echoed its own
+  instructions. That is the reason for the planned memo-writing adapter, to be tested before training.
+- **Cost:** about $2.27 for three hours of GPU; the Pod was deleted straight after.
+
+## Step 9: Real recordings for the offline demo
+- **What:** the third run's answers are saved and replayed by the app when no GPU is connected.
+- **Why:** a demo should never show made-up output; these are real model answers, labelled
+  "Recorded run".
+
 ## Still to do
-- Live end-to-end test of the agent on the Pod; save its runs as the demo recordings.
-- Stop the Pod; release the worker to the endpoints; time a live memo against the old 50–106 s.
+- Release the worker to the endpoints; time a live memo against the old 50–106 s.
 - Measure routing, triage, data answers and memo quality (ask before spending).
 - Update README, REPORT and DECISIONS.
 - Train a memo-writing adapter and a better reader only if the tests show they're needed (ask
