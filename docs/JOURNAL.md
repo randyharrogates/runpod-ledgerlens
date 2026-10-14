@@ -158,9 +158,18 @@ small team of agents does the work on one Runpod Serverless GPU, quickly.
 - **Lesson:** every test before this used the stored pages directly, so none of them went
   through the app's own image step. Only an end-to-end run showed it.
 
+## Step 13: Fresh demo recordings and up-to-date docs
+- **What we did:** recorded the demo questions again from the live endpoint (data questions and
+  the general answer are now the live versions, with amounts in SGD). Updated the README, the
+  report and the decisions with the credit assistant, the move to a global volume, the live
+  timings and the image bug.
+- **One more small fix:** the memo writer sometimes ends a heading with a full stop, and the
+  checker then rewrote a good section for nothing. The checker now ignores that full stop.
+- **What a cancel costs:** pressing Stop cancels the job at once, but the worker keeps running
+  for about 2 minutes while it finishes what it had started, then goes idle by itself.
+
 ## Still to do
-- Release the worker half of the image fix (affects photo uploads).
+- Release the worker fixes (sharp JPEG pages, heading check), then re-record the memo demo.
 - Measure routing, triage, data answers and memo quality (ask before spending).
-- Update README, REPORT and DECISIONS.
 - Train a memo-writing adapter and a better reader only if the tests show they're needed (ask
   before spending).
