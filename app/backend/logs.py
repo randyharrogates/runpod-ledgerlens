@@ -7,6 +7,7 @@ import re
 import threading
 import time
 from collections import deque
+from datetime import datetime
 from typing import Literal
 
 import httpx
@@ -298,6 +299,19 @@ def log_stream(
     )
 
 
+# Worker logs belong to a worker, not a job, so a poller only records them while its
+# session is the only one polling that endpoint; otherwise another session's lines
+# could land in this session's drawer.
+_POLLING = {}
+
+
+def _line_time(ts):
+    try:
+        return datetime.fromisoformat(str(ts).replace("Z", "+00:00")).timestamp()
+    except ValueError:
+        return None
+
+
 async def poll_worker_logs(
     endpoint,
     key,
@@ -309,7 +323,12 @@ async def poll_worker_logs(
     interval=5.0,
     read_seconds=2.0,
     client_factory=httpx.AsyncClient,
+    since=None,
 ):
+    since = time.time() - 5 if since is None else since
+    polling = _POLLING.setdefault(endpoint, {})
+    polling[turn] = session
+    shared_noted = False
     timestamps = {}
     seen = set()
     ordered = deque()
@@ -353,6 +372,20 @@ async def poll_worker_logs(
                                             continue
                                         identity = (wid, ts, message)
                                         if identity in seen:
+                                            continue
+                                        when = _line_time(ts)
+                                        if when is not None and when < since:
+                                            continue
+                                        if set(polling.values()) != {session}:
+                                            if not shared_noted:
+                                                BUFFER.add(
+                                                    "app",
+                                                    "info",
+                                                    "worker logs paused: another session "
+                                                    "is using this endpoint",
+                                                    **fields,
+                                                )
+                                                shared_noted = True
                                             continue
                                         seen.add(identity)
                                         ordered.append(identity)
@@ -399,3 +432,5 @@ async def poll_worker_logs(
                 f"worker log poll failed: {type(exc).__name__}",
                 **fields,
             )
+    finally:
+        polling.pop(turn, None)

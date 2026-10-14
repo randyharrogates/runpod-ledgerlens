@@ -19,6 +19,7 @@ def client(monkeypatch):
     monkeypatch.setenv("RUNPOD_WORKER_LOGS", "0")
     monkeypatch.setattr(logs, "BUFFER", logs.LogBuffer())
     monkeypatch.setattr(logs, "_WINDOWS", {})
+    monkeypatch.setattr(logs, "_POLLING", {})
     main.SESSIONS.clear()
     logs.install()
     return TestClient(main.app)
@@ -301,6 +302,7 @@ def test_poller(client, failure):
             stop=stop,
             interval=0.001,
             client_factory=factory,
+            since=0,
         )
     )
     entries = logs.BUFFER.since(job_id="j")[0]
@@ -425,3 +427,52 @@ def test_relay_job_without_chunk(client, monkeypatch):
 
     assert asyncio.run(run()) == [{"type": "job", "job_id": "job-empty"}]
     assert cancelled == ["job-empty"]
+
+
+def test_poller_scoping(client):
+    """Old lines and lines seen while another session polls are not recorded."""
+    s = new_session(client)
+    stop = asyncio.Event()
+    calls = []
+
+    def transport(request):
+        if request.url.path.endswith("workers"):
+            calls.append(1)
+            if len(calls) % 2 == 0:
+                stop.set()
+            return httpx.Response(200, json={"workers": [{"id": "worker-1"}]})
+        data = [
+            {"ts": "2020-01-01T00:00:00Z", "line": "old line"},
+            {"ts": "2999-01-01T00:00:00Z", "line": "new line"},
+        ]
+        return httpx.Response(
+            200, text="".join(f"data: {json.dumps(e)}\n\n" for e in data)
+        )
+
+    def factory(**kwargs):
+        return httpx.AsyncClient(transport=httpx.MockTransport(transport), **kwargs)
+
+    def run(turn):
+        stop.clear()
+        asyncio.run(
+            logs.poll_worker_logs(
+                "ep",
+                "k",
+                session=s,
+                turn=turn,
+                job_id=turn,
+                stop=stop,
+                interval=0.001,
+                client_factory=factory,
+            )
+        )
+        return [e["message"] for e in logs.BUFFER.since(job_id=turn)[0]]
+
+    alone = run("a")
+    assert any("new line" in m for m in alone)
+    assert not any("old line" in m for m in alone)
+    logs._POLLING["ep"] = {"other-turn": "other-session"}
+    shared = run("b")
+    assert not any("new line" in m for m in shared)
+    assert any("paused" in m for m in shared)
+    assert logs._POLLING["ep"] == {"other-turn": "other-session"}
