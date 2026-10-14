@@ -773,3 +773,23 @@ the bottom of each day.
 - Released `b144040` to `deploy` (Randy: "Please release the logs change"); tests passed on a clean checkout (508 passed, 6 skipped). Template image now `…:b14404017`.
 - Worker-log feed (Runpod worker logs → Logs drawer) now on by default (`RUNPOD_WORKER_LOGS=0` turns it off; tests keep it off). A security review then noted that worker logs belong to a worker, not a job, so another session's lines could appear in this session's drawer. Fix (`b144040`): lines older than the job (5 s slack) are skipped, and while another session polls the same endpoint lines are not recorded ("worker logs paused" note). Test added.
 - Chat page and Logs drawer recoloured (Codex, reviewed; `30691df`): user bubbles sky, agent turns with an accent by intent (memo violet, data sky, general green, fixed replies orange, error red), step trail collapsed to "N steps · X s" when done, typing indicator with the current step, sticky composer with one row of suggestions, follow-or-jump scrolling, copy buttons, retry, welcome card; drawer darker and monospace with per-source colours. Looked at it at 1280 and 400 px in demo mode (`.playwright-mcp/ui-after-*.png`). 516 tests pass.
+
+### 2026-10-15 07:45 SGT: First full live test on the agent endpoint (global volume)
+- Cold start: one-page `read` probe waited 451.9 s in the queue (new image pull, engine load with the LoRA, ~2 min compile), then ran in 10.4 s. Workers came up in US-PA-1 and US-NE-1 on **RTX PRO 6000 Blackwell Server Edition MIG 1g.24gb** (in the 24 GB pool), which EU-RO-1 never offered. Before, the same request waited 900 s with no worker.
+- Browser test on the live app (port 8091), warm:
+  - Read 5 sample pages: 36.2 s (statements ~33 s each in parallel on the MIG slice; the Pod's PRO 4500 read 6 pages in 20.6 s).
+  - Memo: **7.9 s total**, 0.1 s queue, 4,186 tokens in / 760 out, **$0.0036** (old memo: 50–106 s). It names exactly the four planted problems: returned cheque, round trip, 6.3× cash deposit, p4's SGD 499.00 printed-balance error. Amounts now in SGD.
+  - "Largest payer": 4.1 s, Senja Hijau Damai Niaga 20.1% with row references, $0.0020.
+  - "Make red flags shorter": 5.2 s, only Red flags rewritten, other four sections "unchanged"; but the rewrite was not shorter (base-4B writer weakness; memo adapter / E5).
+  - Stop: partial text kept, "Try again" shown, Runpod job status `CANCELLED`.
+- Bug 1 (found live): the first memo crashed the chat page (`u.split is not a function`) as soon as a checker problem survived the rewrite: problems are `{kind, detail}` objects and the page rendered them as text. The crash unmounted the stream, which the app logged as "stopped". Fixed (`problemText`, test with object problems).
+- Bug 2 (found live, the important one): the first live read lost rows and garbled p4 (16 rows, 0 of 18 exact; "2.89" for 3.69, invented payees, credits as debits), and the memo then reported SGD 19,995 and 31,363 "discrepancies" that were reader errors. Measured on the endpoint, p3/p4 of the sample (p4 is a 595×841 scan):
+  | input | p3 exact rows | p4 exact rows |
+  |---|---|---|
+  | PNG as stored | 17/18 | 15/18 |
+  | PNG upscaled to 2 MP | 17/18 | 13/18 |
+  | JPEG q90 (what the app sent) | 16/18 | **0/18** |
+  Two causes: the app re-encoded every page as JPEG q90 (`chat.images`), and the worker's `prepare_image` asked the JPEG decoder for half size on every page (`draft(w//2, h//2)`), so small JPEG pages reached the reader at a quarter of their pixels (token counts 352–729 instead of 729–2,159). Fix (`8bd008a`): the app sends original bytes when within the 2 MP cap, a resized PNG otherwise, JPEG only above the 9 MB request budget; the worker never decodes below the size the cap allows. Tests for both (the worker test fails on the old code). After the app fix, through the browser: p1 18/18, p2 17/18, p3 17/18, p4 15/18 exact; memo correct. The worker half is not released yet (affects JPEG uploads such as phone photos).
+- Upscaling small pages does not help (13 vs 15/18), so not done.
+- A worker kept status RUNNING right after the cancelled job and billed $0.70/h; I scaled the endpoint to 0 and back to 2 after ~1.5 min. Not yet shown to be stuck (the 60 s idle timeout had barely passed); a controlled cancel test is running with the re-recording.
+- Spend: probes and test turns about $0.15 so far (balance $196.53 at 07:40).
