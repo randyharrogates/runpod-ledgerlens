@@ -2,7 +2,7 @@
 
 The worker starts a local vLLM server at import time, transcribes one document
 image into a validated LedgerLens schema, and streams a short credit memo from
-computed analysis. It performs no financial calculations. Tests need neither a
+computed analysis. The chat orchestrator computes cash-flow analytics in Python. Tests need neither a
 GPU nor vLLM: set `LEDGERLENS_NO_ENGINE=1` and replace `vllm_client`.
 
 Runpod wraps each payload in `{"input": ...}`. Examples:
@@ -32,8 +32,9 @@ time excludes Runpod queueing. Runpod supplies its own job timing metadata.
 
 ## Plain prompts
 
-Send `{"input":{"prompt":"Explain a returned cheque briefly."}}`, or set
-`task: "generate"` explicitly. `prompt` must be a string with 1–20000 characters
+A plain `prompt` without a task routes to the chat agent as its `message` (an
+`image_base64` alongside it becomes page `p1`).
+Set `task: "generate"` explicitly for the plain generation interface described below. `prompt` must be a string with 1–20000 characters
 after trimming whitespace. Optional `system` is a string of at most 4000 characters;
 it defaults to a short LedgerLens assistant instruction. `max_tokens` defaults to
 512 and must be an integer from 1 to 4096. `temperature` defaults to 0.7 and must
@@ -114,3 +115,56 @@ pass the HF identifier to vLLM for download. Baked weights use MODEL_PATH.
 Local SDK smoke input is `worker/test_input.json`; start from `worker/` with
 `python handler.py` and an installed worker extra. This still starts vLLM unless
 the engine is explicitly disabled.
+
+## Chat and page reading
+
+`task: "read"` accepts `pages: [{"page_id": "p1", "image_base64": "..."}]`.
+Each page runs triage and, when accepted, schema-validated extraction independently.
+A page that cannot be read is reported as a `rows` event with `valid: false` and left
+out; the other pages carry on.
+Statements receive deterministic debit/credit corrections in `balance_fixes`.
+
+`task: "agent"` accepts `message`, optional `documents` (a list of
+`{page_id, doc_type, document}`), `new_pages` (the same shape as read pages),
+`history` (`{role, text}` turns), and `last_memo` (section id to text).
+The router runs alongside page reading and Python analysis. Memo sections stream
+concurrently; each section gets at most one rewrite after checking figures,
+citations, headings, and word limits. Edits retain unchanged sections. Data
+questions use read-only tools (vLLM runs with `--enable-auto-tool-choice
+--tool-call-parser hermes`) for at most three rounds, with a final tool-free
+answer when the budget is exhausted. Missing statements and off-topic requests
+receive fixed replies.
+
+Chat messages are limited to 2,000 characters, requests to eight uniquely named
+pages and 9 MiB of JSON, including base64. Inputs and model output remain data.
+The dimension check runs before image decoding for both triage and extraction.
+
+Every chat/read event has a `type`: `step`, `triage`, `rows`, `route`, `deltas`,
+`section_reset`, `section`, `tool`, `final`, or `error`. Deltas contain
+`parts: [{part, text}]`; `part` is a memo section id or `answer`. Concurrent text
+shares one queue and is batched with `STREAM_FLUSH_CHARS` (64) and
+`STREAM_FLUSH_MS` (200). Non-text events flush buffered text first.
+`section_reset` replaces the previous text for that part. `final` includes the
+answer or ordered memo, remaining checker problems, summed token usage, step and
+total timings, GPU label, and agent model names. An exception cancels other work
+and produces an `error` event without a final result. Engine startup failures use
+the existing plain `error` response.
+
+```sh
+python worker/client.py read --endpoint-id ID --image page1.png --image page2.png
+python worker/client.py agent --endpoint-id ID --message "Write a credit memo" --image page.png
+python worker/client.py agent --endpoint-id ID --message "Who is the largest payer?" --documents documents.json
+```
+
+These commands poll streaming output, print one JSON event per line, and finish
+with intent, total seconds, Runpod `delayTime`, and `executionTime`.
+`documents.json` contains the document list described above.
+
+Agent environment variables are read once at import: `BASE_MODEL=ledgerlens`,
+`READER_MODEL=ledgerlens`, `MEMO_MODEL` defaults to `BASE_MODEL`,
+`TRIAGE_MAX_PIXELS=500000`, and `MAX_CONCURRENCY=4`. All roles use the current
+served model by default; a configured LoRA engine can use `READER_MODEL=reader`
+and `MEMO_MODEL=memo`. Runpod's concurrency modifier caps concurrent jobs at
+`MAX_CONCURRENCY`; page and section requests within each job run concurrently.
+Offline tests inject an async `Engine` substitute; the legacy tasks continue via
+`sync_handler` in a thread.
