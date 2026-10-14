@@ -89,10 +89,11 @@ def check_text(
                 "detail": f"{len(text.split())} words exceeds {max_words}",
             }
         )
-    headings = {line.strip().lstrip("#").strip() for line in text.splitlines()}
-    if (
-        required_heading is not None
-        and required_heading.lstrip("#").strip() not in headings
-    ):
+
+    def heading(line):
+        return line.strip().lstrip("#").strip().rstrip(".:").strip().lower()
+
+    headings = {heading(line) for line in text.splitlines()}
+    if required_heading is not None and heading(required_heading) not in headings:
         problems.append({"kind": "missing_heading", "detail": required_heading})
     return problems
