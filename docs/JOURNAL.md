@@ -139,8 +139,27 @@ small team of agents does the work on one Runpod Serverless GPU, quickly.
   "Try again", a welcome card and a composer that stays at the bottom. Checked on a desktop
   and phone-sized screen.
 
+## Step 12: The first real test of the whole thing, and what it caught
+- **What we did:** used the app in a browser against the live endpoint: read the sample
+  business, asked for a memo, asked a data question, asked for an edit, pressed Stop.
+- **Speed:** the memo took 7.9 seconds (it used to take 50–106) and cost about a third of a
+  cent. A data answer took 4 seconds. The very first call after a quiet spell still waits
+  about 7.5 minutes while a GPU starts up and loads the model.
+- **What it caught (and why we look, not assume):**
+  1. The chat page crashed when the checker left a note on a memo section, because the note
+     arrived as a small object, not text. Fixed and tested.
+  2. The bigger one: the reader misread a small, low-quality page badly (0 of 18 rows right),
+     and the memo then blamed the business for "discrepancies" that were really reading
+     mistakes. We tested the same page three ways on the live endpoint: as stored (15 of 18
+     right), enlarged (13 of 18) and as the app was sending it, a compressed JPEG (0 of 18).
+     The app had been squeezing every page into JPEG, and the worker was also halving JPEG
+     pages before reading them. Both now keep the page sharp. After the fix the memo named
+     exactly the problems planted in the sample.
+- **Lesson:** every test before this used the stored pages directly, so none of them went
+  through the app's own image step. Only an end-to-end run showed it.
+
 ## Still to do
-- Time a live memo on the endpoint against the old 50–106 s.
+- Release the worker half of the image fix (affects photo uploads).
 - Measure routing, triage, data answers and memo quality (ask before spending).
 - Update README, REPORT and DECISIONS.
 - Train a memo-writing adapter and a better reader only if the tests show they're needed (ask
