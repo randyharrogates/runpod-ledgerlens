@@ -43,7 +43,7 @@ def test_schemas():
         check_schema(schema)
     assert next(iter(ROUTER_SCHEMA["properties"])) == "reason"
     assert ROUTER_SCHEMA["properties"]["reason"]["maxLength"] == 200
-    assert len(ROUTER_SCHEMA["properties"]["intent"]["enum"]) == 6
+    assert len(ROUTER_SCHEMA["properties"]["intent"]["enum"]) == 5
     assert TRIAGE_SCHEMA["properties"]["readable"]["enum"] == ["yes", "partly", "no"]
 
 
