@@ -22,11 +22,12 @@ why). Only measured numbers appear here; estimates say so.
 
 | Part | What it does | Where |
 |---|---|---|
-| Serverless worker | Starts `vllm serve` inside the worker; tasks `extract` (strict JSON schema), `memo` (streamed), `health` | `worker/` |
+| Serverless worker | Starts `vllm serve` inside the worker; tasks `generate`, `extract` (strict JSON schema), `memo` (streamed), `read`, `agent`, `health` | `worker/` |
 | Endpoint (8B) | `szucrtrufff80a`, RTX 5090 / RTX PRO 4500 class, 0–2 workers, weights from Runpod's model cache | Runpod console + `runpodctl` |
+| Endpoint (agent) | `cuvgn5z2av09my`: base 4B from model cache, reader LoRA from global volume | Runpod console + `runpodctl` |
 | Synthetic data | 400 fictional businesses in SG/MY/ID, six statement layouts, two invoice layouts, phone-photo damage, planted red flags | `src/ledgerlens/datagen` |
 | Training | Unsloth LoRA on Qwen3-VL-4B, then batch evaluation of all three models on one GPU Pod | `train/` |
-| App | FastAPI + React: upload (also from a phone by QR), review table, analysis, memo, "under the hood" timings and cost | `app/` |
+| App | FastAPI + React: upload (also from a phone by QR), review table, analysis, memo, `/assistant` chat with live steps and cited cards, session Logs drawer, timings and cost | `app/` |
 
 ## 3. How Runpod is used
 
@@ -49,6 +50,44 @@ why). Only measured numbers appear here; estimates say so.
 - **GPU Pods for training and evaluation.** RTX PRO 4500 (32 GB, $0.72/h) in EU-RO-1 next to the
   volume. Pods are deleted after use, not stopped: a stopped Pod could not restart because its host
   had no free GPU.
+
+### Credit assistant on Serverless
+
+One endpoint, `cuvgn5z2av09my` (`ledgerlens-4b-base`), serves chat and page reading.
+The base Qwen3-VL-4B routes requests with structured JSON, triages pages, calls read-only data
+tools for at most 3 rounds, and writes five memo sections in parallel. The reader uses the
+trained LoRA; Python computes the analysis and checks each section's figures, citations,
+heading and length, allowing at most one rewrite.
+
+| Run | Measured |
+|---|---|
+| Warm live memo, 15 Oct, RTX PRO 6000 Blackwell MIG 1g.24gb | 7.9 s total, 0.1 s queue; 4,186 tokens in / 760 out; $0.0036 (old one-shot memo: 50–106 s) |
+| Warm largest-payer answer, same endpoint | 4.1 s; $0.0020 |
+| Warm memo edit, same endpoint | 5.2 s |
+| Read of 5 sample pages, same endpoint | 36.2 s |
+| First request, cold start | 451.9 s queue for image pull, model load and compile |
+| Endpoint recordings, same MIG slice | Memo 14.9 s; data questions 5.9 / 6.0 s; general answer 4.6 s; fixed replies 3.3 s |
+| Warm Pod, 14 Oct, RTX PRO 4500 | Memo 3.9 s; data answers 1.8–2.0 s |
+
+**E1: the reader LoRA matches the merged model.** On a Pod, row F1 (micro) was
+0.9643 for LoRA vs 0.9647 for merged weights; header accuracy was 0.9872 for both,
+with 0 invalid outputs and 187/200 outputs identical. LoRA was ~11% slower at concurrency 1
+and ~8% at concurrency 8. This supports one base engine with adapters per role.
+
+**The global volume removes the region pin.** A request on the EU-RO-1 network volume
+waited 900 s without a GPU. Runpod's stock list showed no better-stocked region for our GPUs,
+so another region's network volume would only move the pin. The reader adapter now lives on
+`ledgerlens-global` (beta); workers started at once in US data centres on RTX PRO 6000
+Blackwell MIG 1g.24gb. The merged fine-tuned endpoint `5078uudfkeaw2v` still uses EU-RO-1.
+Global storage has no locking or atomic rename, so the compile cache stays on container disk;
+each cold start recompiles (~2 min; 119.7 s measured on a Pod). This setup allows any data
+centre; it does not enforce the lender's regional hosting requirement.
+
+**Weaknesses remain.** The base-4B writer sometimes returns a section unchanged when asked
+to make it shorter and occasionally echoes instructions. A memo adapter is planned, not trained.
+The reader still drops 1–3 rows on lower-resolution pages: sample p2–p4 had 17/18, 17/18
+and 15/18 exact rows. Stop cancels the Runpod job (`CANCELLED`), but the worker stays
+`running` for ~2–2.5 min while in-flight work drains, then idles.
 
 ## 4. The ML experiment
 
@@ -183,6 +222,10 @@ Most serious bugs passed every test and were caught only by looking at the outpu
 | Runaway zeros ("17500.0000…") until the token limit | Reading invalid answers during the run | Amounts are bounded decimal strings in the schema |
 | The memo's citations pointed one row early | Clicking a memo citation in the live dry run | The model is given 1-based `[p1:r4]` references to copy |
 | The memo model did its own arithmetic and got it wrong (total outflow 54,987.85; true 55,041.59), and invented a date for a cash deposit | Checking the live memo's numbers and dates against the data | Period totals and finding dates are computed in code and given to the model; every number in a live memo is checked against the analysis and any mismatch is highlighted |
+| Small sample scan read 0/18 rows exactly after app JPEG conversion | Live browser test, then the same 595×841 page: PNG 15/18, JPEG q90 0/18, upscaled PNG 13/18 | App keeps original bytes / PNG, JPEG only above the 9 MB request budget; removed the worker’s half-size JPEG decode below the pixel cap. Worker half still needs release |
+| Chat crashed on a checker note | Live memo left a `{kind, detail}` object; the page tried to render it as text | Render checker objects as text; covered by a test |
+
+Lesson: test the image path through the app; stored-page tests missed the damage before the model.
 
 ## 6. Cost
 
@@ -191,8 +234,12 @@ Most serious bugs passed every test and were caught only by looking at the outpu
 | Serverless, 8B, warm, one page at a time | 13.7–15.1 s per page ≈ $6.0–6.6 per 1,000 pages |
 | Serverless, fine-tuned 4B, warm, one page at a time | 6.9 s on an RTX 5090, 10.3–11.4 s on an RTX 4090 (cheaper tier) ≈ $3 per 1,000 pages either way |
 | Pod, batched (RTX PRO 4500, $0.72/h) | 8B $0.52, 4B $0.34, fine-tuned 4B **$0.26** per 1,000 pages |
+| Agent, warm live memo / largest-payer answer, 15 Oct | $0.0036 / $0.0020 |
+| Global volume | $0.09/GB-month + requests; adapter copy Pod ≈ $0.02 |
+| Agent serving checks on the Pod, 14 Oct | $2.27 |
 | Training (one epoch, 86 min on the same Pod) | ≈ $1.0 |
 | Total spent, whole project (to 11 Oct 00:41) | ≈ **$11.2** (balance $214.64 → $203.46) |
+| Total spent, whole project (to 15 Oct 08:00) | ≈ **$18.2** (balance $214.64 → $196.43) |
 
 Batching is the biggest lever: the same 8B costs ~$6 per 1,000 pages one page at a time on
 Serverless and ~$0.52 batched on a Pod. A lender processing month-end files in bulk should batch.
@@ -209,12 +256,15 @@ Serverless and ~$0.52 batched on a Pod. A lender processing month-end files in b
 
 ## 8. What's next
 
-1. **Phone photos:** re-shoot at full camera resolution (no chat app) to separate the camera from the
+1. **Release the worker image fix:** keep JPEG uploads within the pixel cap without half-size decoding.
+2. **Memo adapter:** test and train a writer that follows edits and avoids instruction echoes.
+3. **Live evals E2–E5:** measure routing, triage, data answers and memo quality.
+4. **Phone photos:** re-shoot at full camera resolution (no chat app) to separate the camera from the
    compression; train with real-photo-like damage (lower resolution, perspective); add a month check
    against the statement period and reject 1,000× amount slips against the printed total.
-2. **Heavy damage:** train with more heavily damaged pages, and accept a page with one impossible
+5. **Heavy damage:** train with more heavily damaged pages, and accept a page with one impossible
    date instead of rejecting it (flag that row for the analyst).
-3. **Rupiah amounts for the base 8B:** one prompt line on thousands grouping, then re-score CORD.
-4. **Real statements:** about 50 labelled real statements from the lender to measure the real gap,
+6. **Rupiah amounts for the base 8B:** one prompt line on thousands grouping, then re-score CORD.
+7. **Real statements:** about 50 labelled real statements from the lender to measure the real gap,
    then shadow mode next to analysts.
-5. **Cost:** batch pages per request on Serverless; try FP8 weights.
+8. **Cost:** batch pages per request on Serverless; try FP8 weights.
