@@ -101,7 +101,8 @@ def test_counterparties(ctx):
     first = result["counterparties"][0]
     assert first["payer"] == "Cedar Foods"
     assert first["total"] == "150"
-    assert Decimal(first["share"]) == Decimal(150) / 220
+    assert first["share_percent"] == "68.2"
+    assert result["currency"] == ctx.currency and result["direction"] == "in"
     assert first["cites"] == ["[p1:r1]", "[p1:r4]"]
     assert (
         top_counterparties(ctx, n=1, direction="out")["counterparties"][0]["total"]
@@ -113,6 +114,7 @@ def test_counterparties(ctx):
 def test_balance_on(ctx):
     assert balance_on(ctx, "2025-12-31")["balance"] is None
     assert balance_on(ctx, "2026-01-03") == {
+        "currency": ctx.currency,
         "balance": "70",
         "date": "2026-01-03",
         "cite": "[p1:r3]",
@@ -222,8 +224,13 @@ def test_dispatch_and_empty(ctx):
         assert "error" not in run_tool(ctx, name, json.dumps(args))
     empty = ToolContext([], [], "SGD")
     assert find_rows(empty)["count"] == 0
-    assert monthly_totals(empty) == {"monthly": {}}
-    assert top_counterparties(empty) == {"counterparties": [], "total": "0"}
+    assert monthly_totals(empty) == {"currency": empty.currency, "monthly": {}}
+    assert top_counterparties(empty) == {
+        "counterparties": [],
+        "total": "0",
+        "currency": empty.currency,
+        "direction": "in",
+    }
     assert balance_on(empty, "2026-01-01")["balance"] is None
     assert len(TOOL_SPECS) == 5
     for spec in TOOL_SPECS:

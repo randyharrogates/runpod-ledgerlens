@@ -5,7 +5,6 @@ import base64
 import json
 import os
 import time
-from collections import Counter
 from decimal import Decimal
 
 import httpx
@@ -404,17 +403,12 @@ async def run_agent(data, engine):
             return result
 
         async def router():
-            types = Counter(p["doc_type"] for p in clean["documents"])
-            loaded = ", ".join(f"{n} {kind} page(s)" for kind, n in types.items())
-            new = len(clean["new_pages"])
             history = "\n".join(
                 f"{turn['role']}: {turn['text'][:300]}"
                 for turn in clean["history"][-4:]
             )
             context = (
-                f"Documents loaded: {loaded or 'none'}"
-                + (f"; {new} new page(s) being read" if new else "")
-                + f". A memo has been written: {'yes' if clean.get('last_memo') else 'no'}."
+                f"A memo has been written: {'yes' if clean.get('last_memo') else 'no'}."
                 + (f"\nRecent turns:\n{history}" if history else "")
             )
             response = await engine.complete(
@@ -505,11 +499,8 @@ async def run_agent(data, engine):
             final["problems"] = await check(final["answer"], {})
         elif intent in ("memo", "edit_memo"):
             selected = (
-                (route.get("edit_sections") or plan.get("edit_sections") or [])
-                if intent == "edit_memo"
-                else plan["sections"]
-            )
-            selected = selected or [s["id"] for s in SECTIONS]
+                route.get("edit_sections") if intent == "edit_memo" else None
+            ) or [s["id"] for s in SECTIONS]
             memo = dict(clean.get("last_memo", {})) if intent == "edit_memo" else {}
 
             async def write(section):
