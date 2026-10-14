@@ -103,7 +103,7 @@ function toolText(event: ChatEvent) {
 
 function sectionBody(text: string, heading: string) {
   const lines = text.split('\n');
-  if (lines[0].replace(/^##\s+|\*\*/g, '').trim().toLowerCase() === heading.toLowerCase()) lines.shift();
+  if (lines[0].replace(/^#+\s*|\*\*/g, '').trim().replace(/[.:]$/, '').toLowerCase() === heading.toLowerCase()) lines.shift();
   return lines.join('\n').trimStart();
 }
 
@@ -165,7 +165,7 @@ export function TurnView({turn, jump}: {turn: TurnState; jump: (citation: Citati
       </section>;
     })}</div> : <div className="memo"><MemoContent text={turn.answer} jump={jump} /></div>}
     {finished && !memo && turn.answer && <CopyButton text={turn.answer} label="Copy answer" />}
-    {turn.error && <p role="alert">The agent stopped: {turn.error}. Your pages are saved; try again.</p>}
+    {turn.error && <p role="alert">{turn.error === 'Stopped' ? 'You stopped this answer. Your pages are saved.' : `The agent stopped: ${turn.error}. Your pages are saved; try again.`}</p>}
     {(measured || turn.turnId) && <footer className="assistant-metrics">{measured && [
       typeof measured.total_s === 'number' && `${seconds(measured.total_s)} total`,
       typeof measured.delayTime === 'number' && `${seconds(measured.delayTime / 1000)} queue / cold start`,
