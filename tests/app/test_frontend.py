@@ -520,3 +520,30 @@ const html=render(React.createElement(TurnView,{turn:measured,jump:()=>{}}));ass
         ["node", "-e", script], cwd=FRONTEND, capture_output=True, text=True
     )
     assert result.returncode == 0, result.stderr
+
+
+def test_assistant_chat_typing_and_finished_trail():
+    if not shutil.which("node") or not (FRONTEND / "node_modules/typescript").exists():
+        pytest.skip("Frontend node_modules and Node are required")
+    script = r"""
+const fs=require('fs'), assert=require('assert'), ts=require('typescript');
+require.extensions['.tsx']=require.extensions['.ts']=(module,filename)=>module._compile(ts.transpileModule(fs.readFileSync(filename,'utf8'),{compilerOptions:{target:ts.ScriptTarget.ES2022,esModuleInterop:true,module:ts.ModuleKind.CommonJS,jsx:ts.JsxEmit.ReactJSX}}).outputText,filename);
+const React=require('react'), {renderToStaticMarkup:render}=require('react-dom/server');
+const {reduceTurn,TurnView}=require('./src/components/Assistant.tsx');
+const view=events=>render(React.createElement(TurnView,{turn:reduceTurn(events),jump:()=>{}}));
+const running=view([{type:'step',name:'reader',page_id:'p2',status:'start'}]);
+for(const text of ['assistant-typing','Reading p2…','assistant-dot-running','open=""','aria-live="polite"','LL'])assert(running.includes(text),text);
+assert(view([{type:'step',name:'writer',section:'cash_flow',status:'start'}]).includes('Writing Cash flow…'));
+assert(view([{type:'step',name:'checker',status:'start'}]).includes('Checking figures…'));
+const finished=view([{type:'route',intent:'memo'},{type:'step',name:'reader',page_id:'p2',status:'done',ms:1200},{type:'final',intent:'memo',memo:{summary:'Checked summary [p2:r1]'}},{type:'metrics',total_s:2.5}]);
+for(const text of ['Credit memo','assistant-intent-pill','assistant-intent-violet','steps · 2.5 s','Copy Summary','assistant-citation'])assert(finished.includes(text),text);
+assert(!finished.includes('open=""'));assert(!finished.includes('assistant-typing'));
+const answer=view([{type:'final',intent:'knowledge',answer:'A finished answer'}]);
+assert(answer.includes('Copy answer'));assert(answer.includes('assistant-intent-good'));
+const failed=view([{type:'step',name:'reader',status:'start'},{type:'error',message:'Connection lost'}]);
+assert(failed.includes('assistant-dot-bad'));assert(!failed.includes('open=""'));assert(!failed.includes('assistant-typing'));
+"""
+    result = subprocess.run(
+        ["node", "-e", script], cwd=FRONTEND, capture_output=True, text=True
+    )
+    assert result.returncode == 0, result.stderr
