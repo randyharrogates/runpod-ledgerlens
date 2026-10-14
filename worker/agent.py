@@ -15,6 +15,7 @@ from ledgerlens.agent.checker import check_text
 from ledgerlens.agent.findings import describe_finding
 from ledgerlens.agent.limits import (
     MAX_BODY_BYTES,
+    MAX_TOOL_CALLS_PER_ROUND,
     MAX_TOOL_ROUNDS,
     validate_agent_input,
 )
@@ -582,8 +583,11 @@ async def run_agent(data, engine):
                                 call["function"]["name"],
                                 call["function"]["arguments"],
                             )
-                            for call in calls
+                            for call in calls[:MAX_TOOL_CALLS_PER_ROUND]
                         )
+                    )
+                    results += [{"error": "Too many tool calls in one round"}] * len(
+                        calls[MAX_TOOL_CALLS_PER_ROUND:]
                     )
                     for call, result in zip(calls, results, strict=True):
                         function = call["function"]

@@ -64,12 +64,13 @@ async def run(name, runner, data, out):
 
 async def main(out):
     out.mkdir(parents=True, exist_ok=True)
+    # Same ids as the app gives the sample business (p1..p5 in manifest order), so these
+    # recordings can be replayed by the app's offline demo.
+    names = json.loads((SAMPLE / "manifest.json").read_text())
     pages = [
-        {"page_id": "p1", "image_base64": page("biz_0000_p001.png")},
-        {"page_id": "p2", "image_base64": page("biz_0000_p002.png")},
-        {"page_id": "inv1", "image_base64": page("biz_0000_inv1.png")},
-        {"page_id": "x1", "image_base64": not_a_document()},
-    ]
+        {"page_id": f"p{i}", "image_base64": page(f"{name}.png")}
+        for i, name in enumerate(names, 1)
+    ] + [{"page_id": "x1", "image_base64": not_a_document()}]
     read = await run("read", agent.run_read, {"pages": pages}, out)
     documents = read.get("documents") or []
     memo = await run(
