@@ -404,19 +404,25 @@ async def run_agent(data, engine):
             return result
 
         async def router():
-            context = {
-                "document_types": dict(
-                    Counter(p["doc_type"] for p in clean["documents"])
-                ),
-                "new_pages": len(clean["new_pages"]),
-                "last_memo": bool(clean.get("last_memo")),
-                "history": clean["history"][-4:],
-            }
+            types = Counter(p["doc_type"] for p in clean["documents"])
+            loaded = ", ".join(f"{n} {kind} page(s)" for kind, n in types.items())
+            new = len(clean["new_pages"])
+            history = "\n".join(
+                f"{turn['role']}: {turn['text'][:300]}"
+                for turn in clean["history"][-4:]
+            )
+            context = (
+                f"Documents loaded: {loaded or 'none'}"
+                + (f"; {new} new page(s) being read" if new else "")
+                + f". A memo has been written: {'yes' if clean.get('last_memo') else 'no'}."
+                + (f"\nRecent turns:\n{history}" if history else "")
+            )
             response = await engine.complete(
                 payload(
                     ROUTER_SYSTEM,
-                    clean["message"] + "\nContext: " + json.dumps(context),
+                    f"{context}\n\nUser message: {clean['message']}",
                     schema=ROUTER_SCHEMA,
+                    max_tokens=600,
                 )
             )
             return json.loads(message(response)["content"])

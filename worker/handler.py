@@ -98,6 +98,10 @@ def start_engine():
         "--mm-processor-kwargs",
         json.dumps({"max_pixels": MAX_PIXELS}),
         # The chat agent's data questions use OpenAI tool calls; Qwen3 emits Hermes-style calls.
+        # No free whitespace inside forced JSON: the router padded its plan with blank lines until
+        # it hit the token cap. The reader was trained on compact JSON, so it is unaffected.
+        "--structured-outputs-config",
+        '{"disable_any_whitespace": true}',
         "--enable-auto-tool-choice",
         "--tool-call-parser",
         "hermes",
