@@ -5,6 +5,7 @@ import binascii
 import io
 import json
 import logging
+import math
 import os
 import shlex
 import shutil
@@ -28,6 +29,18 @@ except ModuleNotFoundError:  # Direct execution by the Docker CMD.
 
 BASE_URL = "http://127.0.0.1:8000"
 MAX_PIXELS = int(os.getenv("MAX_PIXELS", str(DEFAULT_MAX_PIXELS)))
+
+
+def positive_env(name, default):
+    try:
+        value = float(os.getenv(name, str(default)))
+    except ValueError:
+        return default
+    return value if math.isfinite(value) and value > 0 else default
+
+
+STREAM_FLUSH_CHARS = positive_env("STREAM_FLUSH_CHARS", 64)
+STREAM_FLUSH_SECONDS = positive_env("STREAM_FLUSH_MS", 200) / 1000
 # Largest input accepted before decoding: covers 50 MP phone cameras, rejects decompression bombs.
 MAX_INPUT_PIXELS = 60_000_000
 Image.MAX_IMAGE_PIXELS = MAX_INPUT_PIXELS
@@ -371,13 +384,25 @@ def handler(job):
         if payload.get("stream"):
             usage = {}
             text = ""
+            buffered = ""
+            last_yield = time.monotonic()
             for event in vllm_client(payload):
                 if event.get("usage"):
                     usage = event["usage"]
                 for choice in event.get("choices", []):
                     if delta := choice.get("delta", {}).get("content"):
                         text += delta
-                        yield {"delta": delta}
+                        buffered += delta
+                        now = time.monotonic()
+                        if (
+                            len(buffered) >= STREAM_FLUSH_CHARS
+                            or now - last_yield >= STREAM_FLUSH_SECONDS
+                        ):
+                            last_yield = now
+                            yield {"delta": buffered}
+                            buffered = ""
+            if buffered:
+                yield {"delta": buffered}
             final = {
                 "done": True,
                 "usage": usage,
