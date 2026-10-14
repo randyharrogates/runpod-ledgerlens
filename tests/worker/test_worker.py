@@ -142,6 +142,7 @@ def test_invalid_model_json(monkeypatch, raw):
 
 def test_memo(monkeypatch):
     def fake(payload):
+        assert payload["temperature"] == 0
         assert payload["stream"] and payload["stream_options"]["include_usage"]
         yield {"choices": [{"delta": {"content": "Summary"}}]}
         yield {"choices": [{"delta": {"content": " [p1:r2]"}}]}
@@ -652,3 +653,172 @@ def test_rest_client_cold_start_polls_status(monkeypatch):
     assert result["delayTime"] == 1234
     assert result["executionTime"] == 5678
     assert "stream" not in result
+
+
+@pytest.mark.parametrize("explicit", [False, True])
+def test_generate(monkeypatch, explicit):
+    data = {"prompt": " hi "}
+    if explicit:
+        data.update(task="generate", system="Custom", temperature=1.2, max_tokens=99)
+
+    def fake(payload):
+        assert payload["messages"] == [
+            {
+                "role": "system",
+                "content": "Custom" if explicit else worker.GENERATE_SYSTEM,
+            },
+            {"role": "user", "content": [{"type": "text", "text": "hi"}]},
+        ]
+        assert payload["temperature"] == (1.2 if explicit else 0.7)
+        assert payload["max_tokens"] == (99 if explicit else 512)
+        assert not payload["stream"] and "response_format" not in payload
+        yield {
+            "choices": [{"message": {"content": "Hello"}}],
+            "usage": {"total_tokens": 2},
+        }
+
+    monkeypatch.setattr(worker, "vllm_client", fake)
+    result = list(worker.handler({"input": data}))
+    assert len(result) == 1
+    assert result[0]["task"] == "generate" and result[0]["text"] == "Hello"
+    assert result[0]["usage"] == {"total_tokens": 2}
+    assert result[0]["gpu"] == "test GPU"
+    assert result[0]["model"] == "Qwen/Qwen3-VL-8B-Instruct"
+    assert set(result[0]["timing"]) == {"inference_s", "engine_load_s", "cold_start"}
+
+
+def test_generate_stream(monkeypatch):
+    def fake(payload):
+        assert payload["stream_options"] == {"include_usage": True}
+        for delta in ("Hello", " world"):
+            yield {"choices": [{"delta": {"content": delta}}]}
+        yield {"choices": [], "usage": {"total_tokens": 3}}
+
+    monkeypatch.setattr(worker, "vllm_client", fake)
+    result = list(worker.handler({"input": {"prompt": "hi", "stream": True}}))
+    assert result[:2] == [{"delta": "Hello"}, {"delta": " world"}]
+    assert result[2]["done"] and result[2]["task"] == "generate"
+    assert result[2]["text"] == "Hello world"
+    assert result[2]["usage"] == {"total_tokens": 3}
+    assert result[2]["gpu"] == "test GPU" and result[2]["model"]
+    assert "timing" in result[2]
+
+
+def test_generate_image(monkeypatch):
+    def fake(payload):
+        parts = payload["messages"][1]["content"]
+        assert parts[0] == {"type": "text", "text": "hi"}
+        assert parts[1]["image_url"]["url"].startswith("data:image/png;base64,")
+        yield {"choices": [{"message": {"content": "A page"}}]}
+
+    monkeypatch.setattr(worker, "vllm_client", fake)
+    data = {"prompt": "hi", "image_base64": base64.b64encode(png_bytes()).decode()}
+    assert next(worker.handler({"input": data}))["text"] == "A page"
+    monkeypatch.setattr(worker, "MAX_INPUT_PIXELS", 10)
+    assert "Could not read image" in next(worker.handler({"input": data}))["error"]
+
+
+@pytest.mark.parametrize(
+    "fields",
+    [
+        {"task": "generate"},
+        {"prompt": ""},
+        {"prompt": "  "},
+        {"prompt": 3},
+        {"prompt": "x" * 20001},
+        {"max_tokens": 4097},
+        {"max_tokens": True},
+        {"max_tokens": 0},
+        {"temperature": -0.1},
+        {"temperature": 2.1},
+        {"temperature": True},
+        {"temperature": "1"},
+        {"temperature": float("nan")},
+        {"stream": 1},
+        {"system": "x" * 4001},
+        {"system": None},
+        {"image_base64": "%%%"},
+        {"image_base64": base64.b64encode(b"GIF89a").decode()},
+        {"image_base64": "A" * (20 * 1024 * 1024 + 4)},
+    ],
+)
+def test_generate_invalid(monkeypatch, fields):
+    monkeypatch.setattr(worker, "vllm_client", lambda _: pytest.fail("no model call"))
+    data = {"prompt": "hi", **fields}
+    if fields == {"task": "generate"}:
+        del data["prompt"]
+    result = list(worker.handler({"input": data}))
+    assert len(result) == 1 and result[0]["error"]
+
+
+@pytest.mark.parametrize("stream", [False, True])
+def test_client_generate(monkeypatch, tmp_path, capsys, stream):
+    monkeypatch.setenv("RUNPOD_API_KEY", "secret-key")
+    image = tmp_path / "page.png"
+    image.write_bytes(png_bytes())
+
+    def fake(endpoint, payload, key, **kwargs):
+        assert endpoint == "id" and key == "secret-key"
+        assert payload == {
+            "task": "generate",
+            "prompt": "hi",
+            "system": "Custom",
+            "temperature": 0.5,
+            "max_tokens": 100,
+            "stream": stream,
+            "image_base64": base64.b64encode(png_bytes()).decode(),
+        }
+        assert kwargs["stream"] == stream
+        return {"status": "COMPLETED", "output": [{"text": "secret-key"}]}
+
+    monkeypatch.setattr(client, "call_endpoint", fake)
+    args = [
+        "generate",
+        "--endpoint-id",
+        "id",
+        "--prompt",
+        "hi",
+        "--system",
+        "Custom",
+        "--image",
+        str(image),
+        "--temperature",
+        "0.5",
+        "--max-tokens",
+        "100",
+    ]
+    assert client.main(args + (["--stream"] if stream else [])) == 0
+    captured = capsys.readouterr()
+    assert "secret-key" not in captured.out + captured.err
+    assert json.loads(captured.out)["result"]["output"][0]["text"] == "[REDACTED]"
+
+
+def test_baked_dockerfile_shared_steps():
+    from pathlib import Path
+
+    standard = Path("worker/Dockerfile").read_text()
+    baked = Path("worker/Dockerfile.baked").read_text()
+    for line in standard.splitlines():
+        if line.startswith(("RUN ", "COPY ", "ENTRYPOINT ", "CMD ", "WORKDIR ")):
+            assert line in baked.splitlines()
+    assert "ENV MODEL_PATH=/models/model HF_HUB_OFFLINE=1" in baked
+    assert baked.index("snapshot_download") < baked.index("COPY ")
+
+
+@pytest.mark.parametrize("stream", [False, True])
+def test_generate_engine_and_request_errors(monkeypatch, stream):
+    data = {"prompt": "hi", "stream": stream}
+    monkeypatch.setitem(worker.ENGINE, "status", "failed")
+    monkeypatch.setitem(worker.ENGINE, "error", "unavailable")
+    assert list(worker.handler({"input": data})) == [
+        {"error": "Model engine failed to start: unavailable"}
+    ]
+    monkeypatch.setitem(worker.ENGINE, "status", "disabled")
+
+    def fail(payload):
+        raise httpx.ConnectError("unavailable")
+
+    monkeypatch.setattr(worker, "vllm_client", fail)
+    assert list(worker.handler({"input": data})) == [
+        {"error": "Model request failed: unavailable"}
+    ]

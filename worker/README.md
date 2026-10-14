@@ -30,6 +30,42 @@ Health returns engine status, resolved model, model source (`cache`, `volume`, `
 including health or invalid jobs. Engine time is load/readiness time; inference
 time excludes Runpod queueing. Runpod supplies its own job timing metadata.
 
+## Plain prompts
+
+Send `{"input":{"prompt":"Explain a returned cheque briefly."}}`, or set
+`task: "generate"` explicitly. `prompt` must be a string with 1–20000 characters
+after trimming whitespace. Optional `system` is a string of at most 4000 characters;
+it defaults to a short LedgerLens assistant instruction. `max_tokens` defaults to
+512 and must be an integer from 1 to 4096. `temperature` defaults to 0.7 and must
+be a number from 0 to 2 (not a boolean). Extract and memo still use temperature 0.
+
+Optional `image_base64` uses the same PNG/JPEG/WEBP validation, 15 MiB size limit,
+dimension check and resizing as extract. The image follows the prompt in the user message.
+`stream` must be a boolean and defaults to false. Without streaming, one result has
+`task`, `text`, `usage`, `timing`, `gpu` and `model`; `/run` then `/status` returns
+it in a one-item `output` list. With streaming, `delta` chunks are followed by a
+result with `done: true` and those same fields, including the full `text`.
+
+```sh
+python worker/client.py generate --endpoint-id ID --prompt "Explain a returned cheque briefly."
+python worker/client.py generate --endpoint-id ID --prompt "Describe this page." --image page.png --system "Answer briefly." --max-tokens 256 --temperature 0.5 --stream
+```
+
+## Baked model image
+
+Use `worker/Dockerfile.baked` to include the handler and pinned 8B weights in one
+image. Shared steps must stay in step with `worker/Dockerfile`. The weights layer
+comes before code copies so code changes reuse it. Build arguments `MODEL_ID` and
+`MODEL_REVISION` select the model and exact revision; defaults match the 8B cache
+endpoint. It sets `MODEL_PATH=/models/model` and `HF_HUB_OFFLINE=1`.
+
+No network volume is needed, so the endpoint is not pinned to one data centre.
+The trade-off is about 16 GiB more in the image and slower builds and pulls;
+cold start to be measured. Runpod's GitHub builder allows 30 minutes per build
+and an 80 GB image. The live endpoints keep using `worker/Dockerfile`.
+The base image's `huggingface_hub` import still needs verification by building
+this Dockerfile; the download step will fail the build if it is unavailable.
+
 ## Environment
 
 | Variable | Default / meaning |

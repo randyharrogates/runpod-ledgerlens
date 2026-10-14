@@ -22,9 +22,9 @@ from ledgerlens.images import DEFAULT_MAX_PIXELS, resize_image
 from ledgerlens.schema import Invoice, Receipt, Statement, json_schema
 
 try:
-    from worker.prompts import EXTRACT_SYSTEM, MEMO_SYSTEM
+    from worker.prompts import EXTRACT_SYSTEM, GENERATE_SYSTEM, MEMO_SYSTEM
 except ModuleNotFoundError:  # Direct execution by the Docker CMD.
-    from prompts import EXTRACT_SYSTEM, MEMO_SYSTEM
+    from prompts import EXTRACT_SYSTEM, GENERATE_SYSTEM, MEMO_SYSTEM
 
 BASE_URL = "http://127.0.0.1:8000"
 MAX_PIXELS = int(os.getenv("MAX_PIXELS", str(DEFAULT_MAX_PIXELS)))
@@ -149,13 +149,34 @@ def validate_input(job):
     if not isinstance(job, dict) or not isinstance(job.get("input"), dict):
         raise ValueError("job.input must be an object")
     data = job["input"]
+    data = dict(data)
+    if "task" not in data and "prompt" in data:
+        data["task"] = "generate"
     task = data.get("task")
-    if task not in ("health", "extract", "memo"):
-        raise ValueError("task must be extract, memo, or health")
+    if task not in ("health", "extract", "memo", "generate"):
+        raise ValueError("task must be extract, memo, generate, or health")
     if "max_tokens" in data and (
         type(data["max_tokens"]) is not int or data["max_tokens"] <= 0
     ):
         raise ValueError("max_tokens must be a positive integer")
+    if task == "generate":
+        prompt = data.get("prompt")
+        if not isinstance(prompt, str) or not 1 <= len(prompt.strip()) <= 20000:
+            raise ValueError(
+                "prompt must be a non-empty string of at most 20000 characters"
+            )
+        data["prompt"] = prompt.strip()
+        if "system" in data and (
+            not isinstance(data["system"], str) or len(data["system"]) > 4000
+        ):
+            raise ValueError("system must be a string of at most 4000 characters")
+        if data.get("max_tokens", 512) > 4096:
+            raise ValueError("max_tokens must be at most 4096")
+        temperature = data.get("temperature", 0.7)
+        if type(temperature) not in (int, float) or not 0 <= temperature <= 2:
+            raise ValueError("temperature must be a number between 0 and 2")
+        if "stream" in data and type(data["stream"]) is not bool:
+            raise ValueError("stream must be a boolean")
     if task == "memo":
         if not isinstance(data.get("analysis"), dict):
             raise ValueError("analysis must be an object")
@@ -166,27 +187,30 @@ def validate_input(job):
     if task == "extract":
         if not isinstance(data.get("doc_type"), str) or data["doc_type"] not in MODELS:
             raise ValueError("doc_type must be statement, invoice, or receipt")
-        encoded = data.get("image_base64")
-        if not isinstance(encoded, str) or len(encoded) > 4 * (
-            (15 * 1024 * 1024 + 2) // 3
-        ):
-            raise ValueError("image_base64 must be base64 and decode to at most 15 MB")
-        try:
-            image = base64.b64decode(encoded, validate=True)
-        except (ValueError, binascii.Error) as exc:
-            raise ValueError("image_base64 is invalid base64") from exc
-        if len(image) > 15 * 1024 * 1024:
-            raise ValueError("image exceeds 15 MB")
-        if image.startswith(b"\x89PNG\r\n\x1a\n"):
-            mime = "image/png"
-        elif image.startswith(b"\xff\xd8\xff"):
-            mime = "image/jpeg"
-        elif image.startswith(b"RIFF") and image[8:12] == b"WEBP":
-            mime = "image/webp"
-        else:
-            raise ValueError("image must be PNG, JPEG, or WEBP")
-        return data, mime
+        return data, validate_image(data.get("image_base64"))
+    if task == "generate" and "image_base64" in data:
+        return data, validate_image(data["image_base64"])
     return data, None
+
+
+def validate_image(encoded):
+    if not isinstance(encoded, str) or len(encoded) > 4 * ((15 * 1024 * 1024 + 2) // 3):
+        raise ValueError("image_base64 must be base64 and decode to at most 15 MB")
+    try:
+        image = base64.b64decode(encoded, validate=True)
+    except (ValueError, binascii.Error) as exc:
+        raise ValueError("image_base64 is invalid base64") from exc
+    if len(image) > 15 * 1024 * 1024:
+        raise ValueError("image exceeds 15 MB")
+    if image.startswith(b"\x89PNG\r\n\x1a\n"):
+        mime = "image/png"
+    elif image.startswith(b"\xff\xd8\xff"):
+        mime = "image/jpeg"
+    elif image.startswith(b"RIFF") and image[8:12] == b"WEBP":
+        mime = "image/webp"
+    else:
+        raise ValueError("image must be PNG, JPEG, or WEBP")
+    return mime
 
 
 def prepare_image(image_bytes):
@@ -293,7 +317,7 @@ def handler(job):
                 "json_schema": {"name": doc_type, "schema": json_schema(doc_type)},
             },
         )
-    else:
+    elif data["task"] == "memo":
         payload.update(
             messages=[
                 {"role": "system", "content": MEMO_SYSTEM},
@@ -301,6 +325,39 @@ def handler(job):
             ],
             stream=True,
             stream_options={"include_usage": True},
+        )
+
+    else:
+        content = [{"type": "text", "text": data["prompt"]}]
+        if mime:
+            try:
+                image_b64 = prepare_image(base64.b64decode(data["image_base64"]))
+            except (OSError, ValueError, Image.DecompressionBombError) as exc:
+                yield {"error": f"Could not read image: {exc}"}
+                return
+            content.append(
+                {
+                    "type": "image_url",
+                    "image_url": {"url": f"data:image/png;base64,{image_b64}"},
+                }
+            )
+        payload.update(
+            messages=[
+                {"role": "system", "content": data.get("system", GENERATE_SYSTEM)},
+                {"role": "user", "content": content},
+            ],
+            temperature=data.get("temperature", 0.7),
+            max_tokens=data.get("max_tokens", 512),
+            stream=data.get("stream", False),
+        )
+        if payload["stream"]:
+            payload["stream_options"] = {"include_usage": True}
+
+    def model_name():
+        return (
+            ENGINE.get("model")
+            or os.getenv("MODEL_PATH")
+            or os.getenv("MODEL_NAME", "Qwen/Qwen3-VL-8B-Instruct")
         )
 
     def timing():
@@ -311,24 +368,39 @@ def handler(job):
         }
 
     try:
-        if data["task"] == "memo":
+        if payload.get("stream"):
             usage = {}
+            text = ""
             for event in vllm_client(payload):
                 if event.get("usage"):
                     usage = event["usage"]
                 for choice in event.get("choices", []):
                     if delta := choice.get("delta", {}).get("content"):
+                        text += delta
                         yield {"delta": delta}
-            yield {
+            final = {
                 "done": True,
                 "usage": usage,
                 "timing": timing(),
                 "gpu": gpu_name(),
                 "model": ENGINE.get("model"),
             }
+            if data["task"] == "generate":
+                final.update(task="generate", text=text, model=model_name())
+            yield final
             return
         response = next(iter(vllm_client(payload)))
         raw = response["choices"][0]["message"]["content"]
+        if data["task"] == "generate":
+            yield {
+                "task": "generate",
+                "text": raw,
+                "usage": response.get("usage") or {},
+                "timing": timing(),
+                "gpu": gpu_name(),
+                "model": model_name(),
+            }
+            return
         result = {
             "task": "extract",
             "doc_type": doc_type,

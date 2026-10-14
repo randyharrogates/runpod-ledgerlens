@@ -15,25 +15,26 @@ an 8B model zero-shot on extraction quality (row F1), speed and cost per 1,000 p
 
 | A Serverless worker needs | Where it is |
 |---|---|
-| A `handler.py` for serverless requests | [`worker/handler.py`](worker/handler.py): starts vLLM once per worker, then serves `extract` (page image to checked JSON), `memo` (streamed text) and `health` |
-| A Docker image with the handler and the model | [`worker/Dockerfile`](worker/Dockerfile), built by Runpod's GitHub integration from the `deploy` branch. **The weights are deliberately not baked in** (see below) |
+| A `handler.py` for serverless requests | [`worker/handler.py`](worker/handler.py): starts vLLM once per worker, then serves `generate` (plain prompt to text), `extract` (page image to checked JSON), `memo` (streamed text) and `health` |
+| A Docker image with the handler and the model | [`worker/Dockerfile`](worker/Dockerfile) loads weights from model cache / volume for the three live endpoints; [`worker/Dockerfile.baked`](worker/Dockerfile.baked) bakes weights into the image |
 | A deployed Serverless endpoint | 8B `szucrtrufff80a`, fine-tuned 4B `5078uudfkeaw2v`, base 4B `cuvgn5z2av09my` |
-| Accept an input, return a generated output | Input is a document photo (plus a text task); output is validated JSON rows and a streamed credit memo. [Call it with curl](#call-the-endpoint-with-curl) |
+| Accept an input, return a generated output | `{"input":{"prompt":"..."}}` returns generated text. Document tasks return validated JSON rows and a streamed credit memo. [Call it with curl](#call-the-endpoint-with-curl) |
 | Show it working | The demo app (`app/`, with a 3-minute Presenter tour) calls the live endpoints |
 | Code, configuration and clear docs | This README, [`worker/README.md`](worker/README.md), [`docs/REPORT.md`](docs/REPORT.md), [`docs/BUILD_LOG.md`](docs/BUILD_LOG.md), [`docs/DECISIONS.md`](docs/DECISIONS.md) |
 
-**Why the model is not inside the image.** A common pattern is to bake the model into the Docker
-image. I load it from Runpod's own storage instead:
+**Two ways to ship the model.** The three live endpoints use `worker/Dockerfile` and load
+weights from Runpod storage:
 
-- **8B:** Runpod's **model cache**. 16.3 GiB of weights load in 5.7 s with no download, and the image
-  stays small, so builds and worker pulls stay fast. Baking would add ~16 GiB to every build and
-  every cold pull.
-- **Fine-tuned 4B:** a **network volume**, where the training Pod wrote the merged weights. Swapping
-  in a new fine-tune needs no rebuild or upload.
+- **8B:** Runpod's **model cache**. 16.3 GiB of weights load in 5.7 s with no download,
+  keeping the image small and builds and worker pulls fast.
+- **Fine-tuned 4B:** a **network volume**, where the training Pod wrote the merged weights.
+  Swapping in a new fine-tune needs no rebuild or upload; the volume pins it to one data centre.
 
-Baking still works if a customer wants a single sealed image: the handler reads any local
-`MODEL_PATH`, and the Dockerfile has the two lines to uncomment (`COPY` the weights, set
-`MODEL_PATH`). Health then reports `model_source: "baked"`.
+`worker/Dockerfile.baked` downloads the pinned 8B weights during the build and sets
+`MODEL_PATH=/models/model` and `HF_HUB_OFFLINE=1`. It includes both the handler and model,
+with no network volume, so the endpoint is not pinned to one data centre. The trade-off is
+an image about 16 GiB larger and slower builds and pulls; cold start to be measured.
+Health reports `model_source: "baked"`.
 
 ## What it does
 
@@ -159,6 +160,12 @@ call can take 3 to 10 minutes while a worker starts.
 ```sh
 export RUNPOD_API_KEY=<your key>   # never commit it
 EP=szucrtrufff80a                  # 8B; the fine-tuned 4B is 5078uudfkeaw2v
+
+# 0. Send a plain prompt, then poll until COMPLETED; output is a one-item list with generated text
+curl -s -X POST "https://api.runpod.ai/v2/$EP/run" \
+  -H "Authorization: Bearer $RUNPOD_API_KEY" -H "Content-Type: application/json" \
+  -d '{"input":{"prompt":"In two sentences, what does a returned cheque tell a lender about a small business?"}}'
+curl -s "https://api.runpod.ai/v2/$EP/status/<job id>" -H "Authorization: Bearer $RUNPOD_API_KEY"
 
 # 1. Health check: starts a worker and reports the model and where it loaded from
 curl -s -X POST "https://api.runpod.ai/v2/$EP/run" \

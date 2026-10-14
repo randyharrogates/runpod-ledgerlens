@@ -89,7 +89,13 @@ def main(argv=None):
     )
     memo = commands.add_parser("memo")
     memo.add_argument("--analysis", type=Path, required=True)
-    for command in (extract, memo):
+    generate = commands.add_parser("generate")
+    generate.add_argument("--prompt", required=True)
+    generate.add_argument("--image", type=Path)
+    generate.add_argument("--system")
+    generate.add_argument("--temperature", type=float)
+    generate.add_argument("--stream", action="store_true")
+    for command in (extract, memo, generate):
         command.add_argument("--endpoint-id", required=True)
         command.add_argument("--max-tokens", type=int)
         command.add_argument("--timeout", type=float, default=900)
@@ -112,8 +118,17 @@ def main(argv=None):
                 doc_type=args.doc_type,
                 image_base64=base64.b64encode(args.image.read_bytes()).decode(),
             )
-        else:
+        elif args.task == "memo":
             payload["analysis"] = json.loads(args.analysis.read_text())
+        else:
+            payload.update(prompt=args.prompt, stream=args.stream)
+            for field in ("system", "temperature"):
+                if (value := getattr(args, field)) is not None:
+                    payload[field] = value
+            if args.image:
+                payload["image_base64"] = base64.b64encode(
+                    args.image.read_bytes()
+                ).decode()
         if args.max_tokens is not None:
             payload["max_tokens"] = args.max_tokens
         started = time.monotonic()
@@ -121,7 +136,7 @@ def main(argv=None):
             args.endpoint_id,
             payload,
             key,
-            stream=args.task == "memo",
+            stream=args.task == "memo" or (args.task == "generate" and args.stream),
             timeout=args.timeout,
         )
         output = json.dumps(
