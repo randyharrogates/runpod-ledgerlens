@@ -700,3 +700,14 @@ the bottom of each day.
 - Server start (to `/health`), weights read from the network volume: merged 849.8 s (first start: cold volume plus first compile), LoRA 547.6 s (probably reused the merged model's compile cache, same architecture), LoRA with `cudagraph_specialize_lora: false` and an empty compile cache 752.7 s. These are first-read numbers on a cold network volume, not the Serverless cold start; the warm-restart and trimmed-graph stages are still running.
 - Merged model logs a transformers warning about an "incorrect regex pattern" in its tokenizer. Checked: the tokenizer files differ only in format; vocab, added tokens and chat template are identical, and sample strings (dates, amounts, Chinese, Bahasa, JSON) encode to the same ids. Harmless.
 - Spend so far: Pod ≈ 1.4 h ≈ $1.0. Balance $198.38.
+
+### 2026-10-14 21:25 SGT: What a saved compile cache buys at start-up
+- Same Pod, base 4B + reader LoRA, `cudagraph_specialize_lora: false`, compile cache at `VLLM_CACHE_ROOT=/workspace/vllm-cache-p0`. Engine numbers from the vLLM log:
+
+| Start | Weights load | torch.compile | CUDA graphs | Engine init total | To `/health` |
+|---|---|---|---|---|---|
+| Empty cache | 39.0 s | 119.7 s | 32 + 17 s | 278.1 s | 752.7 s |
+| Saved cache | 43.9 s | 1.8 s | 13 + 15 s | 96.5 s | 534.6 s |
+
+- A saved compile cache cuts engine start by ~180 s. The rest of the ~535 s is Python importing vLLM from a virtualenv on the network volume, a Pod-only cost: on Serverless vLLM is in the image on local disk. Decision: the agent endpoint keeps its compile cache on the network volume (`VLLM_CACHE_ROOT`); it is only reused on the same GPU type.
+- Throughput with specialisation off: 200 pages in 379.6 s at 8 concurrent (vs 372.5 s with it on), so turning it off costs ~2% speed and saves a second set of CUDA graphs.
