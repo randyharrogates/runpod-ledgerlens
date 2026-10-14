@@ -301,7 +301,7 @@ def test_cli_subprocess_without_key(tmp_path):
     assert result.returncode == 2
 
 
-def test_engine_early_exit(monkeypatch):
+def test_engine_early_exit(monkeypatch, capsys):
     class Process:
         def poll(self):
             return 1
@@ -316,6 +316,7 @@ def test_engine_early_exit(monkeypatch):
     with pytest.raises(RuntimeError, match="weights unavailable"):
         worker.start_engine()
     assert worker.ENGINE["status"] == "failed"
+    assert "loading\nweights unavailable\n" in capsys.readouterr().err
     worker._STDERR.close()
 
 
@@ -872,3 +873,55 @@ def test_generate_engine_and_request_errors(monkeypatch, stream):
     assert list(worker.sync_handler({"input": data})) == [
         {"error": "Model request failed: unavailable"}
     ]
+
+
+def test_follow_stderr():
+    import tempfile
+    import threading
+
+    out = io.StringIO()
+    lines = []
+    stop = threading.Event()
+    with tempfile.TemporaryFile() as file:
+        thread = threading.Thread(
+            target=worker.follow_stderr,
+            args=(file.fileno(), out, stop, lines.append),
+            kwargs={"poll": 0.01},
+        )
+        thread.start()
+        file.write(b"first\nWARNING second\n")
+        file.flush()
+        position = file.tell()
+        stop.set()
+        thread.join(timeout=2)
+        assert not thread.is_alive()
+        assert file.tell() == position
+    assert out.getvalue() == "first\nWARNING second\n"
+    assert lines == ["first", "WARNING second"]
+
+
+@pytest.mark.parametrize(
+    "content",
+    [
+        b"".join(f"line {i}\n".encode() for i in range(100)),
+        b"x" * 70000 + b"\nlast line\n",
+    ],
+)
+def test_engine_failure_tail_is_bounded(monkeypatch, capsys, content):
+    class Process:
+        def poll(self):
+            return 1
+
+    def launch(command, **kwargs):
+        kwargs["stderr"].write(content)
+        kwargs["stderr"].flush()
+        return Process()
+
+    monkeypatch.setattr(worker, "resolve_model", lambda: ("org/model", "download"))
+    monkeypatch.setattr(worker.subprocess, "Popen", launch)
+    with pytest.raises(RuntimeError) as exc:
+        worker.start_engine()
+    expected = "\n".join(content[-65536:].decode().splitlines()[-80:])
+    assert str(exc.value) == "vLLM exited early:\n" + expected
+    assert capsys.readouterr().err == content.decode()
+    worker._STDERR.close()

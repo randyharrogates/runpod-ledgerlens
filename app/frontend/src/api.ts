@@ -1,3 +1,5 @@
+import { reportBrowserLog } from './logs';
+
 export type Row = Record<string, string | null>;
 export type DirectionFix = {
   row: number;
@@ -77,9 +79,11 @@ export const api = {
   analysis: (session: string) => request<Analysis>(`/api/sessions/${session}/analysis`),
   status: () => request<Record<string, unknown>>('/api/status'),
   evaluation: () => request<Record<string, unknown>>('/api/eval'),
-  memo: (session: string, model: string) => new EventSource(
-    `/api/sessions/${session}/memo?model=${model}`,
-  ),
+  memo: (session: string, model: string) => {
+    const stream = new EventSource(`/api/sessions/${session}/memo?model=${model}`);
+    stream.addEventListener('error', () => reportBrowserLog('error', 'memo stream error'), {once: true});
+    return stream;
+  },
   upload: (session: string, files: File[], progress: (value: number) => void) => (
     new Promise<void>((resolve, reject) => {
       const xhr = new XMLHttpRequest();

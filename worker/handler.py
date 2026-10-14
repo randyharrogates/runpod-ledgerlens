@@ -3,6 +3,7 @@
 import asyncio
 import base64
 import binascii
+import codecs
 import io
 import json
 import logging
@@ -52,6 +53,8 @@ PROCESS = None
 _STDERR = None
 _FIRST_JOB = True
 _JOB_LOCK = threading.Lock()
+VLLM_LISTENERS = set()
+VLLM_LISTENERS_LOCK = threading.Lock()
 
 
 def resolve_model(cache_root=Path("/runpod-volume/huggingface-cache/hub")):
@@ -70,6 +73,52 @@ def resolve_model(cache_root=Path("/runpod-volume/huggingface-cache/hub")):
         return str(max(candidates, key=lambda p: (p.stat().st_mtime, p.name))), "cache"
     logging.warning("Model cache missing for %s; vLLM will download weights", name)
     return name, "download"
+
+
+def follow_stderr(fd, out, stop, on_line=None, poll=0.2):
+    """Copy appended stderr without moving the startup diagnostic file position."""
+    duplicate = None
+    try:
+        duplicate = os.dup(fd)
+        offset = 0
+        decoder = codecs.getincrementaldecoder("utf-8")(errors="replace")
+        pending = ""
+        while True:
+            data = os.pread(duplicate, 65536, offset)
+            if not data:
+                if stop.is_set():
+                    out.write(decoder.decode(b"", final=True))
+                    out.flush()
+                    break
+                stop.wait(poll)
+                continue
+            offset += len(data)
+            text = decoder.decode(data)
+            out.write(text)
+            out.flush()
+            pending += text
+            while "\n" in pending:
+                line, pending = pending.split("\n", 1)
+                if on_line:
+                    on_line(line)
+    except Exception:
+        pass
+    finally:
+        if duplicate is not None:
+            try:
+                os.close(duplicate)
+            except OSError:
+                pass
+
+
+def notify_vllm(line):
+    with VLLM_LISTENERS_LOCK:
+        listeners = tuple(VLLM_LISTENERS)
+    for listener in listeners:
+        try:
+            listener(line)
+        except Exception:
+            pass
 
 
 def start_engine():
@@ -111,12 +160,23 @@ def start_engine():
     if source == "cache":
         env["HF_HUB_OFFLINE"] = "1"
     _STDERR = tempfile.TemporaryFile()
-    PROCESS = subprocess.Popen(command, env=env, stderr=_STDERR)
-    timeout = float(os.getenv("ENGINE_START_TIMEOUT", "900"))
+    # vLLM's own logger writes to stdout: both streams go to the file, which a thread copies
+    # to the container's stderr (Runpod's Logs tab) and scans for warnings during jobs.
+    PROCESS = subprocess.Popen(command, env=env, stdout=_STDERR, stderr=_STDERR)
+    stop = threading.Event()
+    follower = threading.Thread(
+        target=follow_stderr,
+        args=(_STDERR.fileno(), sys.stderr, stop, notify_vllm),
+        daemon=True,
+    )
+    follower.start()
     try:
+        timeout = float(os.getenv("ENGINE_START_TIMEOUT", "900"))
         with httpx.Client(timeout=5, trust_env=False) as client:
             while time.monotonic() - started < timeout:
                 if PROCESS.poll() is not None:
+                    stop.set()
+                    follower.join(timeout=2)
                     _STDERR.seek(0, os.SEEK_END)
                     size = _STDERR.tell()
                     _STDERR.seek(max(0, size - 65536))
@@ -142,6 +202,8 @@ def start_engine():
             except subprocess.TimeoutExpired:
                 PROCESS.kill()
                 PROCESS.wait()
+        stop.set()
+        follower.join(timeout=2)
         raise
 
 
