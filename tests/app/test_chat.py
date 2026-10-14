@@ -1,6 +1,7 @@
 """Assistant streams with the Runpod boundary replaced by local events."""
 
 import asyncio
+import base64
 import io
 import json
 
@@ -401,3 +402,30 @@ def test_memo_chunks_reports_the_failed_job_reason(monkeypatch):
     monkeypatch.setattr(main.httpx, "Client", FakeHTTP)
     with pytest.raises(RuntimeError, match="Worker job failed: engine down"):
         list(main.memo_chunks("ep", {}, "key"))
+
+
+def test_images_stay_lossless_within_budget():
+    """Small pages go as their original bytes; big ones as PNG; JPEG only over budget."""
+
+    def png(size):
+        out = io.BytesIO()
+        Image.new("RGB", size, "white").save(out, format="PNG")
+        return out.getvalue()
+
+    small, big = png((60, 80)), png((1800, 1800))
+    pages = {"a": {"data": small}, "b": {"data": big}}
+    result = {
+        r["page_id"]: base64.b64decode(r["image_base64"])
+        for r in chat.images(pages, ["a", "b"])
+    }
+    assert result["a"] == small
+    with Image.open(io.BytesIO(result["b"])) as image:
+        assert image.format == "PNG"
+        assert image.width * image.height <= chat.DEFAULT_MAX_PIXELS
+    tight = chat.images(
+        pages,
+        ["b"],
+        budget=len(json.dumps([{"page_id": "b", "image_base64": ""}])) + 4000,
+    )
+    with Image.open(io.BytesIO(base64.b64decode(tight[0]["image_base64"]))) as image:
+        assert image.format == "JPEG"

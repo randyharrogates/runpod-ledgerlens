@@ -96,10 +96,33 @@ def suggestions():
     ]
 
 
+def lossless(data, cap):
+    """The original bytes when within the pixel cap, else a resized PNG.
+
+    Re-encoding small scans as JPEG blurred digits enough to wreck the reader
+    (one sample page: 0 of 18 rows exact as JPEG, 15 of 18 as PNG).
+    """
+    with Image.open(io.BytesIO(data)) as image:
+        if image.width * image.height <= cap:
+            return data
+        output = io.BytesIO()
+        resize_image(image, cap).save(output, format="PNG", optimize=True)
+        return output.getvalue()
+
+
 def images(pages, ids, budget=MAX_BODY_BYTES - 2048):
     cap = DEFAULT_MAX_PIXELS
     for p in ids:
         backend().validate_image(pages[p]["data"])
+    result = [
+        {
+            "page_id": p,
+            "image_base64": base64.b64encode(lossless(pages[p]["data"], cap)).decode(),
+        }
+        for p in ids
+    ]
+    if len(json.dumps(result).encode()) <= budget:
+        return result
     while True:
         result = []
         for p in ids:

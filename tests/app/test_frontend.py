@@ -432,6 +432,9 @@ assert.equal(answer.answer,'Checked [p2:r1]');
 assert.equal(reduceTurn([{type:'error',message:'Traceback (most recent call last):\n File worker.py'}]).error,'The request failed');
 assert(render(React.createElement(TurnView,{turn:answer,jump:()=>{}})).includes('[p2:r1]</button>'));
 assert(render(React.createElement(TurnView,{turn:reduceTurn([{type:'error',message:'Connection lost'}]),jump:()=>{}})).includes('The agent stopped: Connection lost. Your pages are saved; try again.'));
+const checked=reduceTurn([{type:'route',intent:'memo'},{type:'section',section:'concentration',text:'## Concentration\nOne payer.',rewritten:true,problems:[{kind:'unverified_figure',detail:'31,363.11'},'plain note']},{type:'final',intent:'memo',memo:{concentration:'## Concentration\nOne payer.'},problems:[{kind:'too_long',detail:'x'}]}]);
+assert.deepEqual(checked.cards.concentration.problems,['Figure not found in the analysis: 31,363.11','plain note']);
+assert(render(React.createElement(TurnView,{turn:checked,jump:()=>{}})).includes('Figure not found in the analysis: 31,363.11'));
 (async()=>{
  const {postEvents}=require('./src/api.ts');
  const frames='event: deltas\r\ndata: {"parts":[{"part":"answer","text":"é"}]}\r\n\r\nevent: final\ndata: {"answer":"done"}\n\n';
