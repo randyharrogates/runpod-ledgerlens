@@ -1,60 +1,74 @@
 [
   {
-    "t": 0.001,
-    "type": "step",
+    "t": 0.798,
     "name": "router",
-    "status": "start"
+    "status": "start",
+    "type": "step"
   },
   {
-    "t": 0.001,
-    "type": "step",
+    "t": 2.084,
     "name": "analyst",
-    "status": "start"
+    "status": "start",
+    "type": "step"
   },
   {
-    "t": 0.006,
-    "type": "step",
+    "t": 2.084,
+    "ms": 8.192961002350785,
     "name": "analyst",
     "status": "done",
-    "ms": 4.630718380212784
+    "type": "step"
   },
   {
-    "t": 0.822,
-    "type": "step",
+    "t": 3.373,
+    "ms": 1708.2499300013296,
     "name": "router",
     "status": "done",
-    "ms": 821.4167132973671
+    "type": "step"
   },
   {
-    "t": 0.822,
-    "type": "route",
+    "t": 3.373,
     "intent": "ask_data",
     "plan": {
       "audience": "credit committee",
-      "length": "standard",
-      "focus": "net cash flow by month",
-      "language": "en"
+      "focus": "financial metrics",
+      "language": "en",
+      "length": "standard"
     },
-    "reason": "The request is about analyzing document data to find the month with the lowest net cash flow."
+    "reason": "The request asks for a specific financial metric (lowest net cash flow) across months, which requires document data.",
+    "type": "route"
   },
   {
-    "t": 0.822,
-    "type": "step",
+    "t": 3.373,
+    "entries": [
+      {
+        "level": "info",
+        "message": "model call route on ledgerlens: 1708 ms, 247 tokens in / 73 out",
+        "model": "ledgerlens",
+        "ms": 1708.183057999122,
+        "source": "worker"
+      },
+      {
+        "level": "info",
+        "message": "route: ask_data",
+        "source": "worker"
+      }
+    ],
+    "type": "log"
+  },
+  {
+    "t": 3.373,
     "name": "data_agent",
-    "status": "start"
+    "status": "start",
+    "type": "step"
   },
   {
-    "t": 1.025,
-    "type": "tool",
-    "name": "monthly_totals",
+    "t": 3.373,
     "arguments": "{}",
+    "name": "monthly_totals",
     "result": {
       "currency": "SGD",
       "monthly": {
         "2026-01": {
-          "inflow": "46285.38",
-          "outflow": "21487.85",
-          "net": "24797.53",
           "citations_count": 27,
           "cites": [
             "[p1:r1]",
@@ -84,12 +98,12 @@
             "[p2:r7]",
             "[p2:r8]",
             "[p2:r9]"
-          ]
+          ],
+          "inflow": "46285.38",
+          "net": "24797.53",
+          "outflow": "21487.85"
         },
         "2026-02": {
-          "inflow": "34982.76",
-          "outflow": "26539.21",
-          "net": "8443.55",
           "citations_count": 32,
           "cites": [
             "[p2:r10]",
@@ -124,12 +138,12 @@
             "[p4:r5]",
             "[p4:r6]",
             "[p4:r7]"
-          ]
+          ],
+          "inflow": "34982.76",
+          "net": "8443.55",
+          "outflow": "26539.21"
         },
         "2026-03": {
-          "inflow": "7950.52",
-          "outflow": "7014.53",
-          "net": "935.99",
           "citations_count": 10,
           "cites": [
             "[p4:r8]",
@@ -142,65 +156,95 @@
             "[p4:r15]",
             "[p4:r16]",
             "[p4:r17]"
-          ]
+          ],
+          "inflow": "7950.52",
+          "net": "935.99",
+          "outflow": "7014.53"
         }
       }
-    }
+    },
+    "type": "tool"
   },
   {
-    "t": 1.937,
-    "type": "step",
+    "t": 3.373,
+    "entries": [
+      {
+        "level": "info",
+        "message": "model call data_agent on ledgerlens: 400 ms, 648 tokens in / 16 out",
+        "model": "ledgerlens",
+        "ms": 399.5752549999452,
+        "source": "worker"
+      }
+    ],
+    "type": "log"
+  },
+  {
+    "t": 4.683,
+    "ms": 2262.5869959992997,
     "name": "data_agent",
     "status": "done",
-    "ms": 1114.5410146564245
+    "type": "step"
   },
   {
-    "t": 1.937,
-    "type": "deltas",
+    "t": 5.976,
     "parts": [
       {
         "part": "answer",
         "text": "The month with the lowest net cash flow was **2026-03**, with a net cash flow of **SGD 935.99**. This is supported by the data showing the inflow of SGD 7,950.52 and outflow of SGD 7,014.53 for that month."
       }
-    ]
+    ],
+    "type": "deltas"
   },
   {
-    "t": 1.937,
-    "type": "step",
+    "t": 5.976,
+    "entries": [
+      {
+        "level": "info",
+        "message": "model call data_agent on ledgerlens: 1859 ms, 1327 tokens in / 76 out",
+        "model": "ledgerlens",
+        "ms": 1858.7703519988281,
+        "source": "worker"
+      }
+    ],
+    "type": "log"
+  },
+  {
+    "t": 5.976,
     "name": "checker",
-    "status": "start"
+    "status": "start",
+    "type": "step"
   },
   {
-    "t": 1.937,
-    "type": "step",
+    "t": 5.976,
+    "ms": 0.526990999787813,
     "name": "checker",
     "status": "done",
-    "ms": 0.5709007382392883
+    "type": "step"
   },
   {
-    "t": 1.961,
-    "type": "final",
-    "intent": "ask_data",
-    "problems": [],
+    "t": 5.976,
     "answer": "The month with the lowest net cash flow was **2026-03**, with a net cash flow of **SGD 935.99**. This is supported by the data showing the inflow of SGD 7,950.52 and outflow of SGD 7,014.53 for that month.",
-    "usage": {
-      "prompt_tokens": 2222,
-      "completion_tokens": 164
-    },
-    "timing": {
-      "total_s": 1.9371328689157963,
-      "per_step": {
-        "analyst": 0.004630718380212784,
-        "router": 0.8214167132973671,
-        "data_agent": 1.1145410146564245,
-        "checker": 0.0005709007382392883
-      }
-    },
-    "gpu": "NVIDIA RTX PRO 4500 Blackwell",
+    "gpu": "NVIDIA RTX PRO 6000 Blackwell Server Edition",
+    "intent": "ask_data",
     "models": {
       "base": "ledgerlens",
-      "reader": "reader",
-      "memo": "ledgerlens"
+      "memo": "ledgerlens",
+      "reader": "reader"
+    },
+    "problems": [],
+    "timing": {
+      "per_step": {
+        "analyst": 0.008192961002350785,
+        "checker": 0.000526990999787813,
+        "data_agent": 2.2625869959992997,
+        "router": 1.7082499300013296
+      },
+      "total_s": 4.677420470998186
+    },
+    "type": "final",
+    "usage": {
+      "completion_tokens": 165,
+      "prompt_tokens": 2222
     }
   }
 ]
