@@ -483,11 +483,11 @@ async def run_agent(data, engine):
                 await emit({"type": "_text", "part": part, "text": delta})
             return text
 
-        async def check(text, subset, **kwargs):
+        async def check(text, subset, section=None, **kwargs):
             async def operation():
                 return check_text(text, subset, row_counts, **kwargs)
 
-            return await step("checker", operation)
+            return await step("checker", operation, section)
 
         if intent in REPLIES:
             final["answer"] = REPLIES[intent]
@@ -505,7 +505,10 @@ async def run_agent(data, engine):
 
             async def write(section):
                 section_id = section["id"]
-                subset = {key: analysis[key] for key in section["analysis_keys"]}
+                subset = {
+                    "currency": statements[0].currency,
+                    **{key: analysis[key] for key in section["analysis_keys"]},
+                }
                 previous = memo.get(section_id) if intent == "edit_memo" else None
                 problems = [clean["message"]] if intent == "edit_memo" else None
                 request = {
@@ -523,7 +526,7 @@ async def run_agent(data, engine):
                     "max_words": WORD_LIMITS[plan["length"]],
                     "required_heading": section["heading"],
                 }
-                problems = await check(text, subset, **kwargs)
+                problems = await check(text, subset, section_id, **kwargs)
                 rewritten = bool(problems)
                 if problems:
                     await emit({"type": "section_reset", "section": section_id})
@@ -533,7 +536,7 @@ async def run_agent(data, engine):
                     text = await step(
                         "writer", lambda: stream(request, section_id), section_id
                     )
-                    problems = await check(text, subset, **kwargs)
+                    problems = await check(text, subset, section_id, **kwargs)
                 memo[section_id] = text
                 await emit(
                     {

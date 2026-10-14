@@ -1,0 +1,188 @@
+[
+  {
+    "t": 0.006,
+    "type": "step",
+    "name": "router",
+    "status": "start"
+  },
+  {
+    "t": 0.006,
+    "type": "step",
+    "name": "analyst",
+    "status": "start"
+  },
+  {
+    "t": 0.008,
+    "type": "step",
+    "name": "analyst",
+    "status": "done",
+    "ms": 6.483253091573715
+  },
+  {
+    "t": 0.751,
+    "type": "step",
+    "name": "router",
+    "status": "done",
+    "ms": 750.0001974403858
+  },
+  {
+    "t": 0.751,
+    "type": "route",
+    "intent": "edit_memo",
+    "plan": {
+      "audience": "credit committee",
+      "length": "standard",
+      "focus": "red flags section",
+      "language": "en"
+    },
+    "reason": "User wants to shorten the red flags section of the existing memo."
+  },
+  {
+    "t": 0.752,
+    "type": "step",
+    "name": "writer",
+    "status": "start",
+    "section": "red_flags"
+  },
+  {
+    "t": 1.026,
+    "type": "deltas",
+    "parts": [
+      {
+        "part": "red_flags",
+        "text": "## Red flags  \n- [p1:r4]: Returned cheque SGD 1,49"
+      }
+    ]
+  },
+  {
+    "t": 1.235,
+    "type": "deltas",
+    "parts": [
+      {
+        "part": "red_flags",
+        "text": "9.51 \u2014 unaccounted outflow.  \n- [p3:r1"
+      }
+    ]
+  },
+  {
+    "t": 1.436,
+    "type": "deltas",
+    "parts": [
+      {
+        "part": "red_flags",
+        "text": "7] & [p4:r7]: Round trip SGD 4,671."
+      }
+    ]
+  },
+  {
+    "t": 1.647,
+    "type": "deltas",
+    "parts": [
+      {
+        "part": "red_flags",
+        "text": "52 \u2014 unrecorded in reconciliation.  \n- [p2:r8]: Large cash"
+      }
+    ]
+  },
+  {
+    "t": 1.858,
+    "type": "deltas",
+    "parts": [
+      {
+        "part": "red_flags",
+        "text": " deposit SGD 12,071.87 \u2014 6.3\u00d7 median"
+      }
+    ]
+  },
+  {
+    "t": 2.07,
+    "type": "deltas",
+    "parts": [
+      {
+        "part": "red_flags",
+        "text": " inflow \u2014 mismatched.  \n- [p4:r17]: Unreconc"
+      }
+    ]
+  },
+  {
+    "t": 2.27,
+    "type": "deltas",
+    "parts": [
+      {
+        "part": "red_flags",
+        "text": "iled page \u2014 printed balance off by SGD 499.00 \u2014 discrepancy unexplained"
+      }
+    ]
+  },
+  {
+    "t": 2.439,
+    "type": "deltas",
+    "parts": [
+      {
+        "part": "red_flags",
+        "text": ".  \n\n*(49 words \u2014 under 120.)*"
+      }
+    ]
+  },
+  {
+    "t": 2.439,
+    "type": "step",
+    "name": "writer",
+    "status": "done",
+    "ms": 1686.9983226060867,
+    "section": "red_flags"
+  },
+  {
+    "t": 2.439,
+    "type": "step",
+    "name": "checker",
+    "status": "start"
+  },
+  {
+    "t": 2.439,
+    "type": "step",
+    "name": "checker",
+    "status": "done",
+    "ms": 0.7962584495544434
+  },
+  {
+    "t": 2.439,
+    "type": "section",
+    "section": "red_flags",
+    "text": "## Red flags  \n- [p1:r4]: Returned cheque SGD 1,499.51 \u2014 unaccounted outflow.  \n- [p3:r17] & [p4:r7]: Round trip SGD 4,671.52 \u2014 unrecorded in reconciliation.  \n- [p2:r8]: Large cash deposit SGD 12,071.87 \u2014 6.3\u00d7 median inflow \u2014 mismatched.  \n- [p4:r17]: Unreconciled page \u2014 printed balance off by SGD 499.00 \u2014 discrepancy unexplained.  \n\n*(49 words \u2014 under 120.)*",
+    "problems": [],
+    "rewritten": false
+  },
+  {
+    "t": 2.463,
+    "type": "final",
+    "intent": "edit_memo",
+    "problems": [],
+    "memo": {
+      "summary": "## Summary  \nCash position: SGD 34,177.07 net over 3 months. Major credit concern: SGD 1,499.51 returned cheque [p1:r4]. Unreconciled page p4 shows SGD 499.00 discrepancy [p4:r17]. Large cash deposit (SGD 12,071.87) exceeds median inflow 6.3\u00d7 [p2:r8]. Top payer Senja Hijau Damai Niaga accounts for 20% of inflows [p1:r3].",
+      "cash_flow": "## Cash flow\n\nJan: inflow $46,285.38, outflow $21,487.85, net $24,797.53.  \nFeb: inflow $34,982.76, outflow $26,539.21, net $8,443.55.  \nMar: inflow $7,950.52, outflow $7,014.53, net $935.99 (partial month).  \nAverage balance: $72,289.51.  \nMinimum balance: $44,587.78.",
+      "concentration": "## Concentration\n\nSenja Hijau Damai Niaga accounts for 20.06% of total inflow [p1:r3], contributing 17,898.73 to 89,218.66. Reliance on this single payer exceeds 20%, indicating significant concentration risk. Multiple citations confirm this dependency [p2:r2], [p3:r9], [p4:r1].",
+      "red_flags": "## Red flags  \n- [p1:r4]: Returned cheque SGD 1,499.51 \u2014 unaccounted outflow.  \n- [p3:r17] & [p4:r7]: Round trip SGD 4,671.52 \u2014 unrecorded in reconciliation.  \n- [p2:r8]: Large cash deposit SGD 12,071.87 \u2014 6.3\u00d7 median inflow \u2014 mismatched.  \n- [p4:r17]: Unreconciled page \u2014 printed balance off by SGD 499.00 \u2014 discrepancy unexplained.  \n\n*(49 words \u2014 under 120.)*",
+      "questions": "## Questions for the applicant\n\n- Why is the returned cheque [p1:r4] not reflected in the reconciled balance?  \n- Why does page p4 show a SGD 499.00 discrepancy [p4:r17]?  \n- What explains the 6.3\u00d7 median inflow cash deposit [p2:r8]?  \n- Why is Senja Hijau Damai Niaga\u2019s inflow [p1:r3] so high relative to total?  \n- What is the purpose of the round trip [p3:r17] and [p4:r7]?"
+    },
+    "usage": {
+      "prompt_tokens": 1137,
+      "completion_tokens": 211
+    },
+    "timing": {
+      "total_s": 2.4391957838088274,
+      "per_step": {
+        "analyst": 0.006483253091573715,
+        "router": 0.7500001974403858,
+        "writer:red_flags": 1.6869983226060867,
+        "checker": 0.0007962584495544434
+      }
+    },
+    "gpu": "NVIDIA RTX PRO 4500 Blackwell",
+    "models": {
+      "base": "ledgerlens",
+      "reader": "reader",
+      "memo": "ledgerlens"
+    }
+  }
+]
