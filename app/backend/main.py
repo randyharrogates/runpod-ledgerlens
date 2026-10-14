@@ -601,7 +601,13 @@ def memo_chunks(endpoint, payload, key, on_job=None, stop=None):
                 }
                 return
             if result.get("status") in ("FAILED", "CANCELLED", "TIMED_OUT"):
-                raise RuntimeError("Memo failed")
+                # /stream drops the worker's error text; /status keeps it.
+                detail = client.get(f"https://api.runpod.ai/v2/{endpoint}/status/{job}")
+                reason = detail.json().get("error") if detail.is_success else None
+                raise RuntimeError(
+                    f"Worker job {result['status'].lower()}"
+                    + (f": {reason}" if reason else "")
+                )
             time.sleep(STREAM_POLL_SECONDS)
     raise TimeoutError("Memo timed out")
 

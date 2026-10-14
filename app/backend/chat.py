@@ -276,12 +276,12 @@ def update_page(session, chunk):
             )
 
 
-def release(session, ids):
+def release(session, ids, reason="Reading stopped"):
     chat = state(session)
     chat["reading"].difference_update(ids)
     for p in ids:
         if session["pages"][p]["status"] == "reading":
-            session["pages"][p].update(status="error", error="Reading stopped")
+            session["pages"][p].update(status="error", error=reason[:300])
     if not chat["reading"]:
         chat["idle"].set()
 
@@ -305,6 +305,7 @@ async def stream(session, payload, source, endpoint, key, live, ids, message=Non
     main = backend()
     final = None
     failed = False
+    reason = "Reading stopped"
     times = {}
     read_ids = set(ids)
     events = (
@@ -324,7 +325,9 @@ async def stream(session, payload, source, endpoint, key, live, ids, message=Non
                 if "error" in chunk and "type" not in chunk:
                     chunk = {"type": "error", "message": str(chunk["error"])}
                 kind = chunk.get("type", "error")
-                failed |= kind == "error"
+                if kind == "error":
+                    failed = True
+                    reason = str(chunk.get("message") or reason)
                 if kind == "metrics":
                     continue
                 if kind == "final":
@@ -369,9 +372,10 @@ async def stream(session, payload, source, endpoint, key, live, ids, message=Non
                     }
             yield main.event("metrics", measured)
     except Exception as exc:
-        yield main.event("error", {"message": str(exc)[:300]})
+        reason = str(exc)
+        yield main.event("error", {"message": main.clean(reason)[:300]})
     finally:
-        release(session, ids)
+        release(session, ids, main.clean(reason))
 
 
 @router.post("/api/sessions/{s}/read")
