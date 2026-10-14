@@ -40,6 +40,8 @@ from worker.handler import (
     MODELS,
     STREAM_FLUSH_CHARS,
     STREAM_FLUSH_SECONDS,
+    VLLM_LISTENERS,
+    VLLM_LISTENERS_LOCK,
     gpu_name,
     prepare_image,
     validate_image,
@@ -58,6 +60,7 @@ class Engine:
         self.client = client or httpx.AsyncClient(
             base_url=BASE_URL + "/v1/", timeout=600, trust_env=False
         )
+        self.log = None
         self.usage = {"prompt_tokens": 0, "completion_tokens": 0}
 
     async def __aenter__(self):
@@ -70,32 +73,94 @@ class Engine:
         for key in self.usage:
             self.usage[key] += (response.get("usage") or {}).get(key, 0)
 
+    async def log_error(self, kind, label, model, exc):
+        if self.log is None:
+            return
+        if isinstance(exc, httpx.HTTPStatusError):
+            detail = f"HTTP {exc.response.status_code} {exc.response.text[:300]}"
+        else:
+            detail = f"{type(exc).__name__}: {str(exc)[:300]}"
+        await self.log(
+            "error", f"model {kind} {label} on {model} failed: {detail}", model=model
+        )
+
     async def complete(self, payload):
-        response = await self.client.post("chat/completions", json=payload)
-        response.raise_for_status()
-        result = response.json()
+        label, model = call_label(payload), payload.get("model", "unknown")
+        started = time.monotonic()
+        try:
+            response = await self.client.post("chat/completions", json=payload)
+            response.raise_for_status()
+            result = response.json()
+        except httpx.HTTPError as exc:
+            await self.log_error("call", label, model, exc)
+            raise
         self.record(result)
+        if self.log is not None:
+            ms = (time.monotonic() - started) * 1000
+            usage = result.get("usage") or {}
+            await self.log(
+                "info",
+                f"model call {label} on {model}: {ms:.0f} ms, "
+                f"{usage.get('prompt_tokens', 0)} tokens in / {usage.get('completion_tokens', 0)} out",
+                ms=ms,
+                model=model,
+            )
         return result
 
     async def stream(self, payload):
+        label, model = call_label(payload), payload.get("model", "unknown")
+        started, chars = time.monotonic(), 0
         payload = {**payload, "stream": True, "stream_options": {"include_usage": True}}
-        async with self.client.stream(
-            "POST", "chat/completions", json=payload
-        ) as response:
-            response.raise_for_status()
-            async for line in response.aiter_lines():
-                if not line.startswith("data:"):
-                    continue
-                data = line[5:].strip()
-                if data == "[DONE]":
-                    break
-                if not data:
-                    continue
-                result = json.loads(data)
-                self.record(result)
-                for choice in result.get("choices", []):
-                    if text := choice.get("delta", {}).get("content"):
-                        yield text
+        try:
+            async with self.client.stream(
+                "POST", "chat/completions", json=payload
+            ) as response:
+                if not response.is_success:
+                    await response.aread()
+                response.raise_for_status()
+                async for line in response.aiter_lines():
+                    if not line.startswith("data:"):
+                        continue
+                    data = line[5:].strip()
+                    if data == "[DONE]":
+                        break
+                    if not data:
+                        continue
+                    result = json.loads(data)
+                    self.record(result)
+                    for choice in result.get("choices", []):
+                        if text := choice.get("delta", {}).get("content"):
+                            chars += len(text)
+                            yield text
+        except httpx.HTTPError as exc:
+            await self.log_error("stream", label, model, exc)
+            raise
+        if self.log is not None:
+            ms = (time.monotonic() - started) * 1000
+            await self.log(
+                "info",
+                f"model stream {label} on {model}: {ms:.0f} ms, {chars} chars",
+                ms=ms,
+                model=model,
+            )
+
+
+def call_label(payload):
+    return (payload.get("response_format") or {}).get("json_schema", {}).get(
+        "name"
+    ) or ("data_agent" if "tools" in payload else "chat")
+
+
+async def emit_log(emit, level, message, **fields):
+    await emit(
+        {
+            "type": "_log",
+            "level": level,
+            "source": "worker",
+            "message": message,
+            **fields,
+        }
+    )
 
 
 def payload(
@@ -206,6 +271,9 @@ async def read_pages(engine, pages, emit):
             {"type": "triage", "page_id": page_id, **triage, "accepted": accepted}
         )
         if not accepted:
+            await emit_log(
+                emit, "info", f"{page_id} triage: {doc_type}, rejected", page_id=page_id
+            )
             return None
         raw_document = await call(
             "reader",
@@ -230,6 +298,14 @@ async def read_pages(engine, pages, emit):
                 document, event["balance_fixes"] = check_direction(document)
             event.update(document=document.model_dump(mode="json"), valid=True)
         except ValidationError as exc:
+            errors = exc.errors()
+            first = errors[0]
+            await emit_log(
+                emit,
+                "warning",
+                f"{page_id} reader output failed validation: {len(errors)} errors, first at {first['loc']} ({first['type']})",
+                page_id=page_id,
+            )
             event["validation_error"] = str(exc)
         await emit(event)
         return (
@@ -243,6 +319,12 @@ async def read_pages(engine, pages, emit):
         try:
             return await read(page)
         except Exception as exc:
+            await emit_log(
+                emit,
+                "error",
+                f"{page['page_id']} could not be read: {type(exc).__name__}: {str(exc)[:300]}",
+                page_id=page["page_id"],
+            )
             await emit(
                 {
                     "type": "rows",
@@ -289,16 +371,52 @@ async def events(work, engine):
     async def emit(event):
         await queue.put(event)
 
+    async def log(level, message, source="worker", **fields):
+        await emit(
+            {
+                "type": "_log",
+                "level": level,
+                "source": source,
+                "message": message,
+                **fields,
+            }
+        )
+
+    previous_log = getattr(engine, "log", None)
+    setattr(engine, "log", log)
+    loop = asyncio.get_running_loop()
+    line_count = 0
+
+    def listener(line):
+        nonlocal line_count
+        if line_count >= 50 or not any(
+            word in line for word in ("WARNING", "ERROR", "Traceback")
+        ):
+            return
+        line_count += 1
+        item = {
+            "type": "_log",
+            "level": "error" if "ERROR" in line or "Traceback" in line else "warning",
+            "source": "vllm",
+            "message": line[:2000],
+        }
+        loop.call_soon_threadsafe(queue.put_nowait, item)
+
+    with VLLM_LISTENERS_LOCK:
+        VLLM_LISTENERS.add(listener)
+
     async def produce():
         try:
             await work(emit)
         except Exception as exc:
+            await log("error", f"{type(exc).__name__}: {str(exc)[:500]}")
             await emit({"type": "error", "message": str(exc)})
         finally:
             await queue.put(None)
 
     task = asyncio.create_task(produce())
     pending = {}
+    logs = []
     chars = 0
     deadline = None
 
@@ -311,6 +429,14 @@ async def events(work, engine):
         pending.clear()
         chars = 0
         deadline = None
+        return event
+
+    def flush_logs():
+        nonlocal deadline
+        event = {"type": "log", "entries": list(logs)}
+        logs.clear()
+        if not pending:
+            deadline = None
         return event
 
     try:
@@ -326,6 +452,30 @@ async def events(work, engine):
             except TimeoutError:
                 if pending:
                     yield flush()
+                if logs:
+                    yield flush_logs()
+                continue
+            if event is not None and event["type"] == "_log":
+                logs.append(
+                    {
+                        key: value
+                        for key, value in event.items()
+                        if key
+                        in (
+                            "level",
+                            "source",
+                            "message",
+                            "page_id",
+                            "section",
+                            "ms",
+                            "model",
+                        )
+                    }
+                )
+                if deadline is None:
+                    deadline = time.monotonic() + STREAM_FLUSH_SECONDS
+                if len(logs) >= 20:
+                    yield flush_logs()
                 continue
             if event is not None and event["type"] == "_text":
                 text = event["text"]
@@ -337,9 +487,15 @@ async def events(work, engine):
                     deadline = time.monotonic() + STREAM_FLUSH_SECONDS
                 if chars >= STREAM_FLUSH_CHARS:
                     yield flush()
+                    if logs:
+                        yield flush_logs()
                 continue
             if pending:
                 yield flush()
+                if logs:
+                    yield flush_logs()
+            if logs and (event is None or event["type"] in ("final", "error")):
+                yield flush_logs()
             if event is None:
                 break
             if event["type"] == "step" and "ms" in event:
@@ -360,8 +516,11 @@ async def events(work, engine):
                 )
             yield event
     finally:
+        with VLLM_LISTENERS_LOCK:
+            VLLM_LISTENERS.discard(listener)
         task.cancel()
         await asyncio.gather(task, return_exceptions=True)
+        setattr(engine, "log", previous_log)
 
 
 async def run_read(data, engine):
@@ -460,6 +619,11 @@ async def run_agent(data, engine):
             intent = "needs_documents"
         elif intent == "edit_memo" and not clean.get("last_memo"):
             intent = "memo"
+        await emit_log(
+            emit,
+            "info",
+            f"route: {intent}" + (f" (from {original})" if original != intent else ""),
+        )
         plan = route["plan"]
         await emit(
             {
@@ -529,6 +693,12 @@ async def run_agent(data, engine):
                 problems = await check(text, subset, section_id, **kwargs)
                 rewritten = bool(problems)
                 if problems:
+                    await emit_log(
+                        emit,
+                        "warning",
+                        f"checker found {len(problems)} problems in {section_id}; rewriting once",
+                        section=section_id,
+                    )
                     await emit({"type": "section_reset", "section": section_id})
                     request["messages"] = section_messages(
                         section, plan, subset, text, problems
@@ -591,6 +761,12 @@ async def run_agent(data, engine):
                     )
                     for call, result in zip(calls, results, strict=True):
                         function = call["function"]
+                        if "error" in result:
+                            await emit_log(
+                                emit,
+                                "warning",
+                                f"tool {function['name']} error: {str(result['error'])[:300]}",
+                            )
                         collected.append(result)
                         await emit(
                             {
@@ -607,6 +783,11 @@ async def run_agent(data, engine):
                                 "content": json.dumps(result),
                             }
                         )
+                await emit_log(
+                    emit,
+                    "info",
+                    f"tool budget used up after {MAX_TOOL_ROUNDS} rounds; answering without tools",
+                )
                 request["tool_choice"] = "none"
                 return message(await engine.complete(request)).get("content") or ""
 
@@ -614,6 +795,12 @@ async def run_agent(data, engine):
             await emit({"type": "_text", "part": "answer", "text": text})
             problems = await check(text, collected)
             if problems:
+                await emit_log(
+                    emit,
+                    "warning",
+                    f"checker found {len(problems)} problems in answer; rewriting once",
+                    section="answer",
+                )
                 request["tool_choice"] = "none"
                 request["messages"].extend(
                     [

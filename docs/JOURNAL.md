@@ -95,6 +95,25 @@ small team of agents does the work on one Runpod Serverless GPU, quickly.
 - **Why:** a demo should never show made-up output; these are real model answers, labelled
   "Recorded run".
 
+## Step 10: Every log in one place, inside the app
+- **What:** a "Logs" panel on every page shows, live, what the app server, the browser, the
+  Runpod worker and the model engine (vLLM) did. Each chat answer has a "Logs for this turn" link
+  and, when it ran on Runpod, its job id.
+- **Why:** when an answer was slow or failed, the only way to see why was the Runpod console,
+  and the browser's own errors were invisible. A user or engineer should be able to answer "what
+  happened on this turn?" without leaving the page.
+- **How:** the worker sends its log lines (model call times, token counts, checker rewrites, tool
+  errors, exceptions, vLLM warnings) inside the same stream as the answer, batched so they don't
+  add a request per line. The server keeps the last 2,000 lines in memory, hides the API key, and
+  never logs images, prompts, documents or answers.
+- **What was weighed:** Runpod has a public API for a worker's own console log; it is wired in
+  but off by default (`RUNPOD_WORKER_LOGS=1`), because worker logs are not tied to a single job
+  and it adds polling. A security review then found that anyone on the network could read every
+  session's logs; now each person sees only their own session's lines plus app-wide ones, and
+  session ids are masked in messages.
+- **Checked by looking:** screenshots at desktop and phone width; filters, search, "this turn
+  only", and pause-on-scroll all work.
+
 ## Still to do
 - Release the worker to the endpoints; time a live memo against the old 50–106 s.
 - Measure routing, triage, data answers and memo quality (ask before spending).

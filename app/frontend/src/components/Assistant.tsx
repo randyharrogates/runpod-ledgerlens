@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { api, ChatEvent, Citation, Page, postEvents } from '../api';
+import { openLogs } from '../logs';
 import { modelState } from '../models';
 import { MemoContent } from './Memo';
 import { Upload } from './MobileUpload';
@@ -15,7 +16,7 @@ const labels: Record<string, string> = {
 type Card = {text: string; changed: boolean; resetting: boolean; rewritten: boolean; problems: string[]};
 export type TurnState = {
   steps: ChatEvent[]; route?: ChatEvent; answer: string; cards: Record<string, Card>;
-  metrics?: ChatEvent; error?: string; notices: string[]; final?: ChatEvent;
+  turnId?: string; jobId?: string; metrics?: ChatEvent; error?: string; notices: string[]; final?: ChatEvent;
 };
 
 function plainError(value: unknown) {
@@ -60,7 +61,13 @@ export function reduceTurn(events: ChatEvent[], previous: Record<string, string>
       text: event.text, changed: true, resetting: false, rewritten: event.rewritten, problems: event.problems || [],
     });
     if (event.type === 'error') turn.error = plainError(event.message);
-    if (event.type === 'metrics') turn.metrics = event;
+    if (event.type === 'turn') turn.turnId = event.turn_id;
+    if (event.type === 'job') turn.jobId = event.job_id;
+    if (event.type === 'metrics') {
+      turn.metrics = event;
+      if (event.turn_id) turn.turnId = event.turn_id;
+      if (event.job_id) turn.jobId = event.job_id;
+    }
     if (event.type === 'final') {
       turn.final = event;
       if (event.answer !== undefined) turn.answer = event.answer;
@@ -111,7 +118,7 @@ export function TurnView({turn, jump}: {turn: TurnState; jump: (citation: Citati
       </section>;
     })}</div> : <div className="memo"><MemoContent text={turn.answer} jump={jump} /></div>}
     {turn.error && <p role="alert">The agent stopped: {turn.error}. Your pages are saved; try again.</p>}
-    {measured && <footer className="assistant-metrics">{[
+    {(measured || turn.turnId) && <footer className="assistant-metrics">{measured && [
       typeof measured.total_s === 'number' && `${seconds(measured.total_s)} total`,
       typeof measured.delayTime === 'number' && `${seconds(measured.delayTime / 1000)} queue / cold start`,
       typeof measured.executionTime === 'number' && `${seconds(measured.executionTime / 1000)} execution`,
@@ -119,7 +126,8 @@ export function TurnView({turn, jump}: {turn: TurnState; jump: (citation: Citati
       measured.gpu,
       typeof measured.cost === 'number' && `$${measured.cost.toFixed(5)}`,
       measured.source === 'recorded' && 'Recorded run',
-    ].filter(Boolean).join(' · ')}</footer>}
+    ].filter(Boolean).join(' · ')}{!measured && turn.jobId && `job ${turn.jobId}`}{measured && turn.jobId && ` · job ${turn.jobId}`}
+      {turn.turnId && <>{(measured || turn.jobId) && ' · '}<button className="link-button" onClick={() => openLogs({turn: turn.turnId, jobId: turn.jobId})}>Logs for this turn</button></>}</footer>}
   </article>;
 }
 

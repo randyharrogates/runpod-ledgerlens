@@ -318,7 +318,7 @@ def test_read_rejection_and_independent_pages(monkeypatch):
 def test_read_limits(data):
     engine = FakeEngine()
     events = collect(agent.run_read, data, engine)
-    assert len(events) == 1 and events[0]["type"] == "error"
+    assert [event["type"] for event in events] == ["log", "error"]
     assert not engine.calls
 
 
@@ -495,7 +495,7 @@ def test_cli_event_lines_and_summary(monkeypatch, tmp_path, capsys, task):
 def test_agent_limits_before_router(fields):
     engine = FakeEngine()
     events = collect(agent.run_agent, {"message": "Memo", **fields}, engine)
-    assert len(events) == 1 and events[0]["type"] == "error"
+    assert [event["type"] for event in events] == ["log", "error"]
     assert not engine.calls
 
 
@@ -506,9 +506,10 @@ def test_read_dimensions_checked_before_model_call(monkeypatch):
         agent.run_read, {"pages": [{"page_id": "p1", "image_base64": image()}]}, engine
     )
     assert events[-1]["type"] == "final" and events[-1]["documents"] == []
-    assert events[-2]["type"] == "rows" and not events[-2]["valid"]
-    assert "megapixels" in events[-2]["validation_error"]
-    assert events[-3] == {
+    rows = [event for event in events if event["type"] == "rows"]
+    assert len(rows) == 1 and not rows[0]["valid"]
+    assert "megapixels" in rows[0]["validation_error"]
+    assert [event for event in events if event["type"] == "step"][-1] == {
         "type": "step",
         "name": "triage",
         "status": "error",
@@ -539,3 +540,260 @@ def test_tool_calls_per_round_capped(monkeypatch):
     assert [e["name"] for e in tools[:2]] == ["monthly_totals", "find_rows"]
     assert "monthly" in tools[0]["result"]
     assert tools[1]["result"] == {"error": "Too many tool calls in one round"}
+
+
+def test_engine_call_and_stream_logs():
+    entries = []
+
+    async def log(level, message, **fields):
+        entries.append({"level": level, "message": message, **fields})
+
+    def respond(request):
+        data = json.loads(request.content)
+        if data.get("stream"):
+            return httpx.Response(
+                200,
+                text='data: {"choices":[{"delta":{"content":"hello"}}]}\n\ndata: [DONE]\n',
+            )
+        return httpx.Response(
+            200,
+            json={
+                **response("ok"),
+                "usage": {"prompt_tokens": 11, "completion_tokens": 7},
+            },
+        )
+
+    async def run():
+        async with agent.Engine(
+            httpx.AsyncClient(
+                base_url="http://test/v1/", transport=httpx.MockTransport(respond)
+            )
+        ) as engine:
+            engine.log = log
+            request = agent.payload(
+                "system", "text", model="test-model", schema={}, name="route"
+            )
+            await engine.complete(request)
+            assert "".join([text async for text in engine.stream(request)]) == "hello"
+
+    asyncio.run(run())
+    assert len(entries) == 2
+    assert entries[0]["level"] == "info"
+    assert "model call route on test-model" in entries[0]["message"]
+    assert "11 tokens in / 7 out" in entries[0]["message"]
+    assert entries[0]["model"] == "test-model" and entries[0]["ms"] >= 0
+    assert "5 chars" in entries[1]["message"]
+
+
+@pytest.mark.parametrize("stream", [False, True])
+@pytest.mark.parametrize("transport_error", [False, True])
+def test_engine_error_logs(stream, transport_error):
+    entries = []
+
+    async def log(level, message, **fields):
+        entries.append((level, message))
+
+    def respond(request):
+        if transport_error:
+            raise httpx.ConnectError("connection unavailable")
+        return httpx.Response(500, text="engine unavailable")
+
+    async def run():
+        async with agent.Engine(
+            httpx.AsyncClient(
+                base_url="http://test/v1/", transport=httpx.MockTransport(respond)
+            )
+        ) as engine:
+            engine.log = log
+            with pytest.raises(httpx.HTTPError):
+                if stream:
+                    async for _ in engine.stream({"model": "test-model"}):
+                        pass
+                else:
+                    await engine.complete({"model": "test-model"})
+
+    asyncio.run(run())
+    assert len(entries) == 1 and entries[0][0] == "error"
+    assert (
+        "ConnectError" if transport_error else "HTTP 500 engine unavailable"
+    ) in entries[0][1]
+
+
+@pytest.mark.parametrize("count,steps", [(30, False), (5, True)])
+def test_log_batching(count, steps):
+    async def work(emit):
+        for i in range(count):
+            await emit(
+                {"type": "_log", "level": "info", "source": "worker", "message": str(i)}
+            )
+            if steps:
+                await emit({"type": "step", "name": "reader", "status": "start"})
+        await emit({"type": "final"})
+
+    async def run():
+        return [event async for event in agent.events(work, FakeEngine())]
+
+    events = asyncio.run(run())
+    logs = [event for event in events if event["type"] == "log"]
+    assert len(logs) <= (2 if steps else 3)
+    assert [entry["message"] for event in logs for entry in event["entries"]] == [
+        str(i) for i in range(count)
+    ]
+    assert events[-1]["type"] == "final"
+    if steps:
+        assert [event["type"] for event in events[:count]] == ["step"] * count
+
+
+def test_work_exception_logged_before_error():
+    async def work(emit):
+        raise ValueError("broken")
+
+    async def run():
+        return [event async for event in agent.events(work, FakeEngine())]
+
+    events = asyncio.run(run())
+    assert [event["type"] for event in events] == ["log", "error"]
+    assert events[0]["entries"][0]["message"] == "ValueError: broken"
+
+
+@pytest.mark.parametrize(
+    "intent,invented,tools", [("memo", True, False), ("ask_data", False, True)]
+)
+def test_agent_logs_do_not_contain_documents(intent, invented, tools):
+    events = collect(
+        agent.run_agent,
+        {"message": "Help", "documents": [document()]},
+        FakeEngine(intent, invented=invented, tools=tools),
+    )
+    messages = [
+        entry["message"]
+        for event in events
+        if event["type"] == "log"
+        for entry in event["entries"]
+    ]
+    assert f"route: {intent}" in messages
+    if invented:
+        assert any("rewriting once" in message for message in messages)
+    else:
+        assert any("tool budget used up" in message for message in messages)
+    assert all(
+        "base64" not in message
+        and STATEMENT["transactions"][0]["description"] not in message
+        for message in messages
+    )
+
+
+def test_reader_validation_log_summary():
+    class InvalidEngine(FakeEngine):
+        async def complete(self, request):
+            if request["messages"][0]["content"] == agent.EXTRACT_SYSTEM:
+                return response({"transactions": "PRIVATE DOCUMENT TEXT"})
+            return await super().complete(request)
+
+    events = collect(
+        agent.run_read,
+        {"pages": [{"page_id": "p1", "image_base64": image()}]},
+        InvalidEngine(),
+    )
+    entries = [
+        entry
+        for event in events
+        if event["type"] == "log"
+        for entry in event["entries"]
+    ]
+    assert any(
+        "first at" in entry["message"] and "missing" in entry["message"]
+        for entry in entries
+    )
+    assert all("PRIVATE DOCUMENT TEXT" not in entry["message"] for entry in entries)
+
+
+def test_vllm_listener_filters_caps_and_unregisters():
+    async def work(emit):
+        await asyncio.to_thread(worker.notify_vllm, "INFO ignored")
+        for i in range(60):
+            await asyncio.to_thread(worker.notify_vllm, f"ERROR engine {i}")
+        await asyncio.sleep(0)
+        await emit({"type": "final"})
+
+    async def run():
+        return [event async for event in agent.events(work, FakeEngine())]
+
+    before = set(worker.VLLM_LISTENERS)
+    events = asyncio.run(run())
+    entries = [
+        entry
+        for event in events
+        if event["type"] == "log"
+        for entry in event["entries"]
+    ]
+    assert len(entries) == 50
+    assert all(
+        entry["source"] == "vllm" and entry["level"] == "error" for entry in entries
+    )
+    assert worker.VLLM_LISTENERS == before
+
+
+def test_log_deadline_and_text_flush(monkeypatch):
+    monkeypatch.setattr(agent, "STREAM_FLUSH_SECONDS", 0.01)
+    monkeypatch.setattr(agent, "STREAM_FLUSH_CHARS", 5)
+
+    async def work(emit):
+        await emit(
+            {"type": "_log", "level": "info", "source": "worker", "message": "deadline"}
+        )
+        await asyncio.sleep(0.03)
+        await emit({"type": "step", "name": "reader", "status": "start"})
+        await emit(
+            {
+                "type": "_log",
+                "level": "info",
+                "source": "worker",
+                "message": "with text",
+            }
+        )
+        await emit({"type": "_text", "part": "answer", "text": "hello"})
+        await emit(
+            {
+                "type": "_log",
+                "level": "info",
+                "source": "worker",
+                "message": "producer end",
+            }
+        )
+
+    async def run():
+        return [event async for event in agent.events(work, FakeEngine())]
+
+    events = asyncio.run(run())
+    assert [event["type"] for event in events] == [
+        "log",
+        "step",
+        "deltas",
+        "log",
+        "log",
+    ]
+    assert [
+        event["entries"][0]["message"] for event in events if event["type"] == "log"
+    ] == ["deadline", "with text", "producer end"]
+
+
+def test_log_count_flush_retains_text_deadline(monkeypatch):
+    monkeypatch.setattr(agent, "STREAM_FLUSH_SECONDS", 0.1)
+    monkeypatch.setattr(agent, "STREAM_FLUSH_CHARS", 1000)
+
+    async def work(emit):
+        await emit({"type": "_text", "part": "answer", "text": "tail"})
+        for i in range(20):
+            await emit(
+                {"type": "_log", "level": "info", "source": "worker", "message": str(i)}
+            )
+        await asyncio.sleep(0.3)
+        await emit({"type": "step", "name": "reader", "status": "start"})
+
+    async def run():
+        return [event async for event in agent.events(work, FakeEngine())]
+
+    events = asyncio.run(run())
+    assert [event["type"] for event in events] == ["log", "deltas", "step"]
+    assert len(events[0]["entries"]) == 20

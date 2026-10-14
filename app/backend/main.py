@@ -23,6 +23,7 @@ from PIL import Image
 from pydantic import BaseModel, ValidationError
 from starlette.concurrency import run_in_threadpool
 
+from app.backend import logs
 from app.backend.chat import router as chat_router
 from app.backend.datasets import router as datasets_router
 from app.backend.insights import router as insights_router
@@ -56,6 +57,7 @@ STREAM_POLL_SECONDS = 0.25
 
 @asynccontextmanager
 async def lifespan(app):
+    logs.install()
     try:
         yield
     finally:
@@ -63,6 +65,8 @@ async def lifespan(app):
 
 
 app = FastAPI(title="LedgerLens", lifespan=lifespan)
+logs.install()
+app.include_router(logs.router)
 app.include_router(chat_router)
 app.include_router(insights_router)
 app.include_router(datasets_router)
