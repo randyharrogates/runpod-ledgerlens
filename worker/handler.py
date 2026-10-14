@@ -101,7 +101,7 @@ def start_engine():
         # No free whitespace inside forced JSON: the router padded its plan with blank lines until
         # it hit the token cap. The reader was trained on compact JSON, so it is unaffected.
         "--structured-outputs-config",
-        '{"disable_any_whitespace": true}',
+        '{"backend": "xgrammar", "disable_any_whitespace": true}',
         "--enable-auto-tool-choice",
         "--tool-call-parser",
         "hermes",
