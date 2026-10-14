@@ -16,7 +16,7 @@ def client(monkeypatch):
     monkeypatch.setenv("RUNPOD_API_KEY", "chat-secret")
     monkeypatch.setenv("RUNPOD_ENDPOINT_AGENT", "agent-test")
     monkeypatch.delenv("DEMO_MODE", raising=False)
-    monkeypatch.delenv("RUNPOD_WORKER_LOGS", raising=False)
+    monkeypatch.setenv("RUNPOD_WORKER_LOGS", "0")
     monkeypatch.setattr(logs, "BUFFER", logs.LogBuffer())
     monkeypatch.setattr(logs, "_WINDOWS", {})
     main.SESSIONS.clear()

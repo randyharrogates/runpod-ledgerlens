@@ -376,7 +376,7 @@ async def stream(
                     if (
                         live
                         and job_id
-                        and os.getenv("RUNPOD_WORKER_LOGS") == "1"
+                        and os.getenv("RUNPOD_WORKER_LOGS", "1") != "0"
                         and poll_task is None
                     ):
                         poll_task = asyncio.create_task(
