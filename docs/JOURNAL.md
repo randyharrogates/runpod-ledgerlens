@@ -114,8 +114,33 @@ small team of agents does the work on one Runpod Serverless GPU, quickly.
 - **Checked by looking:** screenshots at desktop and phone width; filters, search, "this turn
   only", and pause-on-scroll all work.
 
+## Step 11: Let the agent run in any data centre, and make the chat easier to read
+- **What happened:** the first live test waited 15 minutes with no GPU. The agent endpoint
+  had its files on a network volume, and a network volume ties every worker to one data
+  centre (EU-RO-1), which had no free GPU.
+- **What was weighed:** moving to another region's network volume, or a "global volume"
+  (Runpod beta) that every data centre can read. Runpod's own stock list showed no region
+  better stocked than EU-RO-1 for our GPUs, so moving would only swap one pin for another.
+  The global volume removes the pin. It costs $0.09 per GB a month, and our file is small.
+- **What we did:** created the global volume, used a cheap Pod for five minutes (about
+  $0.02) to copy the 139 MB reader adapter onto it, checked every file's checksum, deleted
+  the Pod, and pointed the endpoint at the global volume with all data centres allowed.
+  The GPU list went from "unavailable / low" to "medium / high supply".
+- **The trade-off:** the global volume is object storage, so vLLM's compile cache can't
+  safely live there. Each cold start now redoes about 2 minutes of compiling.
+- **Logs:** released the logs feature to the workers, and switched on the Runpod
+  worker-log feed by default. A security check pointed out that a worker's log is not tied
+  to one job, so we only record lines from after the job started, and pause when another
+  session is using the same endpoint.
+- **Chat colours:** every kind of thing now has its own colour: your messages are blue
+  bubbles; the agent's answer has a coloured edge by type (memo purple, data blue, general
+  green, fixed replies orange, errors red); the step list folds into one line when done; the
+  logs drawer is darker with coloured sources. Added a typing indicator, copy buttons,
+  "Try again", a welcome card and a composer that stays at the bottom. Checked on a desktop
+  and phone-sized screen.
+
 ## Still to do
-- Release the worker to the endpoints; time a live memo against the old 50–106 s.
+- Time a live memo on the endpoint against the old 50–106 s.
 - Measure routing, triage, data answers and memo quality (ask before spending).
 - Update README, REPORT and DECISIONS.
 - Train a memo-writing adapter and a better reader only if the tests show they're needed (ask
