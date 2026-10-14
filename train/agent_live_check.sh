@@ -11,7 +11,7 @@ mkdir -p "$OUT"
     --host 127.0.0.1 --port 8000 --max-model-len 8192 --gpu-memory-utilization 0.92 \
     --limit-mm-per-prompt '{"image": 1, "video": 0}' --mm-processor-kwargs '{"max_pixels": 2000000}' \
     --enable-auto-tool-choice --tool-call-parser hermes \
-    --structured-outputs-config '{"disable_any_whitespace": true}' \
+    --structured-outputs-config '{"backend": "xgrammar", "disable_any_whitespace": true}' \
     --enable-lora --max-loras 2 --max-lora-rank 16 --lora-modules "reader=$RUN/main/adapter" \
     --compilation-config '{"cudagraph_specialize_lora": false}' >"$OUT/vllm.log" 2>&1 &
 PID=$!
