@@ -137,3 +137,32 @@ queue delay and client wall time. Timing separately records mean delay in second
 worker-reported cold-start count, engine load time and wall time. The hourly prices are
 user-supplied comparison inputs. This measures a real camera gap on known synthetic
 answers; it does not measure accuracy on real customer documents.
+
+## Concurrent serving benchmark
+
+With `vllm serve` already running on the Pod, use its vLLM environment (httpx and
+Pillow are required; the client imports neither torch nor vLLM):
+
+```sh
+python -m train.serve_bench --model merged-model --data /workspace/ledgerlens/data \
+  --out /workspace/ledgerlens/bench-merged --concurrency 8 --label merged
+python -m train.serve_bench --model adapter-name --data /workspace/ledgerlens/data \
+  --out /workspace/ledgerlens/bench-lora --concurrency 8 --label LoRA
+```
+
+Use the served model name or registered LoRA module name for `--model`, starting
+the appropriate server before each run. The default URL is
+`http://127.0.0.1:8000/v1`; override it with `--base-url`. `--sets` accepts comma-separated
+splits (default `test_unseen_layout`); `--limit` provides a partial smoke run.
+Keep `--max-pixels` (default 2,000,000), `--max-tokens` (4096), and concurrency equal
+for comparisons; match the server's processor pixel cap too. `--timeout` is seconds
+per request (600 by default).
+
+Predictions use the same split folders as `predict.py` and can be scored by
+`report.py`. Invalid answers and failed requests are retained as invalid pages.
+`_timing.json` records wall throughput, latency percentiles, token usage, page IDs,
+and settings; its `requests` list retains each page's latency and token counts.
+Request latency excludes semaphore waiting and image preparation. Split wall time
+includes preparation, requests and prediction writes, including any server warm-up;
+failed requests count in both `invalid` and `errors`. This client measures a running
+server, not model initialization. Use separate output directories for each model.
