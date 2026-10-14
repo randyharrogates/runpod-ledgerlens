@@ -47,6 +47,21 @@ def test_prepare_image_applies_training_pixel_cap(monkeypatch):
     assert abs(out.height / out.width - 2) < 0.1
 
 
+def test_prepare_image_keeps_jpeg_size_within_cap(monkeypatch):
+    """A JPEG already under the cap is not halved by the decoder."""
+    monkeypatch.setattr(worker, "MAX_PIXELS", 2_000_000)
+    buffer = io.BytesIO()
+    Image.new("RGB", (595, 841), "white").save(buffer, format="JPEG", quality=90)
+    out = Image.open(
+        io.BytesIO(base64.b64decode(worker.prepare_image(buffer.getvalue())))
+    )
+    assert out.size == (595, 841)
+    big = io.BytesIO()
+    Image.new("RGB", (4000, 3000), "white").save(big, format="JPEG", quality=90)
+    out = Image.open(io.BytesIO(base64.b64decode(worker.prepare_image(big.getvalue()))))
+    assert 1_500_000 < out.width * out.height <= 2_000_000
+
+
 def test_prepare_image_rejects_decompression_bomb(monkeypatch):
     monkeypatch.setattr(worker, "MAX_INPUT_PIXELS", 10_000)
     with pytest.raises(ValueError, match="megapixels"):

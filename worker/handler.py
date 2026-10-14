@@ -311,9 +311,13 @@ def prepare_image(image_bytes, max_pixels=None):
                 f"image is {image.width}x{image.height}; the limit is "
                 f"{MAX_INPUT_PIXELS // 1_000_000} megapixels"
             )
-        # JPEG only: let the decoder downscale while decoding instead of after.
-        image.draft("RGB", (image.width // 2, image.height // 2))
-        resized = resize_image(image, MAX_PIXELS if max_pixels is None else max_pixels)
+        cap = MAX_PIXELS if max_pixels is None else max_pixels
+        # JPEG only: let the decoder downscale while decoding, but never below the
+        # size the cap allows (draft keeps at least the requested size). Always
+        # halving blurred small scans enough to wreck the reader.
+        scale = min(1.0, (cap / (image.width * image.height)) ** 0.5)
+        image.draft("RGB", (int(image.width * scale), int(image.height * scale)))
+        resized = resize_image(image, cap)
     buffer = io.BytesIO()
     resized.save(buffer, format="PNG")
     return base64.b64encode(buffer.getvalue()).decode()

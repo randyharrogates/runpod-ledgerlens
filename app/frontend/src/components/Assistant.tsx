@@ -19,6 +19,17 @@ export type TurnState = {
   turnId?: string; jobId?: string; metrics?: ChatEvent; error?: string; notices: string[]; final?: ChatEvent;
 };
 
+const problemLabels: Record<string, string> = {
+  unverified_figure: 'Figure not found in the analysis', bad_citation: 'Unknown row reference',
+  too_long: 'Too long', missing_heading: 'Missing heading',
+};
+export function problemText(problem: unknown) {
+  if (typeof problem === 'string') return problem;
+  const value = (problem || {}) as {kind?: unknown; detail?: unknown};
+  const kind = typeof value.kind === 'string' ? problemLabels[value.kind] || value.kind : 'Check failed';
+  return value.detail != null ? `${kind}: ${String(value.detail)}` : kind;
+}
+
 function plainError(value: unknown) {
   if (typeof value !== 'string' || /Traceback|\n\s+(?:at |File )/.test(value)) return 'The request failed';
   return value.split('\n')[0].slice(0, 300);
@@ -58,7 +69,7 @@ export function reduceTurn(events: ChatEvent[], previous: Record<string, string>
       else if (card(event.section)) Object.assign(card(event.section), {text: '', changed: true, resetting: true});
     }
     if (event.type === 'section' && card(event.section)) Object.assign(card(event.section), {
-      text: event.text, changed: true, resetting: false, rewritten: event.rewritten, problems: event.problems || [],
+      text: event.text, changed: true, resetting: false, rewritten: event.rewritten, problems: (event.problems || []).map(problemText),
     });
     if (event.type === 'error') turn.error = plainError(event.message);
     if (event.type === 'turn') turn.turnId = event.turn_id;
@@ -70,9 +81,9 @@ export function reduceTurn(events: ChatEvent[], previous: Record<string, string>
     }
     if (event.type === 'final') {
       turn.final = event;
-      if (event.answer !== undefined) turn.answer = event.answer;
+      if (typeof event.answer === 'string') turn.answer = event.answer;
       if (event.memo) for (const [id] of sections) {
-        if (event.memo[id] !== undefined) card(id).text = event.memo[id];
+        if (typeof event.memo[id] === 'string') card(id).text = event.memo[id];
       }
     }
   }
@@ -229,6 +240,7 @@ export function Assistant({session, pages, refresh, status, jump}: {
     if (!session) return;
     setTurns(threads.get(session) || []);
     memo.current = memos.get(session) || {};
+    setError('');
     void fetch(`/api/sessions/${session}/warm`, {method: 'POST'}).catch(() => {});
     void fetch('/api/chat/suggestions').then(response => response.json()).then(setSuggestions).catch(() => {});
     return () => {
