@@ -5,6 +5,7 @@ import base64
 import io
 import json
 import os
+import secrets
 import threading
 import time
 from contextlib import aclosing
@@ -18,6 +19,7 @@ from PIL import Image
 from pydantic import BaseModel, Field, field_validator
 from starlette.concurrency import run_in_threadpool
 
+from app.backend import logs
 from ledgerlens.agent.limits import MAX_BODY_BYTES
 from ledgerlens.agent.prompts import SECTIONS
 from ledgerlens.direction import check_direction
@@ -131,6 +133,7 @@ async def cancel_job(endpoint, key, job):
 async def relay(endpoint, payload, key):
     job = None
     complete = False
+    announced = False
     stopped = threading.Event()
 
     def remember(value):
@@ -150,7 +153,18 @@ async def relay(endpoint, payload, key):
     sentinel = object()
     try:
         while True:
-            chunk = await asyncio.to_thread(next, chunks, sentinel)
+            waiting = asyncio.ensure_future(asyncio.to_thread(next, chunks, sentinel))
+            # The job id is known long before the first chunk on a cold start: announce it
+            # while waiting, so its logs can be followed during the queue/cold start.
+            while not waiting.done():
+                await asyncio.wait({waiting}, timeout=0.25)
+                if job and not announced:
+                    announced = True
+                    yield {"type": "job", "job_id": job}
+            chunk = waiting.result()
+            if job and not announced:
+                announced = True
+                yield {"type": "job", "job_id": job}
             if chunk is sentinel:
                 break
             if chunk.get("done"):
@@ -301,8 +315,30 @@ def bounded(payload):
     return payload
 
 
-async def stream(session, payload, source, endpoint, key, live, ids, message=None):
+async def stream(
+    session,
+    payload,
+    source,
+    endpoint,
+    key,
+    live,
+    ids,
+    message=None,
+    session_id=None,
+    turn_id=None,
+    emit_turn=True,
+):
     main = backend()
+    turn_id = turn_id or secrets.token_hex(6)
+    started = time.monotonic()
+    job_id = None
+    error = None
+    finished = False
+    worker_lines = 0
+    poll_task = None
+    stop = asyncio.Event()
+    task = "read" if message is None else "agent"
+    fields = dict(session=session_id, turn=turn_id, task=task)
     final = None
     failed = False
     times = {}
@@ -315,6 +351,14 @@ async def stream(session, payload, source, endpoint, key, live, ids, message=Non
         else offline_chat(session["pages"], message)
     )
     try:
+        logs.LOG.info(
+            f"read started: {len(ids)} pages"
+            if message is None
+            else f"agent turn started: {len(message)} chars, {len(payload.get('documents', []))} saved documents, {len(ids)} new pages",
+            extra=fields,
+        )
+        if emit_turn:
+            yield main.event("turn", {"turn_id": turn_id})
         async with aclosing(events):
             async for raw in events:
                 chunk = main.clean(raw)
@@ -324,6 +368,53 @@ async def stream(session, payload, source, endpoint, key, live, ids, message=Non
                 if "error" in chunk and "type" not in chunk:
                     chunk = {"type": "error", "message": str(chunk["error"])}
                 kind = chunk.get("type", "error")
+                if kind == "job":
+                    job_id = chunk.get("job_id")
+                    fields["job_id"] = job_id
+                    logs.LOG.info("runpod job submitted", extra=fields)
+                    yield main.event("job", {"job_id": job_id})
+                    if (
+                        live
+                        and job_id
+                        and os.getenv("RUNPOD_WORKER_LOGS") == "1"
+                        and poll_task is None
+                    ):
+                        poll_task = asyncio.create_task(
+                            logs.poll_worker_logs(
+                                endpoint,
+                                key,
+                                session=session_id,
+                                turn=turn_id,
+                                job_id=job_id,
+                                stop=stop,
+                            )
+                        )
+                    continue
+                if kind == "log":
+                    for entry in chunk.get("entries", []):
+                        if not isinstance(entry, dict):
+                            continue
+                        if worker_lines < 500:
+                            origin = entry.get("source")
+                            prefix = (
+                                f"[{entry['section']}] " if "section" in entry else ""
+                            )
+                            logs.BUFFER.add(
+                                origin if origin in ("worker", "vllm") else "worker",
+                                entry.get("level", "info"),
+                                prefix + str(entry.get("message", "")),
+                                page_id=entry.get("page_id"),
+                                **fields,
+                            )
+                        elif worker_lines == 500:
+                            logs.LOG.warning(
+                                "worker log lines dropped after 500", extra=fields
+                            )
+                        worker_lines += 1
+                    continue
+                if kind == "error":
+                    error = str(chunk.get("message", "Unknown worker error"))[:300]
+                    logs.LOG.error(error, extra=fields)
                 failed |= kind == "error"
                 if kind == "metrics":
                     continue
@@ -337,6 +428,7 @@ async def stream(session, payload, source, endpoint, key, live, ids, message=Non
         if final and not failed:
             measured = main.metrics(times, final, "agent", source)
             measured["total_s"] = final.get("timing", {}).get("total_s")
+            measured.update(turn_id=turn_id, job_id=job_id if live else None)
             if message is not None:
                 chat = state(session)
                 memo = final.get("memo")
@@ -356,21 +448,51 @@ async def stream(session, payload, source, endpoint, key, live, ids, message=Non
                         for section in SECTIONS
                         if isinstance(memo.get(section["id"]), str)
                     }
-                session["requests"].append(
-                    main.clean(
-                        {"task": "agent", "intent": final.get("intent"), **measured}
-                    )
-                )
+            session["requests"].append(
+                main.clean({"task": task, "intent": final.get("intent"), **measured})
+            )
             for p in read_ids:
                 if session["pages"][p].get("document"):
                     session["pages"][p]["metrics"] = {
                         **measured,
                         "source": "agent-read",
                     }
+            finished = True
             yield main.event("metrics", measured)
     except Exception as exc:
-        yield main.event("error", {"message": str(exc)[:300]})
+        failed = True
+        error = main.clean(str(exc))[:300]
+        logs.LOG.error(error, extra=fields)
+        yield main.event("error", {"message": error})
     finally:
+        stop.set()
+        if poll_task is not None:
+            poll_task.cancel()
+            try:
+                await poll_task
+            except asyncio.CancelledError:
+                pass
+        label = "read" if message is None else "agent turn"
+        if failed:
+            logs.LOG.error(f"{label} failed: {error}", extra=fields)
+        elif finished:
+            total = final.get("timing", {}).get("total_s")
+            if total is None:
+                total = time.monotonic() - started
+            detail = (
+                f"{len(read_ids)} pages"
+                if message is None
+                else f"intent {final.get('intent', 'unknown')}"
+            )
+            line = f"{label} done: {detail}, {total:.1f} s total"
+            for field, name in (("delayTime", "queue"), ("executionTime", "execution")):
+                if times.get(field) is not None:
+                    line += f", {name} {times[field] / 1000:.1f} s"
+            if not live:
+                line += ", recorded run"
+            logs.LOG.info(line, extra=fields)
+        else:
+            logs.LOG.warning(f"{label} stopped before it finished", extra=fields)
         release(session, ids)
 
 
@@ -407,7 +529,14 @@ async def read(s: str, request: ReadRequest):
         raise
     return StreamingResponse(
         stream(
-            session, payload, "runpod" if live else "recorded", endpoint, key, live, ids
+            session,
+            payload,
+            "runpod" if live else "recorded",
+            endpoint,
+            key,
+            live,
+            ids,
+            session_id=s,
         ),
         media_type="text/event-stream",
     )
@@ -421,7 +550,12 @@ async def chat(s: str, request: ChatRequest):
 
     async def generate():
         ids = []
+        turn_id = secrets.token_hex(6)
+        delegated = False
+        error = None
+        fields = dict(session=s, turn=turn_id, task="agent")
         try:
+            yield backend().event("turn", {"turn_id": turn_id})
             if current["reading"]:
                 yield backend().event(
                     "notice",
@@ -473,6 +607,7 @@ async def chat(s: str, request: ChatRequest):
                     images, pages, ids, budget
                 )
             bounded(payload)
+            delegated = True
             async with aclosing(
                 stream(
                     session,
@@ -483,17 +618,29 @@ async def chat(s: str, request: ChatRequest):
                     live,
                     ids,
                     request.message,
+                    session_id=s,
+                    turn_id=turn_id,
+                    emit_turn=False,
                 )
             ) as events:
                 async for chunk in events:
                     yield chunk
         except TimeoutError:
-            yield backend().event(
-                "error", {"message": "Pages are still reading; try again shortly"}
-            )
+            error = "Pages are still reading; try again shortly"
+            logs.LOG.error(error, extra=fields)
+            yield backend().event("error", {"message": error})
         except Exception as exc:
-            yield backend().event("error", {"message": str(exc)[:300]})
+            error = backend().clean(str(exc))[:300]
+            logs.LOG.error(error, extra=fields)
+            yield backend().event("error", {"message": error})
         finally:
+            if not delegated:
+                if error:
+                    logs.LOG.error(f"agent turn failed: {error}", extra=fields)
+                else:
+                    logs.LOG.warning(
+                        "agent turn stopped before it finished", extra=fields
+                    )
             release(session, ids)
 
     return StreamingResponse(generate(), media_type="text/event-stream")
