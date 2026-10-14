@@ -1,0 +1,132 @@
+[
+  {
+    "t": 0.001,
+    "type": "step",
+    "name": "router",
+    "status": "start"
+  },
+  {
+    "t": 0.001,
+    "type": "step",
+    "name": "analyst",
+    "status": "start"
+  },
+  {
+    "t": 0.002,
+    "type": "step",
+    "name": "analyst",
+    "status": "done",
+    "ms": 1.1458322405815125
+  },
+  {
+    "t": 0.746,
+    "type": "step",
+    "name": "router",
+    "status": "done",
+    "ms": 745.581416413188
+  },
+  {
+    "t": 0.747,
+    "type": "route",
+    "intent": "knowledge",
+    "plan": {
+      "audience": "credit committee",
+      "length": "standard",
+      "focus": "general knowledge",
+      "language": "en"
+    },
+    "reason": "This is a general credit or banking question that doesn't require documents."
+  },
+  {
+    "t": 0.747,
+    "type": "step",
+    "name": "writer",
+    "status": "start"
+  },
+  {
+    "t": 0.899,
+    "type": "deltas",
+    "parts": [
+      {
+        "part": "answer",
+        "text": "A returned cheque usually tells a lender that the payment was not"
+      }
+    ]
+  },
+  {
+    "t": 1.041,
+    "type": "deltas",
+    "parts": [
+      {
+        "part": "answer",
+        "text": " honored due to insufficient funds, a closed account, or other issues"
+      }
+    ]
+  },
+  {
+    "t": 1.162,
+    "type": "deltas",
+    "parts": [
+      {
+        "part": "answer",
+        "text": ", indicating a potential risk of non-payment or financial instability"
+      }
+    ]
+  },
+  {
+    "t": 1.229,
+    "type": "deltas",
+    "parts": [
+      {
+        "part": "answer",
+        "text": " in the account holder."
+      }
+    ]
+  },
+  {
+    "t": 1.229,
+    "type": "step",
+    "name": "writer",
+    "status": "done",
+    "ms": 482.6581533998251
+  },
+  {
+    "t": 1.229,
+    "type": "step",
+    "name": "checker",
+    "status": "start"
+  },
+  {
+    "t": 1.229,
+    "type": "step",
+    "name": "checker",
+    "status": "done",
+    "ms": 0.07382407784461975
+  },
+  {
+    "t": 1.254,
+    "type": "final",
+    "intent": "knowledge",
+    "problems": [],
+    "answer": "A returned cheque usually tells a lender that the payment was not honored due to insufficient funds, a closed account, or other issues, indicating a potential risk of non-payment or financial instability in the account holder.",
+    "usage": {
+      "prompt_tokens": 303,
+      "completion_tokens": 106
+    },
+    "timing": {
+      "total_s": 1.2288523484021425,
+      "per_step": {
+        "analyst": 0.0011458322405815125,
+        "router": 0.745581416413188,
+        "writer": 0.4826581533998251,
+        "checker": 7.382407784461975e-05
+      }
+    },
+    "gpu": "NVIDIA RTX PRO 4500 Blackwell",
+    "models": {
+      "base": "ledgerlens",
+      "reader": "reader",
+      "memo": "ledgerlens"
+    }
+  }
+]

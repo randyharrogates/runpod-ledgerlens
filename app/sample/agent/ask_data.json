@@ -1,0 +1,125 @@
+[
+  {
+    "t": 0.001,
+    "type": "step",
+    "name": "router",
+    "status": "start"
+  },
+  {
+    "t": 0.001,
+    "type": "step",
+    "name": "analyst",
+    "status": "start"
+  },
+  {
+    "t": 0.01,
+    "type": "step",
+    "name": "analyst",
+    "status": "done",
+    "ms": 8.229931816458702
+  },
+  {
+    "t": 0.805,
+    "type": "step",
+    "name": "router",
+    "status": "done",
+    "ms": 804.26518432796
+  },
+  {
+    "t": 0.806,
+    "type": "route",
+    "intent": "ask_data",
+    "plan": {
+      "audience": "credit committee",
+      "length": "standard",
+      "focus": "payer analysis",
+      "language": "en"
+    },
+    "reason": "The request asks for a data analysis of payers, which requires document data to compute."
+  },
+  {
+    "t": 0.806,
+    "type": "step",
+    "name": "data_agent",
+    "status": "start"
+  },
+  {
+    "t": 1.171,
+    "type": "tool",
+    "name": "top_counterparties",
+    "arguments": "{\"n\": 1, \"direction\": \"in\"}",
+    "result": {
+      "counterparties": [
+        {
+          "payer": "Senja Hijau Damai Niaga",
+          "total": "17898.73",
+          "cites": [
+            "[p1:r3]",
+            "[p2:r2]",
+            "[p2:r9]"
+          ],
+          "share_percent": "20.1"
+        }
+      ],
+      "total": "89218.66",
+      "currency": "SGD",
+      "direction": "in"
+    }
+  },
+  {
+    "t": 1.761,
+    "type": "step",
+    "name": "data_agent",
+    "status": "done",
+    "ms": 955.3259946405888
+  },
+  {
+    "t": 1.761,
+    "type": "deltas",
+    "parts": [
+      {
+        "part": "answer",
+        "text": "The largest payer is \"Senja Hijau Damai Niaga,\" and they make up 20.1% of the money in. Supporting rows: [p1:r3], [p2:r2], [p2:r9]."
+      }
+    ]
+  },
+  {
+    "t": 1.761,
+    "type": "step",
+    "name": "checker",
+    "status": "start"
+  },
+  {
+    "t": 1.761,
+    "type": "step",
+    "name": "checker",
+    "status": "done",
+    "ms": 0.1965779811143875
+  },
+  {
+    "t": 1.785,
+    "type": "final",
+    "intent": "ask_data",
+    "problems": [],
+    "answer": "The largest payer is \"Senja Hijau Damai Niaga,\" and they make up 20.1% of the money in. Supporting rows: [p1:r3], [p2:r2], [p2:r9].",
+    "usage": {
+      "prompt_tokens": 1699,
+      "completion_tokens": 149
+    },
+    "timing": {
+      "total_s": 1.760594392195344,
+      "per_step": {
+        "analyst": 0.008229931816458702,
+        "router": 0.80426518432796,
+        "data_agent": 0.9553259946405888,
+        "checker": 0.0001965779811143875
+      }
+    },
+    "gpu": "NVIDIA RTX PRO 4500 Blackwell",
+    "models": {
+      "base": "ledgerlens",
+      "reader": "reader",
+      "memo": "ledgerlens"
+    }
+  }
+]
