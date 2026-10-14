@@ -18,7 +18,6 @@ STATEMENT = json.loads(Path("app/sample/biz_0000_p001.json").read_text())
 PLAN = {
     "audience": "credit committee",
     "length": "standard",
-    "sections": [],
     "focus": "",
     "language": "en",
 }

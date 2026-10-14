@@ -60,6 +60,7 @@ def find_rows(ctx, text=None, month=None, min_amount=None, direction=None, limit
             continue
         matches.append({**row.model_dump(mode="json"), "cite": _cite(citation)})
     return {
+        "currency": ctx.currency,
         "rows": matches[:limit],
         "count": len(matches),
         "truncated": len(matches) > limit,
@@ -69,6 +70,7 @@ def find_rows(ctx, text=None, month=None, min_amount=None, direction=None, limit
 def monthly_totals(ctx):
     """Return computed monthly flows and the number of cited rows."""
     return {
+        "currency": ctx.currency,
         "monthly": {
             month: _safe(
                 {
@@ -80,7 +82,7 @@ def monthly_totals(ctx):
             for month, bucket in analyze(ctx.statements, ctx.page_ids)[
                 "monthly"
             ].items()
-        }
+        },
     }
 
 
@@ -104,9 +106,15 @@ def top_counterparties(ctx, n=5, direction="in"):
     return _safe(
         {
             "counterparties": [
-                {**group, "share": group["total"] / total} for group in ranked[:n]
+                {
+                    **group,
+                    "share_percent": str(round(group["total"] / total * 100, 1)),
+                }
+                for group in ranked[:n]
             ],
             "total": total,
+            "currency": ctx.currency,
+            "direction": direction,
         }
     )
 
@@ -148,6 +156,7 @@ def balance_on(ctx, day):
         return {"balance": None, "cite": None}
     row, citation = selected
     return {
+        "currency": ctx.currency,
         "balance": str(row.balance),
         "date": row.date.isoformat(),
         "cite": _cite(citation),
@@ -184,7 +193,7 @@ TOOL_SPECS = [
         ("monthly_totals", "Get monthly cash flows.", {}, []),
         (
             "top_counterparties",
-            "Get the largest counterparties.",
+            "Rank counterparties: direction 'in' = who paid the business (payers, customers; the default), 'out' = whom it paid (suppliers, payroll).",
             {
                 "n": {"type": "integer", "minimum": 1, "maximum": 10},
                 "direction": {"type": "string", "enum": ["in", "out"]},
