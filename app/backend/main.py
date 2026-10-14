@@ -6,14 +6,12 @@ import io
 import json
 import logging
 import os
-import re
 import secrets
 import socket
 import threading
 import time
 from contextlib import asynccontextmanager
-from datetime import date
-from decimal import Decimal, InvalidOperation
+from decimal import Decimal
 from pathlib import Path
 from typing import Literal
 
@@ -29,7 +27,17 @@ from app.backend.datasets import router as datasets_router
 from app.backend.insights import router as insights_router
 from app.backend.training import router as training_router
 from app.backend.training import shutdown_runs
-from ledgerlens.analytics import analyze, payer, payer_key
+from ledgerlens.agent.checker import (
+    MEMO_CITATION as MEMO_CITATION,
+)
+from ledgerlens.agent.checker import (
+    MEMO_NUMBER as MEMO_NUMBER,
+)
+from ledgerlens.agent.checker import (
+    unverified_memo_numbers,
+)
+from ledgerlens.agent.findings import amount, describe_finding
+from ledgerlens.analytics import analyze
 from ledgerlens.datagen.layouts import LAYOUTS
 from ledgerlens.direction import check_direction
 from ledgerlens.eval.score import score_document
@@ -486,47 +494,6 @@ def analysis(s: str):
         raise HTTPException(422, "Analyze one currency at a time") from None
 
 
-def amount(value, currency):
-    """Format computed amounts consistently in explanations and the offline memo."""
-    return f"{currency} {Decimal(str(value or 0)):,.{0 if currency == 'IDR' else 2}f}"
-
-
-def describe_finding(finding, pages, currency):
-    """Turn deterministic rules into evidence-specific explanations."""
-    rows = [
-        pages[c["page_id"]]["document"]["transactions"][c["row_index"]]
-        for c in finding["citations"]
-    ]
-    row = rows[0] if rows else {}
-
-    def when(row):
-        return date.fromisoformat(row["date"]).strftime("%-d %b")
-
-    kind = finding["type"]
-    if kind == "returned_cheque":
-        return f"Returned cheque · {amount(row.get('debit') or row.get('credit'), currency)} · {when(row)} · {row['description']}"
-    if kind == "round_trip":
-        name = next(
-            (
-                payer(transaction["description"])
-                for page in pages.values()
-                for transaction in (page.get("document") or {}).get("transactions", [])
-                if payer_key(transaction["description"])
-                == payer_key(row["description"])
-            ),
-            payer(row["description"]),
-        )
-        return f"Round trip · {amount(finding['amount'], currency)} out to {name} on {when(row)}, back on {when(rows[1])}"
-    if kind == "large_cash_deposit":
-        ratio = Decimal(finding["amount"]) / Decimal(finding["median_inflow"])
-        return f"Large cash deposit · {amount(finding['amount'], currency)} · {when(row)} · {row['description']} · {ratio:.1f}× the median credit"
-    if kind == "unreconciled_page":
-        return f"Unreconciled page · printed closing balance off by {amount(abs(Decimal(finding['difference'])), currency)}"
-    if kind == "customer_concentration":
-        return f"Customer concentration · {finding['payer']} is {Decimal(finding['share']) * 100:.0f}% of inflows"
-    return kind.replace("_", " ").capitalize()
-
-
 def cached_memo(computed):
     """Write a concise offline memo from the same numbers used in the analysis."""
     currency = computed["currency"]
@@ -635,59 +602,6 @@ def memo_chunks(endpoint, payload, key):
 
 def event(kind, data):
     return f"event: {kind}\ndata: {json.dumps(clean(data))}\n\n"
-
-
-# Plain integers of 4+ digits are amounts too ("SGD 55041"); years are skipped below.
-MEMO_NUMBER = re.compile(
-    r"\d+(?:\.\d+)?%|\d{1,3}(?:,\d{3})+(?:\.\d+)?|\d+\.\d+|(?<![\d:r])\d{4,}(?![\d,]|\.\d)"
-)
-MEMO_CITATION = re.compile(r"\[p\d+:r\d+[^\]]*\]")
-
-
-def unverified_memo_numbers(text, payload):
-    """Compare memo figures with supplied analysis values, including rounded forms."""
-    allowed = set()
-
-    def add(value, share=False):
-        number = Decimal(str(value).replace(",", "").rstrip("%"))
-        if not number.is_finite():
-            return
-        allowed.add(number)
-        allowed.update(round(number, places) for places in (0, 1, 2))
-        if share and 0 <= number <= 1:
-            allowed.update(round(number * 100, places) for places in (0, 1, 2))
-
-    def collect(value, name=""):
-        if isinstance(value, dict):
-            for key, item in value.items():
-                collect(item, key)
-        elif isinstance(value, (list, tuple)):
-            for item in value:
-                collect(item, name)
-        elif isinstance(value, (int, float, Decimal)) and not isinstance(value, bool):
-            add(value, name == "share")
-        elif isinstance(value, str):
-            try:
-                add(value, name == "share")
-            except InvalidOperation:
-                pass
-            for match in MEMO_NUMBER.finditer(MEMO_CITATION.sub("", value)):
-                add(match.group())
-
-    collect(payload)
-    unverified = []
-    for match in MEMO_NUMBER.finditer(MEMO_CITATION.sub("", text)):
-        token = match.group()
-        number = Decimal(token.replace(",", "").rstrip("%"))
-        if token.isdigit() and 1900 <= number <= 2100:
-            continue
-        # A whole number may drop the cents ("55,041" for 55,041.59).
-        tolerance = Decimal("0.005") if "." in token else Decimal("0.995")
-        if token not in unverified and not any(
-            abs(number - value) <= tolerance for value in allowed
-        ):
-            unverified.append(token)
-    return unverified
 
 
 @app.get("/api/sessions/{s}/memo")
