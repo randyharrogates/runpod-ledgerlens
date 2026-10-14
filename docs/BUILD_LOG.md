@@ -793,3 +793,10 @@ the bottom of each day.
 - Upscaling small pages does not help (13 vs 15/18), so not done.
 - A worker kept status RUNNING right after the cancelled job and billed $0.70/h; I scaled the endpoint to 0 and back to 2 after ~1.5 min. Not yet shown to be stuck (the 60 s idle timeout had barely passed); a controlled cancel test is running with the re-recording.
 - Spend: probes and test turns about $0.15 so far (balance $196.53 at 07:40).
+
+### 2026-10-15 08:00 SGT: Endpoint recordings, cancel behaviour, checker heading fix
+- Recorded the run-3 scenarios against the endpoint (`/stream` polled each second): read of 6 pages 228.9 s wall (includes a cold start; the not-a-document page rejected; p1 18, p2–p4 17 rows, invoice 4), memo 14.9 s, data questions 5.9 and 6.0 s, edit 7.6 s, general answer 4.6 s, fixed replies 3.3 s. All routes right. All on RTX PRO 6000 MIG 1g.24gb.
+- Memo content: all four planted problems, figures in SGD, every flag cited. The "make red flags shorter" edit returned the section unchanged again (base-4B writer; E5/memo adapter).
+- The memo's Questions section was rewritten for nothing: the writer wrote `## Questions for the applicant.` and the checker wanted an exact heading. Fix: headings compare without a trailing `.`/`:` and case (`src/ledgerlens/agent/checker.py`, test). Needs a worker release.
+- Installed the new `ask_data`, `ask_data_month`, `knowledge` recordings in the demo; `memo_preread` and `edit_memo` stay the Pod recordings until the checker fix is live.
+- Cancel test: started a memo, cancelled after 3 s (`CANCELLED`, 3.4 s execution). Health then showed one worker `running` for ~2–2.5 min before going idle by itself; it is not stuck. A cancel costs a couple of minutes of GPU while in-flight work drains. The earlier scale-to-zero was unnecessary.
