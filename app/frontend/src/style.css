@@ -943,3 +943,26 @@ button.secondary {background:transparent;color:var(--text);border:1px solid var(
   .rail nav a,.presenter {padding:5px 0;gap:2px}
   .rail svg {width:18px;height:18px}
 }
+
+.assistant-layout {display:grid;grid-template-columns:minmax(0,2fr) minmax(260px,1fr);gap:var(--gap);align-items:start}
+.assistant-thread,.assistant-evidence {display:grid;gap:var(--gap);min-width:0}
+.assistant-exchange {display:grid;gap:12px;min-width:0}
+.user-bubble {justify-self:end;max-width:90%;background:var(--ground);border:1px solid var(--hairline);border-radius:16px;padding:12px 18px;overflow-wrap:anywhere}
+.assistant-turn {overflow-wrap:anywhere;min-width:0}
+.step-trail,.assistant-metrics {font-size:12px;color:var(--muted);line-height:1.8}
+.assistant-route {margin:14px 0}.assistant-route small {display:block}
+.assistant-cards {display:grid;gap:12px}
+.assistant-card {border:1px solid var(--hairline);border-radius:12px;padding:16px;min-width:0}
+.assistant-card h3 {margin:0 0 8px}.assistant-card small {display:block;color:var(--muted)}
+.assistant-turn .memo {min-height:0;margin:8px 0}.assistant-card.unchanged {opacity:.6}
+.assistant-metrics {border-top:1px solid var(--hairline);padding-top:12px;margin-top:16px}
+.assistant-composer textarea {width:100%;margin-top:10px;resize:vertical;min-width:0}
+.assistant-suggestions {display:flex;flex-wrap:wrap;gap:8px}.assistant-suggestions button {text-align:left;font-size:12px;white-space:normal}
+.assistant-pages {display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:8px;margin:14px 0}
+.assistant-page {display:flex;gap:12px;align-items:center;border:1px solid var(--hairline);border-radius:10px;padding:8px}
+.assistant-page img {width:36px;height:46px;object-fit:contain}.assistant-page small {display:block;margin-top:4px}
+.assistant-spinner {display:inline-block;animation:assistant-spin 1s linear infinite}
+@keyframes assistant-spin {to {transform:rotate(360deg)}}
+@media(prefers-reduced-motion:reduce) {.assistant-spinner {animation:none}}
+[data-tour-active="assistant"] [data-tour="assistant"] {outline:3px solid var(--sky);outline-offset:3px}
+@media(max-width:700px) {.assistant-layout {grid-template-columns:minmax(0,1fr)}.assistant-evidence {grid-row:1}.assistant-evidence .drop {padding:16px}.assistant-card {padding:12px}}

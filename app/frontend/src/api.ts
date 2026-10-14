@@ -106,3 +106,51 @@ export const api = {
     })
   ),
 };
+
+export type ChatEvent = {
+  type: string;
+  [key: string]: any;
+};
+
+export async function postEvents(
+  url: string, body: unknown, onEvent: (event: ChatEvent) => void, signal?: AbortSignal,
+) {
+  const response = await fetch(url, { ...json('POST', body), signal });
+  if (!response.ok) {
+    const value = await response.json().catch(() => ({}));
+    throw new Error(typeof value.detail === 'string' ? value.detail : `Request failed (${response.status})`);
+  }
+  if (!response.body) throw new Error('The stream is unavailable');
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = '';
+  let kind = 'message';
+  let data: string[] = [];
+  function line(value: string) {
+    if (!value) {
+      if (data.length) onEvent({ ...JSON.parse(data.join('\n')), type: kind });
+      kind = 'message';
+      data = [];
+    } else if (value.startsWith('event:')) kind = value.slice(6).trim();
+    else if (value.startsWith('data:')) data.push(value.slice(5).replace(/^ /, ''));
+  }
+  try {
+    while (true) {
+      const {value, done} = await reader.read();
+      buffer += decoder.decode(value, {stream: !done});
+      let end: number;
+      while ((end = buffer.indexOf('\n')) >= 0) {
+        line(buffer.slice(0, end).replace(/\r$/, ''));
+        buffer = buffer.slice(end + 1);
+      }
+      if (done) {
+        if (buffer) line(buffer.replace(/\r$/, ''));
+        line('');
+        break;
+      }
+    }
+  } finally {
+    await reader.cancel().catch(() => {});
+    reader.releaseLock();
+  }
+}
