@@ -1274,3 +1274,50 @@ def test_writer_subset_bounds():
     )
     assert len(subset["findings"]) == len(subset["reconciliation"]) == 50
     assert len(subset["findings"][0]["citations"]) == 3
+
+
+@pytest.mark.parametrize(
+    "message,key",
+    [
+        ("are you able to edit the memo for me?", "capabilities"),
+        (
+            "change all mention of Bayu Emas Murni Niaga to Bank Singapore",
+            "document_facts",
+        ),
+    ],
+)
+def test_rules_override_router_without_writer(message, key):
+    class WrongRouter(FakeEngine):
+        async def complete(self, request):
+            self.record(request)
+            assert request["messages"][0]["content"] == agent.ROUTER_SYSTEM
+            return response(
+                {
+                    "intent": "edit_memo",
+                    "edit_target": "text",
+                    "reason": "Requested",
+                    "plan": PLAN,
+                    "edit_sections": ["summary"],
+                }
+            )
+
+    engine = WrongRouter()
+    events = collect(
+        agent.run_agent,
+        {
+            "message": message,
+            "documents": [document()],
+            "last_memo": {"summary": "## Summary\nOriginal."},
+        },
+        engine,
+    )
+    route = next(event for event in events if event["type"] == "route")
+    assert route["rule"] == key
+    assert events[-1]["answer"] == agent.REPLIES[key]
+    assert events[-1]["intent"] == (
+        "capabilities" if key == "capabilities" else "edit_memo"
+    )
+    if key == "document_facts":
+        assert events[-1]["edit_target"] == "document_facts"
+    assert len(engine.calls) == 1
+    assert not engine.streams

@@ -34,6 +34,7 @@ from ledgerlens.agent.prompts import (
     section_messages,
 )
 from ledgerlens.agent.report import build_report
+from ledgerlens.agent.rules import is_capability_question, is_document_fact_edit
 from ledgerlens.agent.tools import TOOL_SPECS, ToolContext, run_tool
 from ledgerlens.analytics import analyze
 from ledgerlens.direction import check_direction
@@ -704,6 +705,17 @@ async def run_agent(data, engine):
         edit_target = route.get("edit_target", "text")
         intent = route["intent"]
         original = intent
+        rule = None
+        if is_capability_question(clean["message"]):
+            if intent != "capabilities":
+                rule = "capabilities"
+            intent = "capabilities"
+        elif intent in ("edit_memo", "memo") and is_document_fact_edit(
+            clean["message"]
+        ):
+            if intent != "edit_memo" or edit_target != "document_facts":
+                rule = "document_facts"
+            intent, edit_target = "edit_memo", "document_facts"
         if (
             intent in ("memo", "ask_data", "edit_memo")
             and not statements
@@ -729,6 +741,7 @@ async def run_agent(data, engine):
                 "plan": plan,
                 "reason": route["reason"],
                 "edit_target": edit_target,
+                **({"rule": rule} if rule else {}),
                 **({"overridden_from": original} if original != intent else {}),
             }
         )
