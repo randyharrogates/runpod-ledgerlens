@@ -273,7 +273,20 @@ def test_list_findings_and_largest_row(ctx):
         "type": "returned_cheque",
         "cites": ["[p1:r3]"],
     }
-    assert list_findings(ToolContext([], [], "SGD")) == {"count": 0, "findings": []}
+    empty = list_findings(ToolContext([], [], "SGD"))
+    assert empty["count"] == 0 and empty["findings"] == []
+    assert empty["counts_by_type"] == dict.fromkeys(
+        [
+            "returned_cheque",
+            "round_trip",
+            "large_cash_deposit",
+            "customer_concentration",
+            "unreconciled_page",
+        ],
+        0,
+    )
+    assert result["counts_by_type"]["returned_cheque"] == 1
+    assert sum(result["counts_by_type"].values()) == result["count"]
     clean = ctx.statements[0].model_copy(
         update={"transactions": [], "closing_balance": Decimal("0")}
     )

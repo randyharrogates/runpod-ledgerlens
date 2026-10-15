@@ -825,3 +825,26 @@ All 357 jobs completed, 0 errors, 6 min wall for the four suites. Balance $196.3
 - Writer: no added thresholds or comparison figures; a rewrite for an unverified figure now names the figures to remove.
 - Scorer: a refusal counts whatever the route; refusal keywords widened ("does not contain", "do not show"). Rescoring the first run's answers: refusals 53% → 73%; the rest are the "no documents were read" answers fixed above.
 - Tests: 546 pass. Needs a worker release, then a re-run of E2, E4 and E5 (E3 unchanged).
+
+### 2026-10-15 10:04 SGT: Agent evaluations, second run (image c695f7c)
+Released c695f7c (Randy ran release-worker.sh, 546 passed). Four idle workers still had the old image; cycled max workers 0 → 2. E2, E4, E5 re-run on the same cases (E3 unchanged, not re-run): 7.9 min wall, 0 errors, balance $196.16 → $195.98 (≈ $0.18 including the cold start; the longest queue wait was 185 s).
+| Test | Run 1 (d59bc8a) | Run 2 (c695f7c) |
+|---|---|---|
+| E2 router, overall | 91.1% | 91.7% |
+| E2 memo / edit_memo / knowledge | 67.6% / 96.7% / 100% | 94.1% / 80.0% / 83.3% |
+| E4 data questions (excl. refusals) | 66.3% | 80.0% |
+| E4 biggest single payment / flags / payer | 0% / 0% / 50% | 100% / 10% / 50% |
+| E4 refusals (current scorer) | 73% | 73% |
+| E5 "shorter" edits followed | 5/30 | 27/30 (median length 0.54 of before) |
+| E5 memos with a problem left | 5/30 | 4/30 |
+- What moved: the router wording fixed memo requests but pulled translations of an existing memo into memo and Indonesian/Malay "what is / explain" questions away from knowledge, so the total barely moved. The sort fixed the largest-payment question.
+- What still fails: (1) on Chinese-named businesses the model still writes a famous brand name; the new name check catches it, but the rewrite then prints the problem list as the answer: worse for the user than before. (2) The 4B miscounts red flags by type (e.g. "2 returned cheques" for one returned cheque and one round trip); several flag answers were right but said "no" instead of "0", which the scorer missed. (3) 7 edits got shorter but missed the strict 60% target; 3 kept a literal `[pN:r18]` citation the writer had invented in the memo.
+- Round two (Codex, next): placeholders for non-Latin names so the model never copies them, a plain-text rewrite request, flag counts by type from code, check edits at 80% while asking for 60%, a prompt rule against `pN`, router wording for translate → edit and explain-a-term → knowledge.
+
+### 2026-10-15 10:25 SGT: Fixes, round two (Codex, reviewed)
+- Data agent: non-Latin names in tool results reach the model as placeholders (`NAME_1`…) and are put back by code in the answer; the tool events and the screen keep the real names. The rewrite request is a plain sentence, so the problem list can no longer become the answer.
+- `list_findings` adds `counts_by_type` with all five flag types (0 when absent).
+- Shorter edits: writer asked for 60% of the old words, checker fails only above 80%.
+- Writer prompt: cite real page ids, never `pN` or a range. Router: translating or summarising an existing memo is edit_memo; explaining a term in any language is knowledge.
+- Scorer: "no returned cheques" counts for an expected 0. Rescoring run 2 with it: E4 80.0% → 86.3% (flags 10% → 60%).
+- 560 tests pass. Needs a release, then run 3.

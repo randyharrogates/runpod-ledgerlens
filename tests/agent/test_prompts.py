@@ -104,3 +104,14 @@ def test_router_assessments_and_writer_figures():
     )
     assert "at most 25 words" in messages[0]["content"]
     assert "Remove these figures entirely: 70%" in messages[0]["content"]
+
+
+def test_round_two_prompt_rules():
+    assert "translate it or a section" in ROUTER_SYSTEM
+    assert "explain a credit/lending/banking term or ratio" in ROUTER_SYSTEM
+    assert "even with documents loaded" in ROUTER_SYSTEM
+    assert "Names like NAME_1 are placeholders; copy them exactly" in DATA_AGENT_SYSTEM
+    prompt = section_messages("summary", {"length": "standard", "language": "en"}, {})[
+        0
+    ]["content"]
+    assert "Cite real page ids like [p3:r18]; never write pN or a range" in prompt

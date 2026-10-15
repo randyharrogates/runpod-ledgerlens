@@ -476,6 +476,21 @@ def answer_matches(answer, expected, question=""):
                 if kind == "percent"
                 else numbers
             )
+            if kind == "number" and float(value) == 0:
+                # An explicit absence of the asked flag can coexist with other flag counts.
+                no_returned = re.search(
+                    r"\b(?:no|zero|0) returned cheques?\b|"
+                    r"\bnone of them (?:are|is) returned cheques?\b|"
+                    r"tidak ada|没有",
+                    text,
+                )
+                contradiction = re.search(r"\b[1-9]\d* returned cheques?\b", text)
+                if contradiction:
+                    return False
+                if no_returned or (
+                    not numbers and re.search(r"\b(?:none|zero)\b", text)
+                ):
+                    continue
             if not any(abs(n - float(value)) <= tolerance for n in candidates):
                 return False
         elif kind == "month":
