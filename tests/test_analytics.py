@@ -197,3 +197,84 @@ def test_period_totals_two_months(ledger):
         "months": 0,
         "full_months": 0,
     }
+
+
+def test_balance_gap_live_shape_and_accounts(pages):
+    prior = pages[0].statement.model_copy(deep=True)
+    current = pages[1].statement.model_copy(deep=True)
+    prior.closing_balance = Decimal("6014.30")
+    current.opening_balance = Decimal("6204.27")
+    prior.opening_balance = prior.closing_balance - sum(
+        (r.credit or Decimal(0)) - (r.debit or Decimal(0)) for r in prior.transactions
+    )
+    current.closing_balance = current.opening_balance + sum(
+        (r.credit or Decimal(0)) - (r.debit or Decimal(0)) for r in current.transactions
+    )
+    assert not reconciliation_failures([prior, current])
+    gaps = [
+        f
+        for f in detect_anomalies([prior, current], ["p5", "p6"])
+        if f["type"] == "balance_gap"
+    ]
+    assert len(gaps) == 1
+    assert gaps[0]["difference"] == Decimal("189.97")
+    assert gaps[0]["previous_page_id"] == "p5"
+    assert gaps[0]["citations"] == [
+        {"page_id": "p5", "row_index": len(prior.transactions) - 1},
+        {"page_id": "p6", "row_index": 0},
+    ]
+    current.account_number_masked = "different"
+    assert not any(
+        f["type"] == "balance_gap" for f in detect_anomalies([prior, current])
+    )
+    current.account_number_masked = prior.account_number_masked
+    current.bank_name = "Another Fictional Bank"
+    assert not any(
+        f["type"] == "balance_gap" for f in detect_anomalies([prior, current])
+    )
+    current.bank_name = prior.bank_name
+    prior.transactions = []
+    current.transactions = []
+    assert (
+        next(
+            f for f in detect_anomalies([prior, current]) if f["type"] == "balance_gap"
+        )["citations"]
+        == []
+    )
+
+
+def test_hundred_page_analysis_performance(pages):
+    from datetime import date, timedelta
+    from time import perf_counter
+
+    template = pages[0].statement
+    statements = []
+    for page in range(100):
+        statement = template.model_copy(deep=True)
+        statement.transactions = [
+            template.transactions[i % len(template.transactions)].model_copy(
+                update={
+                    "date": date(2026, 1, 1) + timedelta(days=page * 25 + i),
+                    "description": f"TRANSFER | Fictional counterparty {i}",
+                }
+            )
+            for i in range(25)
+        ]
+        statements.append(statement)
+    started = perf_counter()
+    result = analyze(statements)
+    assert len(result["reconciliation"]) == 100
+    assert perf_counter() - started < 2
+
+
+def test_unreconciled_page_is_not_also_a_balance_gap(pages):
+    prior = pages[0].statement.model_copy(deep=True)
+    current = pages[1].statement.model_copy(deep=True)
+    rows = sum(
+        (r.credit or Decimal(0)) - (r.debit or Decimal(0)) for r in prior.transactions
+    )
+    current.opening_balance = prior.opening_balance + rows
+    prior.closing_balance = current.opening_balance + Decimal("123.45")
+    types = [f["type"] for f in detect_anomalies([prior, current], ["p3", "p4"])]
+    assert "unreconciled_page" in types
+    assert "balance_gap" not in types

@@ -2,11 +2,12 @@
 
 MAX_PROMPT_CHARS = 2000
 MAX_HISTORY_TURNS = 10
-MAX_PAGES = 8
+MAX_DOCUMENTS = 100
+MAX_NEW_PAGES = 8
 MAX_BODY_BYTES = 9 * 1024 * 1024
 MAX_TOOL_ROUNDS = 3
 MAX_TOOL_CALLS_PER_ROUND = 5
-# Real pages hold ~20-40 rows; red-flag detection compares rows pairwise, so cap them.
+# Bound per-document processing and request size.
 MAX_ROWS_PER_DOCUMENT = 500
 MAX_MEMO_SECTION_CHARS = 4000
 _SECTION_IDS = {"summary", "cash_flow", "concentration", "red_flags", "questions"}
@@ -81,8 +82,10 @@ def validate_agent_input(data: dict) -> dict:
                     raise ValueError("New pages need image_base64 text")
                 result.append({key: page[key] for key in ("page_id", "image_base64")})
         cleaned[field] = result
-    if len(ids) > MAX_PAGES:
-        raise ValueError("At most 8 pages are allowed")
+    if len(cleaned["new_pages"]) > MAX_NEW_PAGES:
+        raise ValueError("At most 8 new pages are allowed")
+    if len(ids) > MAX_DOCUMENTS:
+        raise ValueError("At most 100 documents including new pages are allowed")
     if "last_memo" in data:
         memo = data["last_memo"]
         if not isinstance(memo, dict) or any(

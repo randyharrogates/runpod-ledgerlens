@@ -11,7 +11,7 @@ export const sections = [
   ['red_flags', 'Red flags'], ['questions', 'Questions for the applicant'],
 ] as const;
 const labels: Record<string, string> = {
-  memo: 'Credit memo', ask_data: 'Data question', edit_memo: 'Memo edit',
+  capabilities: 'Capabilities', memo: 'Credit memo', ask_data: 'Data question', edit_memo: 'Memo edit',
   knowledge: 'General answer', needs_documents: 'Needs documents', off_topic: 'Off topic', demo: 'Demo mode', error: 'Error',
 };
 type Card = {text: string; changed: boolean; resetting: boolean; rewritten: boolean; problems: string[]};
@@ -21,6 +21,7 @@ export type TurnState = {
 };
 
 const problemLabels: Record<string, string> = {
+  edit_not_applied: 'Edit not applied',
   unverified_figure: 'Figure not found in the analysis', bad_citation: 'Unknown row reference',
   too_long: 'Too long', missing_heading: 'Missing heading', wrong_language: 'Wrong language',
   unverified_name: 'Name not in the documents',
@@ -137,7 +138,7 @@ function thinkingText(step?: ChatEvent) {
 
 export function TurnView({turn, jump}: {turn: TurnState; jump: (citation: Citation) => void}) {
   const intent = turn.route?.intent || turn.final?.intent || (turn.error ? 'error' : undefined);
-  const memo = intent === 'memo' || intent === 'edit_memo' || !!turn.final?.memo;
+  const memo = !!turn.final?.memo || ((intent === 'memo' || intent === 'edit_memo') && !turn.final?.answer);
   const measured = turn.metrics;
   const seconds = (value: unknown) => typeof value === 'number' ? `${value.toFixed(1)} s` : '—';
   const finished = !!(turn.final || turn.metrics || turn.error);

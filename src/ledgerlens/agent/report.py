@@ -8,6 +8,7 @@ from decimal import Decimal
 from ledgerlens.agent.findings import describe_finding
 
 LABELS = {
+    "balance_gap": "Balance gap between pages",
     "returned_cheque": "Returned cheque",
     "round_trip": "Round trip",
     "large_cash_deposit": "Large cash deposit",
@@ -82,6 +83,8 @@ def build_report(statements, invoices, ids, analysis, plan):
                 if citation[1] < len(rows):
                     row = rows[citation[1]]
                     finding["amount"] = row.get("debit") or row.get("credit")
+        elif finding["type"] == "balance_gap":
+            finding["amount"] = abs(Decimal(str(finding["difference"])))
         elif finding["type"] == "unreconciled_page":
             check = next(
                 (
@@ -110,7 +113,7 @@ def build_report(statements, invoices, ids, analysis, plan):
         "evidence": {
             "statements": len(statements),
             "invoices": len(invoices),
-            "page_ids": ids,
+            "page_ids": ids[:100],
         },
         **{k: plan.get(k, "") for k in ("audience", "length", "language")},
         "prepared": date.today().isoformat(),

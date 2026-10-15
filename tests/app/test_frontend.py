@@ -595,6 +595,11 @@ const memo={summary:'## Summary\nSound cash position.',cash_flow:'## Cash flow\n
 const view=es=>render(React.createElement(TurnView,{turn:reduceTurn(es),jump:()=>{}}));
 const withReport=view([report,{type:'final',intent:'memo',memo,problems:[]}]);for(const t of ['Credit memo','Key figures','10,000.00','Jan 2026','Feb 2026','Returned cheque','All figures checked','Copy memo'])assert(withReport.includes(t),t);
 
+const editProblem={kind:'edit_not_applied',section:'summary',detail:'The requested change was not made to this section.'};
+const unchanged=view([report,{type:'section',section:'summary',text:memo.summary,problems:[editProblem]},{type:'final',intent:'edit_memo',memo,problems:[editProblem]}]);
+const refusal=view([{type:'route',intent:'edit_memo'},{type:'final',intent:'edit_memo',answer:"I can't change that: names, figures and table rows come from the documents.",problems:[]}]);
+assert(refusal.includes('I can'));assert(refusal.includes('table rows come from the documents'));assert(!refusal.includes('All figures checked'));
+assert(unchanged.includes('1 check flagged'));assert(unchanged.includes('Edit not applied'));assert(unchanged.includes(editProblem.detail));assert(!unchanged.includes('All figures checked'));
 const {MemoReport,ReportDialog,activityText}=require('./src/components/MemoReport.tsx');
 assert(!withReport.includes('<th>#</th>'));
 assert(withReport.includes('class="report-nowrap">Returned cheque</td>'));

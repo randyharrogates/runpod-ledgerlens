@@ -713,18 +713,18 @@ async def chat(s: str, request: ChatRequest):
             ]
             documents = [
                 {"page_id": p, "doc_type": d["doc_type"], "document": d}
-                for p, d in cached[:8]
+                for p, d in cached[:100]
                 if len(d.get("transactions", d.get("line_items", []))) <= 500
             ]
-            ids = unread[: 8 - len(documents)]
+            ids = unread[: min(8, 100 - len(documents))]
             if live:
                 reserve(session, ids)
             else:
                 ids = []
-            if len(cached) + len(unread) > 8:
+            if len(cached) > 100 or len(unread) > min(8, 100 - len(documents)):
                 yield backend().event(
                     "notice",
-                    {"message": "Only the first 8 pages are included in this turn."},
+                    {"message": "Only the first 100 pages are included in this turn."},
                 )
             payload = {
                 "task": "agent",

@@ -4,8 +4,9 @@ import pytest
 
 from ledgerlens.agent.limits import (
     MAX_BODY_BYTES,
+    MAX_DOCUMENTS,
     MAX_HISTORY_TURNS,
-    MAX_PAGES,
+    MAX_NEW_PAGES,
     MAX_PROMPT_CHARS,
     MAX_TOOL_ROUNDS,
     validate_agent_input,
@@ -34,7 +35,7 @@ def test_clean_input():
         "documents": [],
         "new_pages": [],
     }
-    assert MAX_PROMPT_CHARS == 2000 and MAX_PAGES == 8
+    assert MAX_PROMPT_CHARS == 2000 and MAX_NEW_PAGES == 8 and MAX_DOCUMENTS == 100
     assert MAX_BODY_BYTES == 9 * 1024 * 1024 and MAX_TOOL_ROUNDS == 3
     assert validate_agent_input({"message": "x" * 2000})["message"] == "x" * 2000
 
@@ -101,3 +102,26 @@ def test_rows_and_memo_sections_capped():
     with pytest.raises(ValueError, match="4000"):
         validate_agent_input({"message": "x", "last_memo": {"summary": "x" * 4001}})
     assert validate_agent_input({"message": "x", "last_memo": {"summary": "x" * 4000}})
+
+
+def test_document_cap():
+    docs = [
+        {"page_id": f"p{i}", "doc_type": "statement", "document": {}}
+        for i in range(101)
+    ]
+    assert (
+        len(
+            validate_agent_input({"message": "x", "documents": docs[:100]})["documents"]
+        )
+        == 100
+    )
+    with pytest.raises(ValueError, match="100 documents"):
+        validate_agent_input({"message": "x", "documents": docs})
+    with pytest.raises(ValueError, match="100 documents"):
+        validate_agent_input(
+            {
+                "message": "x",
+                "documents": docs[:100],
+                "new_pages": [{"page_id": "new", "image_base64": ""}],
+            }
+        )

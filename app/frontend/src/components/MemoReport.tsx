@@ -1,6 +1,8 @@
 import { ReactNode, useCallback, useEffect, useRef, useState } from 'react';
 import { Citation, MemoReportData } from '../api';
 import { MemoContent } from './Memo';
+const flagLabel = (flag: {type: string; label: string}) =>
+  flag.type === 'balance_gap' ? 'Balance gap between pages' : flag.label;
 export const reportFooter =
   'Not covered here: the loan request, financial statements, collateral, ' +
   'debt service coverage, and the approve/decline decision — these stay with the credit officer.';
@@ -37,7 +39,7 @@ export function reportMarkdown(r: MemoReportData | undefined, texts: string[]) {
     ].join(' '),
     texts[2],
     r && table(['Flag', 'Amount', 'Evidence', 'Detail'],
-      r.findings.map(f => [f.label, f.amount, f.cites.join(' '), f.description])),
+      r.findings.map(f => [flagLabel(f), f.amount, f.cites.join(' '), f.description])),
     r && table(['Page', 'Printed', 'Expected', 'Difference'],
       r.reconciliation.filter(p => !p.ok)
         .map(p => [p.page_id, p.printed, p.expected, p.difference])),
@@ -282,7 +284,7 @@ export function ReportSectionData({
   if (id === 'red_flags') return <>
     <ReportTable
       headers={['Flag', 'Amount', 'Evidence', 'Detail']}
-      rows={r.findings.map(f => [f.label, money(f.amount), cites(f.cites), f.description])} />
+      rows={r.findings.map(f => [flagLabel(f), money(f.amount), cites(f.cites), f.description])} />
     {r.reconciliation.some(p => !p.ok) && <>
       <h4>Reconciliation</h4>
       <ReportTable
