@@ -871,3 +871,67 @@ def test_triage_stop():
 def test_stop_validation(read, value):
     with pytest.raises(ValueError, match="stop_after"):
         agent.validate({"message": "hello", "stop_after": value}, read=read)
+
+
+@pytest.mark.parametrize("loaded", [False, True])
+def test_knowledge_document_prompt(loaded):
+    engine = FakeEngine("knowledge")
+    events = collect(
+        agent.run_agent,
+        {
+            "message": "Director credit score?",
+            "documents": [document()] if loaded else [],
+        },
+        engine,
+    )
+    assert events[-1]["intent"] == "knowledge"
+    system = engine.calls[-1]["messages"][0]["content"]
+    assert ("no documents were read" in system) is not loaded
+    if loaded:
+        assert "loaded documents do not show this" in system
+
+
+@pytest.mark.parametrize(
+    "message,previous",
+    [
+        ("Make summary shorter", "word " * 100),
+        ("精简摘要", "中文字词" * 50),
+    ],
+)
+def test_shorter_edit_rewrites_to_target(message, previous):
+    class LongEngine(FakeEngine):
+        async def stream(self, request):
+            if self.streams["summary"] == 0:
+                self.record(request)
+                self.streams["summary"] += 1
+                yield "## Summary\n" + "word " * 80
+            else:
+                async for chunk in super().stream(request):
+                    yield chunk
+
+    engine = LongEngine("edit_memo", edits=["summary"])
+    previous = "## Summary\n" + previous
+    target = max(25, agent.word_count(previous) * 3 // 5)
+    events = collect(
+        agent.run_agent,
+        {
+            "message": message,
+            "documents": [document()],
+            "last_memo": {"summary": previous},
+        },
+        engine,
+    )
+    assert engine.streams["summary"] == 2
+    writers = [
+        r
+        for r in engine.calls
+        if "Write this memo section" in r["messages"][0]["content"]
+    ]
+    assert all(
+        f"at most {target} words" in r["messages"][0]["content"] for r in writers
+    )
+    rewrite = json.loads(writers[1]["messages"][1]["content"])
+    assert rewrite["problems"] == [
+        {"kind": "too_long", "detail": f"82 words exceeds {target}"}
+    ]
+    assert events[-1]["problems"] == []

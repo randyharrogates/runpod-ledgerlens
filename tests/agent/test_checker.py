@@ -9,6 +9,7 @@ from ledgerlens.agent.checker import (
     bad_citations,
     check_text,
     unverified_memo_numbers,
+    unverified_names,
 )
 
 
@@ -80,3 +81,26 @@ def test_app_exports():
     assert main.unverified_memo_numbers is unverified_memo_numbers
     assert main.amount is findings.amount
     assert main.describe_finding is findings.describe_finding
+
+
+def test_names_and_cjk_word_count():
+    from ledgerlens.agent.checker import word_count
+
+    payload = [{"payer": "星林峰服务"}]
+    assert check_text("六福珠宝", payload, {}, question="Who paid?") == [
+        {"kind": "unverified_name", "detail": "六福珠宝"}
+    ]
+    assert check_text("星林峰服务", payload, {}, question="Who paid?") == []
+    assert check_text("Birch Goods", payload, {}, question="") == []
+    assert word_count("中文字符 English words") == 4
+    assert check_text("中文字符", {}, {}, max_words=1)[0]["kind"] == "too_long"
+
+
+def test_unverified_names_skips_chinese_questions():
+    tools = [{"payer": "星林峰服务"}]
+    assert (
+        unverified_names("最大的付款方是星林峰服务", tools, "最大的付款方是谁？") == []
+    )
+    assert unverified_names("The payer is 六福珠宝.", tools, "Who paid most?") == [
+        {"kind": "unverified_name", "detail": "六福珠宝"}
+    ]

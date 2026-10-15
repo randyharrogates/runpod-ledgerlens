@@ -13,6 +13,7 @@ from datetime import datetime
 from itertools import combinations
 from pathlib import Path
 
+import httpx
 from PIL import Image, ImageDraw, ImageFilter
 
 from ledgerlens.agent.checker import bad_citations
@@ -372,9 +373,31 @@ def run(suite, out, endpoint, concurrency=8, limit=None):
                 if not memo:
                     raise ValueError("Parent memo unavailable")
                 payload["last_memo"] = memo
-            response = client.call_endpoint(
-                endpoint, payload, key, stream=True, timeout=900
-            )
+            for attempt in range(3):
+                try:
+                    response = client.call_endpoint(
+                        endpoint, payload, key, stream=True, timeout=900
+                    )
+                    break
+                except httpx.HTTPError:
+                    # Runpod refuses /run briefly while an endpoint update rolls out.
+                    if attempt == 2:
+                        raise
+                    time.sleep(10 * (attempt + 1))
+            # /stream leaves out Runpod's delay and execution times; /status has them.
+            if response.get("id") and response.get("executionTime") is None:
+                try:
+                    status = httpx.get(
+                        f"https://api.runpod.ai/v2/{endpoint}/status/{response['id']}",
+                        headers={"Authorization": f"Bearer {key}"},
+                        timeout=30,
+                    ).json()
+                    response = {
+                        **response,
+                        **{k: status.get(k) for k in ("delayTime", "executionTime")},
+                    }
+                except (httpx.HTTPError, ValueError):
+                    pass
             result = dict(
                 id=case["id"],
                 events=event_list(response),
@@ -393,6 +416,8 @@ def run(suite, out, endpoint, concurrency=8, limit=None):
         return result
 
     with ThreadPoolExecutor(max_workers=concurrency) as pool, path.open("a") as handle:
+        # Retry earlier failures; keep only completed cases.
+        done = {i: r for i, r in done.items() if r.get("status") == "COMPLETED"}
         pending = {c["id"]: c for c in cases if c["id"] not in done}
         while pending:
             ready = [
@@ -433,6 +458,12 @@ def answer_matches(answer, expected, question=""):
                     "cannot",
                     "can't",
                     "not provided",
+                    "does not contain",
+                    "do not contain",
+                    "does not show",
+                    "do not show",
+                    "not shown",
+                    "no information",
                     "tidak",
                     "不",
                 )
@@ -611,9 +642,9 @@ def score(suite, out):
         for c, r in rows:
             f = final(r)
             answer = f.get("answer", "")
-            ok = f.get("intent") == "ask_data" and answer_matches(
-                answer, c["expected"], c["payload"]["message"]
-            )
+            ok = (
+                c["template"] == "refusal" or f.get("intent") == "ask_data"
+            ) and answer_matches(answer, c["expected"], c["payload"]["message"])
             groups[c["template"]].append(ok)
             tools.append(any(e["type"] == "tool" for e in r.get("events", [])))
             if not ok:
@@ -626,7 +657,9 @@ def score(suite, out):
                 )
         report.update(
             accuracy=ratio([x for k, v in groups.items() if k != "refusal" for x in v]),
-            per_template={k: ratio(v) for k, v in groups.items()},
+            per_template={
+                k: {"accuracy": ratio(v), "n": len(v)} for k, v in groups.items()
+            },
             refusal_accuracy=ratio(groups["refusal"]),
             tool_call_rate=ratio(tools),
             misses=misses,

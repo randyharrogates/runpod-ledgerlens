@@ -70,8 +70,45 @@ def bad_citations(text, row_counts: dict[str, int]) -> list[str]:
     )
 
 
+CJK = re.compile(r"[\u3400-\u4dbf\u4e00-\u9fff]+")
+
+
+def word_count(text):
+    """Count whitespace words plus one word per two CJK characters."""
+    characters = sum(len(run) for run in CJK.findall(text))
+    return len(CJK.sub(" ", text).split()) + (characters + 1) // 2
+
+
+def unverified_names(text, collected, question):
+    """Check CJK runs against original tool strings and the question.
+
+    Only for questions without CJK text: then any CJK in the answer must be a copied name.
+    A Chinese answer runs ordinary words into names, so it cannot be checked this way.
+    """
+    if CJK.search(question):
+        return []
+    strings = [question]
+
+    def collect(value):
+        if isinstance(value, str):
+            strings.append(value)
+        elif isinstance(value, dict):
+            for item in value.values():
+                collect(item)
+        elif isinstance(value, (list, tuple)):
+            for item in value:
+                collect(item)
+
+    collect(collected)
+    return [
+        {"kind": "unverified_name", "detail": run}
+        for run in dict.fromkeys(CJK.findall(text))
+        if len(run) >= 2 and not any(run in value for value in strings)
+    ]
+
+
 def check_text(
-    text, payload, row_counts, *, max_words=None, required_heading=None
+    text, payload, row_counts, *, max_words=None, required_heading=None, question=None
 ) -> list[dict]:
     """Check figures, references, length and the section heading."""
     problems = [
@@ -82,11 +119,13 @@ def check_text(
         {"kind": "bad_citation", "detail": value}
         for value in bad_citations(text, row_counts)
     )
-    if max_words is not None and len(text.split()) > max_words:
+    if question is not None:
+        problems.extend(unverified_names(text, payload, question))
+    if max_words is not None and word_count(text) > max_words:
         problems.append(
             {
                 "kind": "too_long",
-                "detail": f"{len(text.split())} words exceeds {max_words}",
+                "detail": f"{word_count(text)} words exceeds {max_words}",
             }
         )
 
