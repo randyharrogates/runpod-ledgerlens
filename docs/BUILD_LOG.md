@@ -866,3 +866,8 @@ Randy released 782e297. Image live 10:40; workers cycled; E2, E4, E5 re-run 10:4
 - Released 6c8e86d (Randy). The first recording attempt got `409 Conflict` from `/run` right after the workers were cycled; a retry a minute later worked.
 - Recorded (warm, RTX PRO 6000 MIG): read 6 pages 218.4 s (incl. a cold start), memo 13.5 s (0 problems), largest payer 6.1 s, lowest month 5.1 s, edit 11.3 s (62 → 54 words, flagged over the 50-word limit), general answer 5.4 s, fixed replies 3.6–3.7 s.
 - The questions now ask the applicant to explain each concern (cause, counterparty, documents) and the heading is exact. But the Concentration section wrote "representing 0.2006": with the share rounded but still a fraction, the writer copied the fraction. Fix: the writer now gets `share_percent` (20.06) and no raw share; test fails on the old code. 562 pass. Needs a release, then the memo is re-recorded.
+
+### 2026-10-15 11:45 SGT: Demo recordings installed (image c9ef24e)
+- Released c9ef24e (Randy). Recorded warm on the RTX PRO 6000 MIG slice: read 6 pages 246.5 s (incl. a cold start), memo 10.4 s with 0 problems, largest payer 6.5 s, lowest month 6.2 s, edit 10.5 s, general answer 4.9 s, fixed replies 3.6–3.8 s.
+- Read the memo before installing: figures in SGD, "20.06% of total inflow", all four planted problems cited, questions ask the applicant to explain each concern, exact headings. The edit still comes back 54 words against a 50-word limit (62 before); the recording keeps the checker's flag.
+- Installed all five agent recordings in `app/sample/agent/` (README updated). Checked in the browser (demo mode, port 8093): the memo replays with the "Recorded run" footer (8.5 s, 4,364 tokens in / 762 out). Tests: 561 passed, 1 skipped.
