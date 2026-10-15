@@ -1277,23 +1277,30 @@ def test_writer_subset_bounds():
 
 
 @pytest.mark.parametrize(
-    "message,key",
+    "message,key,routed",
     [
-        ("are you able to edit the memo for me?", "capabilities"),
+        ("are you able to edit the memo for me?", "capabilities", "edit_memo"),
         (
             "change all mention of Bayu Emas Murni Niaga to Bank Singapore",
             "document_facts",
+            "edit_memo",
+        ),
+        # Seen live on 15 Oct: the router sent this to off_topic.
+        (
+            "can you remove Jan 2026 cashflow line for me from the memo",
+            "document_facts",
+            "off_topic",
         ),
     ],
 )
-def test_rules_override_router_without_writer(message, key):
+def test_rules_override_router_without_writer(message, key, routed):
     class WrongRouter(FakeEngine):
         async def complete(self, request):
             self.record(request)
             assert request["messages"][0]["content"] == agent.ROUTER_SYSTEM
             return response(
                 {
-                    "intent": "edit_memo",
+                    "intent": routed,
                     "edit_target": "text",
                     "reason": "Requested",
                     "plan": PLAN,
