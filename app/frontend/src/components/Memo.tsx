@@ -124,6 +124,8 @@ export function MemoContent({ text, jump, unverified = [] }: { text: string; jum
       items.push(<li key={i}>{inline((numbered || bullet)![1])}</li>);
       return;
     }
+    // A blank line between items ("1. …\n\n2. …") keeps the list going, so numbering continues.
+    if (!trimmed) return;
     flush();
     if (/^(?:---|\*\*\*|___)$/.test(trimmed)) return;
     // Known sections, and a whole line in bold (e.g. "**Credit Memo**"); "## Summ" mid-stream stays text.

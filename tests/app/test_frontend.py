@@ -102,13 +102,17 @@ const memo = MemoContent({text: `**Credit Memo**
 - **Top Payer**: Senja Hijau contributed SGD 17,898.73 [p1:r2; p2:r1; p2:r8]
 - **Jan 2026**: Inflow SGD 46,285.38 [p1:r1–r18]
 ---
-1. Please explain the SGD 499.00 discrepancy on page 4 [p4:r17].`, jump: value => clicked.push(value)});
+1. Please explain the SGD 499.00 discrepancy on page 4 [p4:r17].
+
+2. Describe the round trip on page 5.`, jump: value => clicked.push(value)});
 const memoHtml = render(memo);
 for (const label of ['Average Balance', 'Top Payer', 'Jan 2026']) assert(memoHtml.includes(`<strong>${label}</strong>`));
 assert(!memoHtml.includes('**'));
 assert(!memoHtml.includes('---'));
 assert(memoHtml.includes('<ul>'));
 assert(memoHtml.includes('<ol><li>Please explain'));
+// A blank line between numbered items must not start a new list (it showed "1." twice).
+assert.equal(memoHtml.split('<ol>').length, 2);
 for (const ref of ['p1:r2', 'p2:r1', 'p2:r8', 'p1:r1–r18']) assert(memoHtml.includes(`[${ref}]</button>`));
 const buttons = [];
 function visit(node) {
