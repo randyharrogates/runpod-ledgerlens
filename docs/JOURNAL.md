@@ -224,6 +224,26 @@ small team of agents does the work on one Runpod Serverless GPU, quickly.
   memo, because inside the worker the numbers had already been turned into text. The tests had
   fed it raw numbers. Only running it on the real data showed it.
 
+## Step 17: A real session finds what the tests missed
+- **What happened:** Randy used the app like a credit officer: 11 pages of one business, a memo,
+  a question, then three edit requests. Four things went wrong. Only 8 pages went into the memo.
+  A page the reader got wrong hid a planted fault. "Are you able to edit the memo?" was treated as
+  an edit. And "change the borrower's name" or "remove the January row" did nothing, while the
+  screen said all was fine.
+- **What we changed:** up to 100 pages per turn. A new check: each page must start where the
+  last one ended; if not, it is a red flag. Questions about what the assistant can do get a
+  fixed answer. Edits to names, figures or table rows get a polite "no", because those come from
+  the documents. If an edit changes nothing, the memo says so.
+- **Rules beside the model:** the small router model still mixed up these new kinds of message
+  (3 of 10 and 4 of 8 right). A few plain code rules now catch them; they can only move a message
+  to the safe answer. With them: 10 of 10 and 8 of 8, and 97.5% of all routing tests right.
+- **Looking again:** replaying the same session on the fixed version caught the planted fault.
+  It also found one more miss (the router called "remove the January row" off topic; fixed) and
+  a display bug (every numbered question showed "1."; fixed).
+- **Waiting is now explained:** a cold GPU takes 3–4 minutes. The chat used to say "Thinking…"
+  the whole time; now it says it is waiting for a GPU worker, with a timer, and points to the
+  GPU switch.
+
 ## Still to do
 - Release the worker fixes (sharp JPEG pages, heading check), then re-record the memo demo.
 - Decide on the writer adapter (4 of 30 memos keep an invented threshold).
