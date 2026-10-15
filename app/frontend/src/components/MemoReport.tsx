@@ -48,6 +48,11 @@ export function reportMarkdown(r: MemoReportData | undefined, texts: string[]) {
   ].filter(Boolean).join('\n\n');
 }
 
+export function monthLabel(month: string) {
+  const date = new Date(month + '-01T00:00:00');
+  return Number.isNaN(date.getTime()) ? month : date.toLocaleDateString('en-GB', {month: 'short', year: 'numeric'});
+}
+
 export function activityText(r: MemoReportData) {
   const months = r.monthly.map(m => m.month).sort();
   if (!months.length) return 'No activity';
@@ -99,7 +104,7 @@ export function ReportDialog({
   }, [onClose]);
   return <div className="report-overlay" ref={dialog} role="dialog" aria-modal="true" aria-label="Full credit report">
     <div className="report-reading">
-      <button className="secondary report-close" onClick={onClose}>Close</button>
+      <div className="report-close-bar"><button className="secondary" onClick={onClose}>Close</button></div>
       {children}
     </div>
   </div>;
@@ -248,8 +253,8 @@ export function ReportSectionData({
   const cites = (v: string[]) => <MemoContent text={v.join(' ')} jump={jump} />;
   if (id === 'cash_flow') return <ReportTable
     headers={['Month', 'Money in', 'Money out', 'Net']} rows={[...r.monthly.map(m => [<>
-      {m.month}
-      {m.partial && <small>partial</small>}
+      {monthLabel(m.month)}
+      {m.partial && <small className="report-partial"> partial</small>}
     </>, money(m.inflow), money(m.outflow), money(m.net)]), ['Total', money(r.totals.inflow), money(r.totals.outflow), money(r.totals.net)]]} />;
   if (id === 'concentration' && r.top_payer) {
     const p = r.top_payer;

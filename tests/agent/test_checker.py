@@ -114,3 +114,30 @@ def test_canonical_heading_fixes_punctuation_only():
         "## Questions for the applicant\n\n- Why?"
     )
     assert canonical_heading("## Other\n", "Summary") == "## Other\n"
+
+
+def test_scaled_amounts_pass_only_when_they_round_from_a_real_figure():
+    # From live E5 run 4 (biz_0364): nets 1,427,510 and 1,115,345; average 5,518,589.29.
+    payload = {
+        "monthly": {"2026-01": {"net": "1427510"}, "2026-04": {"net": "1115345"}},
+        "average_balance": {"value": "5518589.29"},
+    }
+    assert unverified_memo_numbers("Net fell to IDR 1.12M in April.", payload) == []
+    assert (
+        unverified_memo_numbers("Average balance was IDR 5.5 million.", payload) == []
+    )
+    assert unverified_memo_numbers("Net was IDR 3.77M in January.", payload) == [
+        "3.77M"
+    ]
+    assert unverified_memo_numbers("Net was IDR 1.45 juta.", payload) == ["1.45 juta"]
+
+
+def test_wrong_language_in_english_section():
+    payload = {"top_payer_concentration": {"payer": "星林峰服务"}}
+    problems = check_text(
+        "Round trip — inefficiency or fraud嫌疑.", payload, {}, language="en"
+    )
+    assert problems == [{"kind": "wrong_language", "detail": "嫌疑"}]
+    # A Chinese name from the analysis is allowed; Chinese memos are not checked.
+    assert check_text("Largest payer 星林峰服务.", payload, {}, language="en") == []
+    assert check_text("可疑交易。", payload, {}, language="zh") == []

@@ -570,7 +570,7 @@ const {reduceTurn,TurnView}=require('./src/components/Assistant.tsx');
 const report={type:'report',title:'Credit memo',subtitle:'Cash-flow review',borrower:'Fictional Goods',bank:'Harbour Bank',account:'***123',currency:'SGD',period:{start:'2026-01-01',end:'2026-02-28'},prepared:'2026-03-01',audience:'Credit officer',evidence:{statements:2,invoices:1,page_ids:['p1','p2','p3']},totals:{inflow:'10000',outflow:'9000',net:'1000'},balances:{average:{value:'2000',cites:[]},minimum:{value:'500',cites:[]}},monthly:[{month:'2026-01',inflow:'5000',outflow:'4000',net:'1000',partial:false},{month:'2026-02',inflow:'5000',outflow:'5000',net:'0',partial:true}],top_payer:{payer:'Juniper Goods',amount:'3000',total_inflow:'10000',share_percent:'30',cites:['[p1:r1]']},findings:[{type:'returned_cheque',label:'Returned cheque',amount:'100',cites:['[p1:r2]'],description:'Cheque returned'}],reconciliation:[]};
 const memo={summary:'## Summary\nSound cash position.',cash_flow:'## Cash flow\nStable flows.',questions:'## Questions for the applicant\n1. Explain the cheque.'};
 const view=es=>render(React.createElement(TurnView,{turn:reduceTurn(es),jump:()=>{}}));
-const withReport=view([report,{type:'final',intent:'memo',memo,problems:[]}]);for(const t of ['Credit memo','Key figures','10,000.00','2026-01','2026-02','Returned cheque','All figures checked','Copy memo'])assert(withReport.includes(t),t);
+const withReport=view([report,{type:'final',intent:'memo',memo,problems:[]}]);for(const t of ['Credit memo','Key figures','10,000.00','Jan 2026','Feb 2026','Returned cheque','All figures checked','Copy memo'])assert(withReport.includes(t),t);
 
 const {MemoReport,ReportDialog,activityText}=require('./src/components/MemoReport.tsx');
 assert(!withReport.includes('<th>#</th>'));
