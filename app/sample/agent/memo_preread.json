@@ -1,84 +1,101 @@
 [
   {
-    "t": 0.002,
-    "type": "step",
+    "t": 1.138,
     "name": "router",
-    "status": "start"
+    "status": "start",
+    "type": "step"
   },
   {
-    "t": 0.002,
-    "type": "step",
+    "t": 1.138,
     "name": "analyst",
-    "status": "start"
+    "status": "start",
+    "type": "step"
   },
   {
-    "t": 0.009,
-    "type": "step",
+    "t": 2.47,
+    "ms": 5.086744989966974,
     "name": "analyst",
     "status": "done",
-    "ms": 6.710279732942581
+    "type": "step"
   },
   {
-    "t": 1.623,
-    "type": "step",
+    "t": 3.823,
+    "ms": 2066.703324991977,
     "name": "router",
     "status": "done",
-    "ms": 1622.5168891251087
+    "type": "step"
   },
   {
-    "t": 1.624,
-    "type": "route",
+    "t": 3.823,
     "intent": "memo",
     "plan": {
       "audience": "credit committee",
-      "length": "standard",
       "focus": "credit memo",
-      "language": "en"
+      "language": "en",
+      "length": "standard"
     },
-    "reason": "The user requests a credit memo to be written, and no memo has been generated yet."
+    "reason": "A memo needs to be written for the credit committee.",
+    "type": "route"
   },
   {
-    "t": 1.626,
-    "type": "step",
+    "t": 3.823,
+    "entries": [
+      {
+        "level": "info",
+        "message": "model call route on ledgerlens: 2067 ms, 344 tokens in / 62 out",
+        "model": "ledgerlens",
+        "ms": 2066.6466710099485,
+        "source": "worker"
+      },
+      {
+        "level": "info",
+        "message": "route: memo",
+        "source": "worker"
+      }
+    ],
+    "type": "log"
+  },
+  {
+    "t": 3.823,
     "name": "writer",
+    "section": "summary",
     "status": "start",
-    "section": "summary"
+    "type": "step"
   },
   {
-    "t": 1.626,
-    "type": "step",
+    "t": 3.823,
     "name": "writer",
+    "section": "cash_flow",
     "status": "start",
-    "section": "cash_flow"
+    "type": "step"
   },
   {
-    "t": 1.626,
-    "type": "step",
+    "t": 3.823,
     "name": "writer",
+    "section": "concentration",
     "status": "start",
-    "section": "concentration"
+    "type": "step"
   },
   {
-    "t": 1.626,
-    "type": "step",
+    "t": 3.823,
     "name": "writer",
+    "section": "red_flags",
     "status": "start",
-    "section": "red_flags"
+    "type": "step"
   },
   {
-    "t": 1.626,
-    "type": "step",
+    "t": 3.823,
     "name": "writer",
+    "section": "questions",
     "status": "start",
-    "section": "questions"
+    "type": "step"
   },
   {
-    "t": 2.106,
-    "type": "deltas",
+    "t": 5.128,
     "parts": [
       {
         "part": "summary",
-        "text": "## Summary  \nCash position"
+        "text": "## Summary  \nCash"
       },
       {
         "part": "cash_flow",
@@ -90,43 +107,43 @@
       },
       {
         "part": "red_flags",
-        "text": "## Red"
+        "text": "## Red flags"
       },
       {
         "part": "questions",
         "text": "## Questions"
       }
-    ]
+    ],
+    "type": "deltas"
   },
   {
-    "t": 2.154,
-    "type": "deltas",
+    "t": 5.128,
     "parts": [
-      {
-        "part": "cash_flow",
-        "text": "\n\nJan: inflow"
-      },
-      {
-        "part": "concentration",
-        "text": "\n\nSenja Hijau"
-      },
-      {
-        "part": "red_flags",
-        "text": " flags  \n- ["
-      },
       {
         "part": "questions",
         "text": " for the applicant\n\n"
       },
       {
         "part": "summary",
-        "text": ": SGD 3"
+        "text": " position: SGD "
+      },
+      {
+        "part": "cash_flow",
+        "text": "\n\nJanuary: infl"
+      },
+      {
+        "part": "concentration",
+        "text": "\n\nSenja Hij"
+      },
+      {
+        "part": "red_flags",
+        "text": "\n\n- ["
       }
-    ]
+    ],
+    "type": "deltas"
   },
   {
-    "t": 2.214,
-    "type": "deltas",
+    "t": 5.128,
     "parts": [
       {
         "part": "red_flags",
@@ -134,745 +151,885 @@
       },
       {
         "part": "questions",
-        "text": "- Why is the returned"
+        "text": "Explain the returned cheque"
       },
       {
         "part": "summary",
-        "text": "4,177"
+        "text": "34,17"
       },
       {
         "part": "cash_flow",
-        "text": " $46,2"
+        "text": "ow SGD 46"
       },
       {
         "part": "concentration",
-        "text": " Damai Niaga accounts"
+        "text": "au Damai Niaga"
       }
-    ]
+    ],
+    "type": "deltas"
   },
   {
-    "t": 2.297,
-    "type": "deltas",
+    "t": 5.128,
     "parts": [
       {
         "part": "questions",
-        "text": " cheque [p1:r4]"
+        "text": " (SGD 1,4"
       },
       {
         "part": "summary",
-        "text": ".07 net over 3"
+        "text": "7.07 net over "
       },
       {
         "part": "cash_flow",
-        "text": "85.38, out"
+        "text": ",285.38"
       },
       {
         "part": "concentration",
-        "text": " for 20.06"
+        "text": " accounts for 20.0"
       },
       {
         "part": "red_flags",
-        "text": " cheque SGD 1,4"
+        "text": " cheque SGD 1,49"
       }
-    ]
+    ],
+    "type": "deltas"
   },
   {
-    "t": 2.345,
-    "type": "deltas",
-    "parts": [
-      {
-        "part": "red_flags",
-        "text": "99.5"
-      },
-      {
-        "part": "questions",
-        "text": " not reflected in the"
-      },
-      {
-        "part": "summary",
-        "text": " months. Major credit"
-      },
-      {
-        "part": "cash_flow",
-        "text": "flow $21"
-      },
-      {
-        "part": "concentration",
-        "text": "% of total"
-      }
-    ]
-  },
-  {
-    "t": 2.393,
-    "type": "deltas",
-    "parts": [
-      {
-        "part": "concentration",
-        "text": " inflow [p1"
-      },
-      {
-        "part": "red_flags",
-        "text": "1 \u2014 unaccounted"
-      },
-      {
-        "part": "questions",
-        "text": " reconciled balance?"
-      },
-      {
-        "part": "summary",
-        "text": " concern: SGD "
-      },
-      {
-        "part": "cash_flow",
-        "text": ",487"
-      }
-    ]
-  },
-  {
-    "t": 2.452,
-    "type": "deltas",
+    "t": 5.128,
     "parts": [
       {
         "part": "questions",
-        "text": "  \n- Why does page p"
+        "text": "99.51)"
       },
       {
         "part": "summary",
-        "text": "1,499"
+        "text": "3 months (2 full)."
       },
       {
         "part": "cash_flow",
-        "text": ".85, net"
+        "text": ", outflow SGD 2"
       },
       {
         "part": "concentration",
-        "text": ":r3], contributing "
+        "text": "6% of total inflow"
       },
       {
         "part": "red_flags",
-        "text": " outflow.  \n-"
+        "text": "9.51 \u2014 un"
       }
-    ]
+    ],
+    "type": "deltas"
   },
   {
-    "t": 2.548,
-    "type": "deltas",
+    "t": 5.128,
     "parts": [
       {
-        "part": "summary",
-        "text": ".51 returned cheque [p1"
-      },
-      {
-        "part": "cash_flow",
-        "text": " $24,797."
-      },
-      {
-        "part": "concentration",
-        "text": "17,898.7"
-      },
-      {
-        "part": "red_flags",
-        "text": " [p3:r17]"
-      },
-      {
         "part": "questions",
-        "text": "4 show a SGD 49"
-      }
-    ]
-  },
-  {
-    "t": 2.631,
-    "type": "deltas",
-    "parts": [
-      {
-        "part": "red_flags",
-        "text": " & [p4:r7]:"
-      },
-      {
-        "part": "questions",
-        "text": "9.00 discrepancy [p"
+        "text": " \u2014 its cause,"
       },
       {
         "part": "summary",
-        "text": ":r4]. Unreconciled"
+        "text": "  \nMain credit concerns"
       },
       {
         "part": "cash_flow",
-        "text": "53.  \nFeb:"
+        "text": "1,48"
       },
       {
         "part": "concentration",
-        "text": "3 to 89,"
-      }
-    ]
-  },
-  {
-    "t": 2.691,
-    "type": "deltas",
-    "parts": [
-      {
-        "part": "cash_flow",
-        "text": " inflow $34,"
-      },
-      {
-        "part": "concentration",
-        "text": "218.66"
+        "text": ", amounting"
       },
       {
         "part": "red_flags",
-        "text": " Round trip SGD 4,"
-      },
-      {
-        "part": "questions",
-        "text": "4:r17]?  \n"
-      },
-      {
-        "part": "summary",
-        "text": " page p4 shows SGD"
+        "text": "accounted out"
       }
-    ]
+    ],
+    "type": "deltas"
   },
   {
-    "t": 2.763,
-    "type": "deltas",
-    "parts": [
-      {
-        "part": "summary",
-        "text": " 499.0"
-      },
-      {
-        "part": "cash_flow",
-        "text": "982.76"
-      },
-      {
-        "part": "concentration",
-        "text": ". Reliance on this single"
-      },
-      {
-        "part": "red_flags",
-        "text": "671.52"
-      },
-      {
-        "part": "questions",
-        "text": "- What explains the 6"
-      }
-    ]
-  },
-  {
-    "t": 2.811,
-    "type": "deltas",
-    "parts": [
-      {
-        "part": "summary",
-        "text": "0 discrepancy [p"
-      },
-      {
-        "part": "cash_flow",
-        "text": ", outflow $"
-      },
-      {
-        "part": "concentration",
-        "text": " payer exceeds 2"
-      },
-      {
-        "part": "red_flags",
-        "text": " \u2014 unrecorded"
-      },
-      {
-        "part": "questions",
-        "text": ".3\u00d7 median"
-      }
-    ]
-  },
-  {
-    "t": 2.859,
-    "type": "deltas",
-    "parts": [
-      {
-        "part": "summary",
-        "text": "4:r17"
-      },
-      {
-        "part": "cash_flow",
-        "text": "26,5"
-      },
-      {
-        "part": "concentration",
-        "text": "0%, indicating significant"
-      },
-      {
-        "part": "red_flags",
-        "text": " in reconciliation."
-      },
-      {
-        "part": "questions",
-        "text": " inflow cash"
-      }
-    ]
-  },
-  {
-    "t": 2.907,
-    "type": "deltas",
-    "parts": [
-      {
-        "part": "red_flags",
-        "text": "  \n- [p"
-      },
-      {
-        "part": "questions",
-        "text": " deposit [p2"
-      },
-      {
-        "part": "summary",
-        "text": "]. Large cash deposit"
-      },
-      {
-        "part": "cash_flow",
-        "text": "39.2"
-      },
-      {
-        "part": "concentration",
-        "text": " concentration risk."
-      }
-    ]
-  },
-  {
-    "t": 2.955,
-    "type": "deltas",
+    "t": 5.128,
     "parts": [
       {
         "part": "concentration",
-        "text": " Multiple citations confirm this dependency"
+        "text": " to SGD 17"
       },
       {
         "part": "red_flags",
-        "text": "2:r8]:"
+        "text": "flow.  \n- ["
       },
       {
         "part": "questions",
-        "text": ":r8]?  \n"
+        "text": " counterparty, and"
       },
       {
         "part": "summary",
-        "text": " (SGD "
+        "text": ": Returned cheque SGD"
       },
       {
         "part": "cash_flow",
-        "text": "1, net $"
+        "text": "7.85"
       }
-    ]
+    ],
+    "type": "deltas"
   },
   {
-    "t": 3.026,
-    "type": "deltas",
+    "t": 5.128,
     "parts": [
       {
-        "part": "red_flags",
-        "text": " Large cash deposit SGD 1"
-      },
-      {
         "part": "questions",
-        "text": "- Why is Senja Hij"
+        "text": " supporting documents.  \nDetail the"
       },
       {
         "part": "summary",
-        "text": "12,071"
+        "text": " 1,499"
       },
       {
         "part": "cash_flow",
-        "text": "8,443."
+        "text": ", net SGD 24"
       },
       {
         "part": "concentration",
-        "text": " [p2:r2],"
-      }
-    ]
-  },
-  {
-    "t": 3.099,
-    "type": "deltas",
-    "parts": [
-      {
-        "part": "red_flags",
-        "text": "2,071.8"
-      },
-      {
-        "part": "questions",
-        "text": "au Damai Niaga\u2019s infl"
-      },
-      {
-        "part": "summary",
-        "text": ".87) exceeds median"
-      },
-      {
-        "part": "cash_flow",
-        "text": "55.  \nMar:"
-      },
-      {
-        "part": "concentration",
-        "text": " [p3:r9],"
-      }
-    ]
-  },
-  {
-    "t": 3.184,
-    "type": "deltas",
-    "parts": [
-      {
-        "part": "summary",
-        "text": " inflow 6.3\u00d7"
-      },
-      {
-        "part": "cash_flow",
-        "text": " inflow $7,95"
-      },
-      {
-        "part": "concentration",
-        "text": " [p4:r1]."
+        "text": ",898."
       },
       {
         "part": "red_flags",
-        "text": "7 \u2014 6.3\u00d7"
+        "text": "p3:r17"
+      }
+    ],
+    "type": "deltas"
+  },
+  {
+    "t": 5.128,
+    "parts": [
+      {
+        "part": "concentration",
+        "text": "73, out of SGD 8"
+      },
+      {
+        "part": "red_flags",
+        "text": "] & [p4:r7]:"
       },
       {
         "part": "questions",
-        "text": "ow [p1:r3"
+        "text": " round trip (SGD 4,"
+      },
+      {
+        "part": "summary",
+        "text": ".51 [p1:r4"
+      },
+      {
+        "part": "cash_flow",
+        "text": ",797.53"
       }
-    ]
+    ],
+    "type": "deltas"
   },
   {
-    "t": 3.184,
-    "type": "step",
+    "t": 5.128,
+    "parts": [
+      {
+        "part": "cash_flow",
+        "text": ".  \nFebruary: infl"
+      },
+      {
+        "part": "concentration",
+        "text": "9,218"
+      },
+      {
+        "part": "red_flags",
+        "text": " Round trip SGD "
+      },
+      {
+        "part": "questions",
+        "text": "671."
+      },
+      {
+        "part": "summary",
+        "text": "]; large cash deposit"
+      }
+    ],
+    "type": "deltas"
+  },
+  {
+    "t": 5.128,
+    "parts": [
+      {
+        "part": "red_flags",
+        "text": "4,671.5"
+      },
+      {
+        "part": "questions",
+        "text": "52) \u2014 its cause,"
+      },
+      {
+        "part": "summary",
+        "text": " SGD 12,07"
+      },
+      {
+        "part": "cash_flow",
+        "text": "ow SGD 34,9"
+      },
+      {
+        "part": "concentration",
+        "text": ".66. This represents"
+      }
+    ],
+    "type": "deltas"
+  },
+  {
+    "t": 5.128,
+    "parts": [
+      {
+        "part": "concentration",
+        "text": " significant reliance on a"
+      },
+      {
+        "part": "red_flags",
+        "text": "2 \u2014 no reconciliation"
+      },
+      {
+        "part": "questions",
+        "text": " counterparty,"
+      },
+      {
+        "part": "summary",
+        "text": "1.8"
+      },
+      {
+        "part": "cash_flow",
+        "text": "82."
+      }
+    ],
+    "type": "deltas"
+  },
+  {
+    "t": 5.128,
+    "parts": [
+      {
+        "part": "questions",
+        "text": " and supporting documents."
+      },
+      {
+        "part": "summary",
+        "text": "7 (6."
+      },
+      {
+        "part": "cash_flow",
+        "text": "76, out"
+      },
+      {
+        "part": "concentration",
+        "text": " single payer, as"
+      },
+      {
+        "part": "red_flags",
+        "text": " flag, but"
+      }
+    ],
+    "type": "deltas"
+  },
+  {
+    "t": 5.128,
+    "parts": [
+      {
+        "part": "red_flags",
+        "text": " transaction spans two"
+      },
+      {
+        "part": "questions",
+        "text": "  \nDescribe the"
+      },
+      {
+        "part": "summary",
+        "text": "3\u00d7 median"
+      },
+      {
+        "part": "cash_flow",
+        "text": "flow SGD "
+      },
+      {
+        "part": "concentration",
+        "text": " noted in"
+      }
+    ],
+    "type": "deltas"
+  },
+  {
+    "t": 6.469,
+    "parts": [
+      {
+        "part": "concentration",
+        "text": " [p1:r3],"
+      },
+      {
+        "part": "red_flags",
+        "text": " pages.  \n- [p"
+      },
+      {
+        "part": "questions",
+        "text": " large cash deposit (SGD"
+      },
+      {
+        "part": "summary",
+        "text": " inflow) [p2"
+      },
+      {
+        "part": "cash_flow",
+        "text": "26,53"
+      }
+    ],
+    "type": "deltas"
+  },
+  {
+    "t": 6.469,
+    "parts": [
+      {
+        "part": "cash_flow",
+        "text": "9.21, net SGD"
+      },
+      {
+        "part": "concentration",
+        "text": " [p2:r2], ["
+      },
+      {
+        "part": "red_flags",
+        "text": "2:r8]: Large cash"
+      },
+      {
+        "part": "questions",
+        "text": " 12,07"
+      },
+      {
+        "part": "summary",
+        "text": ":r8]; unreconciled"
+      }
+    ],
+    "type": "deltas"
+  },
+  {
+    "t": 6.469,
+    "parts": [
+      {
+        "part": "red_flags",
+        "text": " deposit SGD 12,07"
+      },
+      {
+        "part": "questions",
+        "text": "1.87) \u2014 its cause"
+      },
+      {
+        "part": "summary",
+        "text": " page p4: SGD 4"
+      },
+      {
+        "part": "cash_flow",
+        "text": " 8,443."
+      },
+      {
+        "part": "concentration",
+        "text": "p2:r9], [p"
+      }
+    ],
+    "type": "deltas"
+  },
+  {
+    "t": 6.469,
+    "parts": [
+      {
+        "part": "summary",
+        "text": "99.00 difference"
+      },
+      {
+        "part": "cash_flow",
+        "text": "55.  \nMarch:"
+      },
+      {
+        "part": "concentration",
+        "text": "2:r14], ["
+      },
+      {
+        "part": "red_flags",
+        "text": "1.87 \u2014 "
+      },
+      {
+        "part": "questions",
+        "text": ", counterparty, and supporting"
+      }
+    ],
+    "type": "deltas"
+  },
+  {
+    "t": 6.469,
+    "parts": [
+      {
+        "part": "summary",
+        "text": " [p4:r17"
+      },
+      {
+        "part": "cash_flow",
+        "text": " inflow SGD 7,"
+      },
+      {
+        "part": "concentration",
+        "text": "p3:r9], ["
+      },
+      {
+        "part": "red_flags",
+        "text": "6.3\u00d7 median infl"
+      },
+      {
+        "part": "questions",
+        "text": " documents.  \nClarify"
+      }
+    ],
+    "type": "deltas"
+  },
+  {
+    "t": 6.469,
+    "parts": [
+      {
+        "part": "questions",
+        "text": " the unreconciled page"
+      },
+      {
+        "part": "summary",
+        "text": "].  \nTop payer"
+      },
+      {
+        "part": "cash_flow",
+        "text": "950."
+      },
+      {
+        "part": "concentration",
+        "text": "p4:r1"
+      },
+      {
+        "part": "red_flags",
+        "text": "ow \u2014 inconsistent with"
+      }
+    ],
+    "type": "deltas"
+  },
+  {
+    "t": 6.469,
+    "parts": [
+      {
+        "part": "summary",
+        "text": ": Senja Hijau Dam"
+      },
+      {
+        "part": "cash_flow",
+        "text": "52, outflow SGD"
+      },
+      {
+        "part": "concentration",
+        "text": "], [p4:r"
+      },
+      {
+        "part": "red_flags",
+        "text": " normal pattern.  \n-"
+      },
+      {
+        "part": "questions",
+        "text": " (p4) \u2014"
+      }
+    ],
+    "type": "deltas"
+  },
+  {
+    "t": 6.469,
+    "parts": [
+      {
+        "part": "concentration",
+        "text": "2], and [p4"
+      },
+      {
+        "part": "red_flags",
+        "text": " [p4:r17"
+      },
+      {
+        "part": "questions",
+        "text": " its cause, counterparty,"
+      },
+      {
+        "part": "summary",
+        "text": "ai Niaga \u2014 SGD "
+      },
+      {
+        "part": "cash_flow",
+        "text": " 7,01"
+      }
+    ],
+    "type": "deltas"
+  },
+  {
+    "t": 6.469,
+    "parts": [
+      {
+        "part": "cash_flow",
+        "text": "4.53,"
+      },
+      {
+        "part": "concentration",
+        "text": ":r15]."
+      },
+      {
+        "part": "red_flags",
+        "text": "]: Unreconc"
+      },
+      {
+        "part": "questions",
+        "text": " and supporting documents."
+      },
+      {
+        "part": "summary",
+        "text": "17,8"
+      }
+    ],
+    "type": "deltas"
+  },
+  {
+    "t": 7.805,
+    "entries": [
+      {
+        "level": "info",
+        "message": "model stream chat on ledgerlens: 3337 ms, 274 chars",
+        "model": "ledgerlens",
+        "ms": 3336.7624369857367,
+        "source": "worker"
+      }
+    ],
+    "type": "log"
+  },
+  {
+    "t": 7.805,
+    "ms": 3336.778069991851,
     "name": "writer",
-    "status": "done",
-    "ms": 1558.4580730646849,
-    "section": "concentration"
-  },
-  {
-    "t": 3.184,
-    "type": "step",
-    "name": "checker",
-    "status": "start"
-  },
-  {
-    "t": 3.184,
-    "type": "step",
-    "name": "checker",
-    "status": "done",
-    "ms": 0.34053996205329895
-  },
-  {
-    "t": 3.184,
-    "type": "section",
     "section": "concentration",
-    "text": "## Concentration\n\nSenja Hijau Damai Niaga accounts for 20.06% of total inflow [p1:r3], contributing 17,898.73 to 89,218.66. Reliance on this single payer exceeds 20%, indicating significant concentration risk. Multiple citations confirm this dependency [p2:r2], [p3:r9], [p4:r1].",
+    "status": "done",
+    "type": "step"
+  },
+  {
+    "t": 7.805,
+    "name": "checker",
+    "section": "concentration",
+    "status": "start",
+    "type": "step"
+  },
+  {
+    "t": 7.805,
+    "ms": 0.18662799266166985,
+    "name": "checker",
+    "section": "concentration",
+    "status": "done",
+    "type": "step"
+  },
+  {
+    "t": 7.805,
     "problems": [],
-    "rewritten": false
+    "rewritten": false,
+    "section": "concentration",
+    "text": "## Concentration\n\nSenja Hijau Damai Niaga accounts for 20.06% of total inflow, amounting to SGD 17,898.73, out of SGD 89,218.66. This represents significant reliance on a single payer, as noted in [p1:r3], [p2:r2], [p2:r9], [p2:r14], [p3:r9], [p4:r1], [p4:r2], and [p4:r15].",
+    "type": "section"
   },
   {
-    "t": 3.243,
-    "type": "deltas",
-    "parts": [
-      {
-        "part": "questions",
-        "text": "] so high relative to total"
-      },
-      {
-        "part": "summary",
-        "text": " [p2:r8"
-      },
-      {
-        "part": "cash_flow",
-        "text": "0.52,"
-      },
-      {
-        "part": "red_flags",
-        "text": " median inflow \u2014 mismatch"
-      }
-    ]
-  },
-  {
-    "t": 3.326,
-    "type": "deltas",
-    "parts": [
-      {
-        "part": "summary",
-        "text": "]. Top payer Senja Hijau"
-      },
-      {
-        "part": "cash_flow",
-        "text": " outflow $7,0"
-      },
-      {
-        "part": "red_flags",
-        "text": "ed.  \n- [p"
-      },
-      {
-        "part": "questions",
-        "text": "?  \n- What is the"
-      }
-    ]
-  },
-  {
-    "t": 3.385,
-    "type": "deltas",
-    "parts": [
-      {
-        "part": "cash_flow",
-        "text": "14.53,"
-      },
-      {
-        "part": "red_flags",
-        "text": "4:r17]: Un"
-      },
-      {
-        "part": "questions",
-        "text": " purpose of the round trip ["
-      },
-      {
-        "part": "summary",
-        "text": " Damai Niaga accounts"
-      }
-    ]
-  },
-  {
-    "t": 3.469,
-    "type": "deltas",
-    "parts": [
-      {
-        "part": "summary",
-        "text": " for 20% of infl"
-      },
-      {
-        "part": "cash_flow",
-        "text": " net $935.9"
-      },
-      {
-        "part": "red_flags",
-        "text": "reconciled page \u2014 printed balance"
-      },
-      {
-        "part": "questions",
-        "text": "p3:r17]"
-      }
-    ]
-  },
-  {
-    "t": 3.553,
-    "type": "deltas",
-    "parts": [
-      {
-        "part": "questions",
-        "text": " and [p4:r7]?"
-      },
-      {
-        "part": "summary",
-        "text": "ows [p1:r3]."
-      },
-      {
-        "part": "cash_flow",
-        "text": "9 (partial month).  \nAverage"
-      },
-      {
-        "part": "red_flags",
-        "text": " off by SGD 49"
-      }
-    ]
-  },
-  {
-    "t": 3.554,
-    "type": "deltas",
+    "t": 7.805,
     "parts": [
       {
         "part": "red_flags",
-        "text": "9"
+        "text": "iled"
       }
-    ]
+    ],
+    "type": "deltas"
   },
   {
-    "t": 3.554,
-    "type": "step",
+    "t": 7.805,
+    "entries": [
+      {
+        "level": "info",
+        "message": "model stream chat on ledgerlens: 3337 ms, 412 chars",
+        "model": "ledgerlens",
+        "ms": 3337.1700920106377,
+        "source": "worker"
+      }
+    ],
+    "type": "log"
+  },
+  {
+    "t": 7.805,
+    "ms": 3337.178635003511,
     "name": "writer",
-    "status": "done",
-    "ms": 1926.6115576028824,
-    "section": "questions"
-  },
-  {
-    "t": 3.554,
-    "type": "step",
-    "name": "checker",
-    "status": "start"
-  },
-  {
-    "t": 3.554,
-    "type": "step",
-    "name": "checker",
-    "status": "done",
-    "ms": 0.8978713303804398
-  },
-  {
-    "t": 3.554,
-    "type": "section",
     "section": "questions",
-    "text": "## Questions for the applicant\n\n- Why is the returned cheque [p1:r4] not reflected in the reconciled balance?  \n- Why does page p4 show a SGD 499.00 discrepancy [p4:r17]?  \n- What explains the 6.3\u00d7 median inflow cash deposit [p2:r8]?  \n- Why is Senja Hijau Damai Niaga\u2019s inflow [p1:r3] so high relative to total?  \n- What is the purpose of the round trip [p3:r17] and [p4:r7]?",
-    "problems": [],
-    "rewritten": false
-  },
-  {
-    "t": 3.567,
-    "type": "step",
-    "name": "writer",
     "status": "done",
-    "ms": 1942.3745386302471,
-    "section": "summary"
+    "type": "step"
   },
   {
-    "t": 3.567,
-    "type": "step",
+    "t": 7.805,
     "name": "checker",
-    "status": "start"
+    "section": "questions",
+    "status": "start",
+    "type": "step"
   },
   {
-    "t": 3.567,
-    "type": "step",
+    "t": 7.805,
+    "ms": 0.3087280201725662,
     "name": "checker",
+    "section": "questions",
     "status": "done",
-    "ms": 0.7133744657039642
+    "type": "step"
   },
   {
-    "t": 3.567,
-    "type": "section",
-    "section": "summary",
-    "text": "## Summary  \nCash position: SGD 34,177.07 net over 3 months. Major credit concern: SGD 1,499.51 returned cheque [p1:r4]. Unreconciled page p4 shows SGD 499.00 discrepancy [p4:r17]. Large cash deposit (SGD 12,071.87) exceeds median inflow 6.3\u00d7 [p2:r8]. Top payer Senja Hijau Damai Niaga accounts for 20% of inflows [p1:r3].",
+    "t": 7.805,
     "problems": [],
-    "rewritten": false
+    "rewritten": false,
+    "section": "questions",
+    "text": "## Questions for the applicant\n\nExplain the returned cheque (SGD 1,499.51) \u2014 its cause, counterparty, and supporting documents.  \nDetail the round trip (SGD 4,671.52) \u2014 its cause, counterparty, and supporting documents.  \nDescribe the large cash deposit (SGD 12,071.87) \u2014 its cause, counterparty, and supporting documents.  \nClarify the unreconciled page (p4) \u2014 its cause, counterparty, and supporting documents.",
+    "type": "section"
   },
   {
-    "t": 3.66,
-    "type": "deltas",
+    "t": 7.805,
     "parts": [
       {
+        "part": "summary",
+        "text": "98.73 (20.0"
+      },
+      {
         "part": "cash_flow",
-        "text": " balance: $72,289"
+        "text": " net SGD 935.99"
       },
       {
         "part": "red_flags",
-        "text": ".00 \u2014 discrepancy unexplained."
+        "text": " page \u2014 printed closing balance SGD 86"
       }
-    ]
+    ],
+    "type": "deltas"
   },
   {
-    "t": 3.66,
-    "type": "step",
+    "t": 7.805,
+    "parts": [
+      {
+        "part": "cash_flow",
+        "text": " (partial month).  \nAverage balance:"
+      },
+      {
+        "part": "red_flags",
+        "text": ",747.17 vs"
+      },
+      {
+        "part": "summary",
+        "text": "6% of total inflow)."
+      }
+    ],
+    "type": "deltas"
+  },
+  {
+    "t": 7.805,
+    "ms": 3773.2710799900815,
     "name": "writer",
+    "section": "summary",
     "status": "done",
-    "ms": 2033.4224067628384,
-    "section": "red_flags"
+    "type": "step"
   },
   {
-    "t": 3.66,
-    "type": "step",
+    "t": 9.119,
     "name": "checker",
-    "status": "start"
+    "section": "summary",
+    "status": "start",
+    "type": "step"
   },
   {
-    "t": 3.66,
-    "type": "step",
+    "t": 9.119,
+    "ms": 0.28179900255054235,
     "name": "checker",
+    "section": "summary",
     "status": "done",
-    "ms": 0.7727351039648056
+    "type": "step"
   },
   {
-    "t": 3.66,
-    "type": "section",
+    "t": 9.119,
+    "entries": [
+      {
+        "level": "info",
+        "message": "model stream chat on ledgerlens: 3773 ms, 327 chars",
+        "model": "ledgerlens",
+        "ms": 3773.246623983141,
+        "source": "worker"
+      }
+    ],
+    "type": "log"
+  },
+  {
+    "t": 9.119,
+    "problems": [],
+    "rewritten": false,
+    "section": "summary",
+    "text": "## Summary\nCash position: SGD 34,177.07 net over 3 months (2 full).  \nMain credit concerns: Returned cheque SGD 1,499.51 [p1:r4]; large cash deposit SGD 12,071.87 (6.3\u00d7 median inflow) [p2:r8]; unreconciled page p4: SGD 499.00 difference [p4:r17].  \nTop payer: Senja Hijau Damai Niaga \u2014 SGD 17,898.73 (20.06% of total inflow).",
+    "type": "section"
+  },
+  {
+    "t": 9.119,
+    "parts": [
+      {
+        "part": "cash_flow",
+        "text": " SGD 72,289.51.  \nMinimum balance: SGD"
+      },
+      {
+        "part": "red_flags",
+        "text": " expected 87,246.17 \u2014 SGD 49"
+      }
+    ],
+    "type": "deltas"
+  },
+  {
+    "t": 9.119,
+    "parts": [
+      {
+        "part": "red_flags",
+        "text": "9.00 discrepancy."
+      },
+      {
+        "part": "cash_flow",
+        "text": " 44,58"
+      }
+    ],
+    "type": "deltas"
+  },
+  {
+    "t": 9.119,
+    "entries": [
+      {
+        "level": "info",
+        "message": "model stream chat on ledgerlens: 4296 ms, 406 chars",
+        "model": "ledgerlens",
+        "ms": 4296.370461990591,
+        "source": "worker"
+      }
+    ],
+    "type": "log"
+  },
+  {
+    "t": 9.119,
+    "ms": 4296.379906008951,
+    "name": "writer",
     "section": "red_flags",
-    "text": "## Red flags  \n- [p1:r4]: Returned cheque SGD 1,499.51 \u2014 unaccounted outflow.  \n- [p3:r17] & [p4:r7]: Round trip SGD 4,671.52 \u2014 unrecorded in reconciliation.  \n- [p2:r8]: Large cash deposit SGD 12,071.87 \u2014 6.3\u00d7 median inflow \u2014 mismatched.  \n- [p4:r17]: Unreconciled page \u2014 printed balance off by SGD 499.00 \u2014 discrepancy unexplained.",
+    "status": "done",
+    "type": "step"
+  },
+  {
+    "t": 9.119,
+    "name": "checker",
+    "section": "red_flags",
+    "status": "start",
+    "type": "step"
+  },
+  {
+    "t": 9.119,
+    "ms": 0.28215901693329215,
+    "name": "checker",
+    "section": "red_flags",
+    "status": "done",
+    "type": "step"
+  },
+  {
+    "t": 9.119,
     "problems": [],
-    "rewritten": false
+    "rewritten": false,
+    "section": "red_flags",
+    "text": "## Red flags\n\n- [p1:r4]: Returned cheque SGD 1,499.51 \u2014 unaccounted outflow.  \n- [p3:r17] & [p4:r7]: Round trip SGD 4,671.52 \u2014 no reconciliation flag, but transaction spans two pages.  \n- [p2:r8]: Large cash deposit SGD 12,071.87 \u2014 6.3\u00d7 median inflow \u2014 inconsistent with normal pattern.  \n- [p4:r17]: Unreconciled page \u2014 printed closing balance SGD 86,747.17 vs expected 87,246.17 \u2014 SGD 499.00 discrepancy.",
+    "type": "section"
   },
   {
-    "t": 3.873,
-    "type": "deltas",
+    "t": 9.119,
     "parts": [
       {
         "part": "cash_flow",
-        "text": ".51.  \nMinimum balance: $44,587.78"
+        "text": "7.78."
       }
-    ]
+    ],
+    "type": "deltas"
   },
   {
-    "t": 3.886,
-    "type": "deltas",
-    "parts": [
+    "t": 9.119,
+    "entries": [
       {
-        "part": "cash_flow",
-        "text": "."
+        "level": "info",
+        "message": "model stream chat on ledgerlens: 4439 ms, 313 chars",
+        "model": "ledgerlens",
+        "ms": 4439.1071909922175,
+        "source": "worker"
       }
-    ]
+    ],
+    "type": "log"
   },
   {
-    "t": 3.886,
-    "type": "step",
+    "t": 10.432,
+    "ms": 4439.120039984118,
     "name": "writer",
-    "status": "done",
-    "ms": 2260.389791801572,
-    "section": "cash_flow"
-  },
-  {
-    "t": 3.886,
-    "type": "step",
-    "name": "checker",
-    "status": "start"
-  },
-  {
-    "t": 3.886,
-    "type": "step",
-    "name": "checker",
-    "status": "done",
-    "ms": 1.1085476726293564
-  },
-  {
-    "t": 3.886,
-    "type": "section",
     "section": "cash_flow",
-    "text": "## Cash flow\n\nJan: inflow $46,285.38, outflow $21,487.85, net $24,797.53.  \nFeb: inflow $34,982.76, outflow $26,539.21, net $8,443.55.  \nMar: inflow $7,950.52, outflow $7,014.53, net $935.99 (partial month).  \nAverage balance: $72,289.51.  \nMinimum balance: $44,587.78.",
-    "problems": [],
-    "rewritten": false
+    "status": "done",
+    "type": "step"
   },
   {
-    "t": 3.91,
-    "type": "final",
-    "intent": "memo",
+    "t": 10.432,
+    "name": "checker",
+    "section": "cash_flow",
+    "status": "start",
+    "type": "step"
+  },
+  {
+    "t": 10.432,
+    "ms": 0.3861639997921884,
+    "name": "checker",
+    "section": "cash_flow",
+    "status": "done",
+    "type": "step"
+  },
+  {
+    "t": 10.432,
     "problems": [],
+    "rewritten": false,
+    "section": "cash_flow",
+    "text": "## Cash flow\n\nJanuary: inflow SGD 46,285.38, outflow SGD 21,487.85, net SGD 24,797.53.  \nFebruary: inflow SGD 34,982.76, outflow SGD 26,539.21, net SGD 8,443.55.  \nMarch: inflow SGD 7,950.52, outflow SGD 7,014.53, net SGD 935.99 (partial month).  \nAverage balance: SGD 72,289.51.  \nMinimum balance: SGD 44,587.78.",
+    "type": "section"
+  },
+  {
+    "t": 10.432,
+    "gpu": "NVIDIA RTX PRO 6000 Blackwell Server Edition",
+    "intent": "memo",
     "memo": {
-      "summary": "## Summary  \nCash position: SGD 34,177.07 net over 3 months. Major credit concern: SGD 1,499.51 returned cheque [p1:r4]. Unreconciled page p4 shows SGD 499.00 discrepancy [p4:r17]. Large cash deposit (SGD 12,071.87) exceeds median inflow 6.3\u00d7 [p2:r8]. Top payer Senja Hijau Damai Niaga accounts for 20% of inflows [p1:r3].",
-      "cash_flow": "## Cash flow\n\nJan: inflow $46,285.38, outflow $21,487.85, net $24,797.53.  \nFeb: inflow $34,982.76, outflow $26,539.21, net $8,443.55.  \nMar: inflow $7,950.52, outflow $7,014.53, net $935.99 (partial month).  \nAverage balance: $72,289.51.  \nMinimum balance: $44,587.78.",
-      "concentration": "## Concentration\n\nSenja Hijau Damai Niaga accounts for 20.06% of total inflow [p1:r3], contributing 17,898.73 to 89,218.66. Reliance on this single payer exceeds 20%, indicating significant concentration risk. Multiple citations confirm this dependency [p2:r2], [p3:r9], [p4:r1].",
-      "red_flags": "## Red flags  \n- [p1:r4]: Returned cheque SGD 1,499.51 \u2014 unaccounted outflow.  \n- [p3:r17] & [p4:r7]: Round trip SGD 4,671.52 \u2014 unrecorded in reconciliation.  \n- [p2:r8]: Large cash deposit SGD 12,071.87 \u2014 6.3\u00d7 median inflow \u2014 mismatched.  \n- [p4:r17]: Unreconciled page \u2014 printed balance off by SGD 499.00 \u2014 discrepancy unexplained.",
-      "questions": "## Questions for the applicant\n\n- Why is the returned cheque [p1:r4] not reflected in the reconciled balance?  \n- Why does page p4 show a SGD 499.00 discrepancy [p4:r17]?  \n- What explains the 6.3\u00d7 median inflow cash deposit [p2:r8]?  \n- Why is Senja Hijau Damai Niaga\u2019s inflow [p1:r3] so high relative to total?  \n- What is the purpose of the round trip [p3:r17] and [p4:r7]?"
+      "cash_flow": "## Cash flow\n\nJanuary: inflow SGD 46,285.38, outflow SGD 21,487.85, net SGD 24,797.53.  \nFebruary: inflow SGD 34,982.76, outflow SGD 26,539.21, net SGD 8,443.55.  \nMarch: inflow SGD 7,950.52, outflow SGD 7,014.53, net SGD 935.99 (partial month).  \nAverage balance: SGD 72,289.51.  \nMinimum balance: SGD 44,587.78.",
+      "concentration": "## Concentration\n\nSenja Hijau Damai Niaga accounts for 20.06% of total inflow, amounting to SGD 17,898.73, out of SGD 89,218.66. This represents significant reliance on a single payer, as noted in [p1:r3], [p2:r2], [p2:r9], [p2:r14], [p3:r9], [p4:r1], [p4:r2], and [p4:r15].",
+      "questions": "## Questions for the applicant\n\nExplain the returned cheque (SGD 1,499.51) \u2014 its cause, counterparty, and supporting documents.  \nDetail the round trip (SGD 4,671.52) \u2014 its cause, counterparty, and supporting documents.  \nDescribe the large cash deposit (SGD 12,071.87) \u2014 its cause, counterparty, and supporting documents.  \nClarify the unreconciled page (p4) \u2014 its cause, counterparty, and supporting documents.",
+      "red_flags": "## Red flags\n\n- [p1:r4]: Returned cheque SGD 1,499.51 \u2014 unaccounted outflow.  \n- [p3:r17] & [p4:r7]: Round trip SGD 4,671.52 \u2014 no reconciliation flag, but transaction spans two pages.  \n- [p2:r8]: Large cash deposit SGD 12,071.87 \u2014 6.3\u00d7 median inflow \u2014 inconsistent with normal pattern.  \n- [p4:r17]: Unreconciled page \u2014 printed closing balance SGD 86,747.17 vs expected 87,246.17 \u2014 SGD 499.00 discrepancy.",
+      "summary": "## Summary\nCash position: SGD 34,177.07 net over 3 months (2 full).  \nMain credit concerns: Returned cheque SGD 1,499.51 [p1:r4]; large cash deposit SGD 12,071.87 (6.3\u00d7 median inflow) [p2:r8]; unreconciled page p4: SGD 499.00 difference [p4:r17].  \nTop payer: Senja Hijau Damai Niaga \u2014 SGD 17,898.73 (20.06% of total inflow)."
     },
-    "usage": {
-      "prompt_tokens": 4056,
-      "completion_tokens": 702
-    },
-    "timing": {
-      "total_s": 3.8862331341952085,
-      "per_step": {
-        "analyst": 0.006710279732942581,
-        "router": 1.6225168891251087,
-        "writer:concentration": 1.5584580730646849,
-        "checker": 0.003833068534731865,
-        "writer:questions": 1.9266115576028824,
-        "writer:summary": 1.9423745386302471,
-        "writer:red_flags": 2.0334224067628384,
-        "writer:cash_flow": 2.260389791801572
-      }
-    },
-    "gpu": "NVIDIA RTX PRO 4500 Blackwell",
     "models": {
       "base": "ledgerlens",
-      "reader": "reader",
-      "memo": "ledgerlens"
+      "memo": "ledgerlens",
+      "reader": "reader"
+    },
+    "problems": [],
+    "timing": {
+      "per_step": {
+        "analyst": 0.005086744989966974,
+        "checker:cash_flow": 0.0003861639997921884,
+        "checker:concentration": 0.00018662799266166985,
+        "checker:questions": 0.0003087280201725662,
+        "checker:red_flags": 0.00028215901693329215,
+        "checker:summary": 0.00028179900255054235,
+        "router": 2.066703324991977,
+        "writer:cash_flow": 4.439120039984118,
+        "writer:concentration": 3.3367780699918512,
+        "writer:questions": 3.337178635003511,
+        "writer:red_flags": 4.296379906008951,
+        "writer:summary": 3.7732710799900815
+      },
+      "total_s": 8.5369398049952
+    },
+    "type": "final",
+    "usage": {
+      "completion_tokens": 762,
+      "prompt_tokens": 4364
     }
   }
 ]
