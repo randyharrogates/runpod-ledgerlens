@@ -1,141 +1,159 @@
 [
   {
-    "t": 0.891,
+    "t": 1.123,
     "name": "router",
     "status": "start",
+    "ts": 1792044564.4524882,
     "type": "step"
   },
   {
-    "t": 0.891,
+    "t": 1.123,
     "name": "analyst",
     "status": "start",
+    "ts": 1792044564.452952,
     "type": "step"
   },
   {
-    "t": 2.233,
-    "ms": 0.9110030077863485,
+    "t": 2.49,
+    "ms": 1.4044739946257323,
     "name": "analyst",
     "status": "done",
+    "ts": 1792044564.45436,
     "type": "step"
   },
   {
-    "t": 2.233,
-    "ms": 1386.8742710037623,
+    "t": 2.49,
+    "ms": 1378.0454639927484,
     "name": "router",
     "status": "done",
+    "ts": 1792044565.8305416,
     "type": "step"
   },
   {
-    "t": 3.567,
+    "t": 2.49,
     "intent": "knowledge",
     "plan": {
       "audience": "credit committee",
-      "focus": "term explanation",
+      "focus": "explanation",
       "language": "en",
       "length": "standard"
     },
     "reason": "This is a banking/credit term explanation.",
+    "ts": 1792044565.8310935,
     "type": "route"
   },
   {
-    "t": 3.567,
+    "t": 3.854,
+    "name": "writer",
+    "status": "start",
+    "ts": 1792044565.831101,
+    "type": "step"
+  },
+  {
+    "t": 3.854,
     "entries": [
       {
         "level": "info",
-        "message": "model call route on ledgerlens: 1387 ms, 346 tokens in / 59 out",
+        "message": "model call route on ledgerlens: 1378 ms, 346 tokens in / 59 out",
         "model": "ledgerlens",
-        "ms": 1386.833700002171,
-        "source": "worker"
+        "ms": 1377.9976430232637,
+        "source": "worker",
+        "ts": 1792044565.8305213
       },
       {
         "level": "info",
         "message": "route: knowledge",
-        "source": "worker"
+        "source": "worker",
+        "ts": 1792044565.8310905
       }
     ],
+    "ts": 1792044566.124215,
     "type": "log"
   },
   {
-    "t": 3.567,
-    "name": "writer",
-    "status": "start",
-    "type": "step"
-  },
-  {
-    "t": 3.567,
+    "t": 3.854,
     "parts": [
       {
         "part": "answer",
         "text": "A returned cheque usually tells a lender that the payment was not"
       }
     ],
+    "ts": 1792044566.225429,
     "type": "deltas"
   },
   {
-    "t": 3.567,
+    "t": 3.854,
     "parts": [
       {
         "part": "answer",
         "text": " honored due to insufficient funds, a closed account, or other issues"
       }
     ],
+    "ts": 1792044566.4332507,
     "type": "deltas"
   },
   {
-    "t": 3.567,
+    "t": 3.854,
     "parts": [
       {
         "part": "answer",
         "text": ", indicating a potential risk of non-payment or financial instability"
       }
     ],
+    "ts": 1792044566.6851826,
     "type": "deltas"
   },
   {
-    "t": 3.567,
+    "t": 3.854,
     "parts": [
       {
         "part": "answer",
         "text": " in the account holder."
       }
     ],
+    "ts": 1792044566.8287125,
     "type": "deltas"
   },
   {
-    "t": 3.567,
+    "t": 3.854,
     "entries": [
       {
         "level": "info",
         "message": "model stream chat on ledgerlens: 997 ms, 226 chars",
         "model": "ledgerlens",
-        "ms": 997.3725139861926,
-        "source": "worker"
+        "ms": 997.344053001143,
+        "source": "worker",
+        "ts": 1792044566.8284786
       }
     ],
+    "ts": 1792044566.9349282,
     "type": "log"
   },
   {
-    "t": 3.567,
-    "ms": 997.3943969816901,
+    "t": 3.854,
+    "ms": 997.4012169986963,
     "name": "writer",
     "status": "done",
+    "ts": 1792044566.828506,
     "type": "step"
   },
   {
-    "t": 3.567,
+    "t": 3.854,
     "name": "checker",
     "status": "start",
+    "ts": 1792044566.8285177,
     "type": "step"
   },
   {
-    "t": 3.567,
-    "ms": 0.031086005037650466,
+    "t": 3.854,
+    "ms": 0.08334399899467826,
     "name": "checker",
     "status": "done",
+    "ts": 1792044566.8286037,
     "type": "step"
   },
   {
-    "t": 4.903,
+    "t": 5.212,
     "answer": "A returned cheque usually tells a lender that the payment was not honored due to insufficient funds, a closed account, or other issues, indicating a potential risk of non-payment or financial instability in the account holder.",
     "gpu": "NVIDIA RTX PRO 6000 Blackwell Server Edition",
     "intent": "knowledge",
@@ -147,13 +165,14 @@
     "problems": [],
     "timing": {
       "per_step": {
-        "analyst": 0.0009110030077863485,
-        "checker": 3.1086005037650466e-05,
-        "router": 1.3868742710037623,
-        "writer": 0.9973943969816901
+        "analyst": 0.0014044739946257323,
+        "checker": 8.334399899467826e-05,
+        "router": 1.3780454639927484,
+        "writer": 0.9974012169986963
       },
-      "total_s": 2.8534563779830933
+      "total_s": 2.8892124129924923
     },
+    "ts": 1792044566.8286076,
     "type": "final",
     "usage": {
       "completion_tokens": 101,

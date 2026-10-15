@@ -137,7 +137,7 @@ export function MemoReport({
     <header className="report-header">
       <h2>Credit memo · Cash-flow review</h2>
       <span className={`report-status ${problems ? 'report-orange' : 'report-good'}`}>
-        {!finished ? 'Writing…' : problems ? `${problems} checks flagged` : 'All figures checked'}
+        {!finished ? 'Writing…' : problems ? `${problems} ${problems === 1 ? 'check' : 'checks'} flagged` : 'All figures checked'}
       </span>
       <button className="secondary" onClick={() => setOpen(true)}>Open full report</button>
     </header>
