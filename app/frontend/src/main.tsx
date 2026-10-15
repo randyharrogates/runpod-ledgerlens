@@ -17,6 +17,7 @@ const Data = lazy(() => import('./components/Data').then(m => ({default: m.Data}
 const Training = lazy(() => import('./components/Training').then(m => ({default: m.Training})));
 import { getJSON } from './request';
 import { TrainingRun, PodAlert } from './components/PodAlert';
+import { GpuSwitch } from './components/GpuSwitch';
 import { Presenter } from './components/Presenter';
 import { Assistant } from './components/Assistant';
 import { tour } from './tour';
@@ -169,6 +170,7 @@ function App() {
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true"><path d={icon} /></svg><span>{label}</span>{href === "/training" && runs.some(r => r.status.startsWith("POD MAY STILL BE RUNNING")) && <span className="pod-badge" aria-label="Pod may still be running">!</span>}
           </RouterLink>)}
         </nav>
+        <GpuSwitch />
         <button className="presenter" aria-pressed={presenter} onClick={() => {setPresenter(!presenter); tourGo(0);}}>
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true"><path d="M7 4l13 8-13 8z" /></svg>Presenter
         </button>

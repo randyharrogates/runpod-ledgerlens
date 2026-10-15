@@ -22,6 +22,18 @@ require.extensions['.tsx'] = require.extensions['.ts'] = (module, filename) => {
   }).outputText, filename);
 };
 const React = require('react');
+const {GpuSwitch,GpuPopover,gpuLabel}=require('./src/components/GpuSwitch.tsx');
+const gpuRender=require('react-dom/server').renderToStaticMarkup;
+assert(gpuRender(React.createElement(GpuSwitch)).includes('GPU off'));
+const gpuHtml=gpuRender(React.createElement(GpuPopover,{status:{available:true,workers_min:1},busy:false,error:'',change:()=>{},close:()=>{}}));
+for(const text of ['role="dialog"','$0.69–$1.58 per hour','flex list price','Reset the timer to:','30 min','1 hour','2 hours','Turn off now']) assert(gpuHtml.includes(text),text);
+const mainSource=fs.readFileSync('./src/main.tsx','utf8');
+assert(mainSource.indexOf('<GpuSwitch />')>mainSource.indexOf('<aside className="rail">'));
+assert(mainSource.indexOf('<GpuSwitch />')<mainSource.indexOf('aria-pressed={presenter}'));
+assert.equal(gpuLabel({available:true,workers_min:1,warm_until:3520,workers:{idle:1}},1000),'GPU ready · 42 min');
+assert.equal(gpuLabel({available:true,workers_min:1,warm_until:3520,workers:{initializing:1}},1000),'GPU starting');
+assert.equal(gpuLabel({available:true,workers_min:1,warm_until:null},1000),'GPU on (set elsewhere)');
+
 const {renderToStaticMarkup: render} = require('react-dom/server');
 const {ResultTable} = require('./src/components/Results.tsx');
 const evaluation = render(React.createElement(ResultTable, {value: {
@@ -532,6 +544,12 @@ def test_assistant_chat_typing_and_finished_trail():
 const fs=require('fs'), assert=require('assert'), ts=require('typescript');
 require.extensions['.tsx']=require.extensions['.ts']=(module,filename)=>module._compile(ts.transpileModule(fs.readFileSync(filename,'utf8'),{compilerOptions:{target:ts.ScriptTarget.ES2022,esModuleInterop:true,module:ts.ModuleKind.CommonJS,jsx:ts.JsxEmit.ReactJSX}}).outputText,filename);
 const React=require('react'), {renderToStaticMarkup:render}=require('react-dom/server');
+const {Evidence}=require('./src/components/Assistant.tsx');
+const evidence=render(React.createElement(Evidence,{pages:[
+ {id:'p1',status:'reading',phase:'starting',phase_since:100,thumbnail_url:'/p1'},
+ {id:'p2',status:'error',phase:'error',error:'Invalid rows from worker',thumbnail_url:'/p2'}
+],now:261,retry:()=>{},cancel:()=>{}}));
+for(const text of ['role="status"','aria-live="polite"','2 pages · 0 read · 1 in progress · 1 failed','Starting the model','2:41','3–5 minutes','Invalid rows from worker','Retry failed','>Retry</button>','>Cancel</button>','<progress','evidence-spinner'])assert(evidence.includes(text),text);
 const {reduceTurn,TurnView}=require('./src/components/Assistant.tsx');
 const view=events=>render(React.createElement(TurnView,{turn:reduceTurn(events),jump:()=>{}}));
 const running=view([{type:'step',name:'reader',page_id:'p2',status:'start'}]);

@@ -194,12 +194,11 @@ export function Assistant({session, pages, refresh, status, jump}: {
   const [turns, setTurns] = useState<Turn[]>(() => threads.get(session) || []);
   const [message, setMessage] = useState('');
   const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
-  const [pageEvents, setPageEvents] = useState<Record<string, ChatEvent>>({});
+  const [now, setNow] = useState(Date.now() / 1000);
   const [error, setError] = useState('');
   const [streaming, setStreaming] = useState(false);
   const abort = useRef<AbortController | null>(null);
   const reading = useRef(new Set<string>());
-  const readControllers = useRef(new Set<AbortController>());
   const memo = useRef<Record<string, string>>(memos.get(session) || {});
   const thread = useRef<HTMLDivElement>(null);
   const textarea = useRef<HTMLTextAreaElement>(null);
@@ -225,17 +224,8 @@ export function Assistant({session, pages, refresh, status, jump}: {
       && page.status !== 'error' && page.status !== 'reading' && !reading.current.has(page.id)).map(page => page.id);
     ids.forEach(id => reading.current.add(id));
     try {
-      for (let i = 0; i < ids.length; i += 8) {
-        const controller = new AbortController();
-        readControllers.current.add(controller);
-        try {
-          await postEvents(`/api/sessions/${session}/read`, {page_ids: ids.slice(i, i + 8)}, event => {
-            if (event.page_id) setPageEvents(current => ({...current, [event.page_id]: event}));
-            if (event.type === 'error') setError(plainError(event.message));
-          }, controller.signal);
-        } finally { readControllers.current.delete(controller); }
-        await refresh();
-      }
+      if (ids.length) await api.read(session, ids);
+      await refresh();
     } catch (e) { if ((e as Error).name !== 'AbortError') setError(plainError((e as Error).message)); }
     finally { ids.forEach(id => reading.current.delete(id)); }
   }
@@ -249,7 +239,6 @@ export function Assistant({session, pages, refresh, status, jump}: {
     void fetch('/api/chat/suggestions').then(response => response.json()).then(setSuggestions).catch(() => {});
     return () => {
       abort.current?.abort();
-      readControllers.current.forEach(controller => controller.abort());
     };
   }, [session]);
   useEffect(() => { void readNew().catch(e => setError(plainError(e.message))); }, [session, pages.map(page => `${page.id}:${page.status}`).join(',')]);
@@ -279,7 +268,6 @@ export function Assistant({session, pages, refresh, status, jump}: {
         memo.current = finalMemo;
         memos.set(session, finalMemo);
       }
-      if (event.page_id) setPageEvents(current => ({...current, [event.page_id]: event}));
     }
     try {
       await postEvents(`/api/sessions/${session}/chat`, {message: text}, append, controller.signal);
@@ -292,15 +280,15 @@ export function Assistant({session, pages, refresh, status, jump}: {
     }
   }
 
-  function pageStatus(page: Page) {
-    const event = pageEvents[page.id];
-    if (page.document) return `${(page.document.transactions || page.document.line_items || []).length} rows ✓`;
-    if (page.status === 'rejected' || (event?.type === 'triage' && !event.accepted)) return 'not a financial document';
-    if (page.status === 'error' || (event?.type === 'rows' && !event.valid)) return "couldn't read";
-    if (event?.type === 'rows' && event.valid) return `${(event.document.transactions || event.document.line_items || []).length} rows ✓`;
-    if (event?.name === 'triage') return 'checking page';
-    if (event?.name === 'reader' || page.status === 'reading') return 'reading';
-    return 'queued';
+  const active = pages.some(isReading);
+  useEffect(() => {
+    if (!active) return;
+    const timer = setInterval(() => { setNow(Date.now() / 1000); void refresh().catch(e => setError(plainError(e.message))); }, 1500);
+    return () => clearInterval(timer);
+  }, [session, active, refresh]);
+  async function retry(ids: string[]) {
+    try { await api.read(session, ids); await refresh(); }
+    catch (e) { setError(plainError((e as Error).message)); }
   }
   const hasDocuments = pages.some(page => page.document || !['rejected', 'error'].includes(page.status));
   function suggestionChips(welcome = false) {
@@ -337,13 +325,43 @@ export function Assistant({session, pages, refresh, status, jump}: {
     </div>
     <aside className="assistant-evidence">
       <article><h2>Evidence</h2><p>Agent · {modelState(status, 'agent')}</p>
-        <div className="assistant-pages">{pages.map(page => <div className="assistant-page" key={page.id}>
-          <img src={page.thumbnail_url} alt={`Attached page ${page.id}`} /><div><strong>{page.id}</strong><small>{pageStatus(page)}</small></div>
-        </div>)}</div>
+        <Evidence pages={pages} now={now} retry={ids => void retry(ids)} cancel={() => void api.cancelRead(session).then(refresh).catch(e => setError(plainError(e.message)))} />
         {pages.length === 0 && <button disabled={!session} onClick={() => void api.sample(session).then(readNew).catch(e => setError(plainError(e.message)))}>Load sample business</button>}
         {error && <p role="alert">{error}</p>}
       </article>
       <Upload session={session} done={() => void readNew().catch(e => setError(plainError(e.message)))} />
     </aside>
   </div>;
+}
+
+const phaseLabels: Record<string, string> = {
+  queued: 'Queued', submitted: 'Waiting for a GPU worker',
+  starting: 'Starting the model', triage: 'Checking the page', reading: 'Reading rows',
+  done: 'Done', rejected: 'Not a financial document', error: 'Couldn’t read',
+};
+function isReading(page: Page) { return ['queued', 'submitted', 'starting', 'triage', 'reading'].includes(page.phase || page.status); }
+export function Evidence({pages, now, retry, cancel}: {pages: Page[]; now: number; retry: (ids: string[]) => void; cancel: () => void}) {
+  const active = pages.filter(isReading).length;
+  const done = pages.filter(p => p.status === 'done').length;
+  const failed = pages.filter(p => p.status === 'error');
+  const complete = pages.filter(p => ['done', 'rejected', 'error'].includes(p.status)).length;
+  return <>
+    {pages.length > 0 && <div className="evidence-summary" role="status" aria-live="polite">
+      <span>{pages.length} pages · {done} read{active > 0 && ` · ${active} in progress`}{failed.length > 0 && ` · ${failed.length} failed`}</span>
+      <progress aria-label="Evidence reading progress" value={complete} max={pages.length} />
+      {pages.some(p => p.phase === 'starting') && <small>A GPU worker is starting. The first pages take about 3–5 minutes; later pages take about 10 s each.</small>}
+      {failed.length > 0 && <button className="secondary" onClick={() => retry(failed.map(p => p.id))}>Retry failed</button>}
+      {active > 0 && <button className="secondary" onClick={cancel}>Cancel</button>}
+    </div>}
+    <div className="assistant-pages">{pages.map(page => {
+      const phase = page.phase || page.status;
+      const seconds = Math.max(0, Math.floor(now - (page.phase_since || now)));
+      return <div className="assistant-page" key={page.id}>
+        <img src={page.thumbnail_url} alt={`Attached page ${page.id}`} /><div><strong>{page.id}</strong>
+          <small>{isReading(page) && <span className="evidence-spinner" aria-hidden="true" />}{page.document ? `${(page.document.transactions || page.document.line_items || []).length} rows ✓` : phaseLabels[phase] || 'Queued'}{isReading(page) && ` · ${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')}`}</small>
+          {page.status === 'error' && <><small className="evidence-error" title={page.error}>{page.error === 'Cancelled' ? 'Stopped: you cancelled reading' : page.error}</small><button className="secondary" onClick={() => retry([page.id])}>Retry</button></>}
+        </div>
+      </div>;
+    })}</div>
+  </>;
 }

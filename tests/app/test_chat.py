@@ -67,6 +67,15 @@ def rows(p="p1"):
     }
 
 
+def complete_read(s, ids=None):
+    async def run():
+        result = await chat.read(s, chat.ReadRequest(page_ids=ids))
+        await asyncio.gather(*list(chat.state(main.SESSIONS[s])["read_tasks"].values()))
+        return result
+
+    return asyncio.run(run())
+
+
 def test_read_caches_and_rejects(client, monkeypatch):
     s, session = setup(client, 2)
     fake(
@@ -78,8 +87,8 @@ def test_read_caches_and_rejects(client, monkeypatch):
             {"done": True, "executionTime": 1200, "delayTime": 100},
         ],
     )
-    events = parse(client.post(f"/api/sessions/{s}/read", json={}))
-    assert events[-1]["source"] == "runpod"
+    result = complete_read(s)
+    assert result["read_id"]
     pages = client.get(f"/api/sessions/{s}").json()["pages"]
     assert pages[0]["document"] == document()
     assert pages[0]["status"] == "done"
@@ -87,12 +96,6 @@ def test_read_caches_and_rejects(client, monkeypatch):
     assert pages[1]["status"] == "rejected" and pages[1]["document"] is None
     assert not session["chat"]["reading"]
     assert client.get(f"/api/sessions/{s}/analysis").json()["monthly"]
-    assert (
-        client.post(
-            f"/api/sessions/{s}/read", json={"page_ids": ["p1"] * 9}
-        ).status_code
-        == 400
-    )
 
 
 def test_payload_cap_history_and_memo(client, monkeypatch):
@@ -233,12 +236,11 @@ def test_offline_read(client, monkeypatch):
     monkeypatch.setenv("DEMO_MODE", "1")
     s = client.post("/api/sessions").json()["session"]
     client.post(f"/api/sessions/{s}/sample")
-    events = parse(client.post(f"/api/sessions/{s}/read", json={}))
-    assert len([event for event in events if event["type"] == "rows"]) == 5
+    result = complete_read(s)
+    assert len(result["page_ids"]) == 5
     assert all(page["document"] for page in main.SESSIONS[s]["pages"].values())
     other, session = setup(client)
-    events = parse(client.post(f"/api/sessions/{other}/read", json={}))
-    assert events[1]["valid"] is False
+    complete_read(other)
     assert session["pages"]["p1"]["status"] == "error"
 
 
@@ -283,7 +285,7 @@ def test_chat_waits_for_read(client, monkeypatch):
         async def consume(response):
             return [event async for event in response.body_iterator]
 
-        read_task = asyncio.create_task(consume(response))
+        read_task = list(session["chat"]["read_tasks"].values())[0]
         await started.wait()
         response = await chat.chat(s, chat.ChatRequest(message="Question"))
         iterator = response.body_iterator
@@ -362,15 +364,15 @@ def test_read_reserves_pages_before_preparing_images(client, monkeypatch):
 
     monkeypatch.setattr(chat, "images", prepare)
     fake(monkeypatch, [rows(), {"type": "final", "intent": "read"}])
-    client.post(f"/api/sessions/{s}/read", json={})
+    complete_read(s)
     assert not session["chat"]["reading"]
 
 
 def test_failed_read_keeps_the_worker_reason(client, monkeypatch):
     s, session = setup(client, 1)
     fake(monkeypatch, [{"error": "task must be extract, memo, or health"}])
-    events = parse(client.post(f"/api/sessions/{s}/read", json={}))
-    assert events[-1]["type"] == "error"
+    result = complete_read(s)
+    assert result["read_id"]
     assert session["pages"]["p1"]["status"] == "error"
     assert session["pages"]["p1"]["error"] == "task must be extract, memo, or health"
 
@@ -453,3 +455,51 @@ async def test_recorded_timestamps_keep_original_gaps(monkeypatch, tmp_path):
     assert [event["ts"] for event in events] == [1000.0, 1005.0, 2000.0]
     assert sleeps == [0, 1.5, 1.5]
     assert all("t" not in event for event in events)
+
+
+@pytest.mark.anyio
+async def test_background_batches_progress_and_cancel(client, monkeypatch):
+    s, session = setup(client, 19)
+    started = []
+    finish = asyncio.Event()
+    snapshots = []
+
+    async def relay(endpoint, payload, key):
+        ids = [p["page_id"] for p in payload["pages"]]
+        started.append(ids)
+        yield {"type": "job", "job_id": f"job-{ids[0]}"}
+        snapshots.append(session["pages"][ids[0]]["phase"])
+        await finish.wait()
+        for p in ids:
+            yield {"type": "step", "name": "triage", "page_id": p, "status": "start"}
+            snapshots.append(session["pages"][p]["phase"])
+            yield {"type": "step", "name": "reader", "page_id": p, "status": "start"}
+            snapshots.append(session["pages"][p]["phase"])
+            yield rows(p)
+            snapshots.append(session["pages"][p]["phase"])
+        yield {"type": "final", "intent": "read"}
+
+    monkeypatch.setattr(chat, "relay", relay)
+    monkeypatch.setenv("RUNPOD_WORKER_LOGS", "0")
+    accepted = await chat.read(s, chat.ReadRequest())
+    assert len(accepted["page_ids"]) == 19
+    async with asyncio.timeout(5):
+        while len(started) < 2:
+            await asyncio.sleep(0.01)
+    assert [len(ids) for ids in started] == [8, 8]
+    assert session["pages"]["p17"]["phase"] == "queued"
+    finish.set()
+    await asyncio.gather(*list(session["chat"]["read_tasks"].values()))
+    assert snapshots[:2] == ["submitted", "submitted"]
+    assert snapshots[2:5] == ["triage", "reading", "done"]
+    assert all(p["phase"] == "done" for p in session["pages"].values())
+
+    finish.clear()
+    await chat.read(s, chat.ReadRequest(page_ids=["p1"]))
+    async with asyncio.timeout(5):
+        while session["pages"]["p1"]["phase"] != "submitted":
+            await asyncio.sleep(0.01)
+    await chat.cancel_read(s)
+    assert session["pages"]["p1"]["error"] == "Cancelled"
+    assert session["pages"]["p1"]["phase"] == "error"
+    assert session["chat"]["idle"].is_set()
