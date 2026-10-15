@@ -8,12 +8,13 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 
 import httpx
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel, StrictBool
 from starlette.concurrency import run_in_threadpool
 
 from app.backend import logs
 
+LOCAL_HOSTS = {"127.0.0.1", "::1", "testclient"}
 TASK = None
 STATE = None
 CACHE = None
@@ -201,8 +202,11 @@ class Change(BaseModel):
 
 
 @router.post("/api/gpu")
-async def change_gpu(change: Change):
+async def change_gpu(change: Change, request: Request):
     global STATE, CACHE
+    # The app listens on the LAN for phone uploads; only this machine may spend money.
+    if not request.client or request.client.host not in LOCAL_HOSTS:
+        raise HTTPException(403, "The GPU can only be switched from this computer")
     if type(change.minutes) is not int or change.minutes not in (15, 30, 60, 120):
         raise HTTPException(400, "Minutes must be 15, 30, 60 or 120")
     endpoint, key, reason = credentials()

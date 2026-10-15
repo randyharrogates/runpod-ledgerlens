@@ -1,5 +1,6 @@
 """GPU controls use mocked HTTP only."""
 
+import asyncio
 import json
 import time
 
@@ -112,3 +113,14 @@ def test_external_and_restored_timer(control):
     with TestClient(main.app) as client:
         assert client.get("/api/gpu").json()["warm_until"] == until
         assert not control["patches"]
+
+
+def test_switch_refused_from_another_machine(monkeypatch):
+    from types import SimpleNamespace
+
+    from fastapi import HTTPException
+
+    request = SimpleNamespace(client=SimpleNamespace(host="192.168.0.20"))
+    with pytest.raises(HTTPException) as error:
+        asyncio.run(gpu.change_gpu(gpu.Change(on=True, minutes=30), request))
+    assert error.value.status_code == 403
