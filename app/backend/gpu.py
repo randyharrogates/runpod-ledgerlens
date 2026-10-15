@@ -19,6 +19,112 @@ TASK = None
 STATE = None
 CACHE = None
 LOCK = asyncio.Lock()
+PROBERS = {}
+READINESS = {}
+PROBE_TIMEOUT = 90
+
+
+def readiness(endpoint):
+    return READINESS.setdefault(
+        endpoint,
+        {
+            "ready": False,
+            "checked_at": None,
+            "probe": "idle",
+            "last_probe": None,
+            "error": None,
+        },
+    )
+
+
+def start_prober(endpoint, key):
+    if endpoint not in PROBERS or PROBERS[endpoint].done():
+        PROBERS[endpoint] = asyncio.create_task(prober(endpoint, key))
+
+
+def stop_prober(endpoint):
+    task = PROBERS.pop(endpoint, None)
+    if task:
+        task.cancel()
+    READINESS.pop(endpoint, None)
+    return task
+
+
+async def probe_cycle(endpoint, key, client):
+    state = readiness(endpoint)
+    # Keep a proven "ready" through a re-check; only a failed check clears it.
+    state.update(probe="waiting", error=None)
+    base = f"https://api.runpod.ai/v2/{endpoint}"
+
+    async def request(method, path, **kwargs):
+        response = await client.request(method, base + path, **kwargs)
+        check(response, key)
+        return response.json()
+
+    health = await request("GET", "/health")
+    workers = health.get("workers", {})
+    if workers.get("initializing", 0) or not any(workers.values()):
+        state["ready"] = False
+        return
+    job = None
+    terminal = False
+    try:
+        value = await request("POST", "/run", json={"input": {"task": "health"}})
+        job = value["id"]
+        state["probe"] = "running"
+        deadline = time.monotonic() + PROBE_TIMEOUT
+        while True:
+            value = await request("GET", f"/status/{job}")
+            status = value.get("status")
+            if status in ("COMPLETED", "FAILED", "CANCELLED", "TIMED_OUT"):
+                terminal = True
+                output = value.get("output")
+                if isinstance(output, list):
+                    output = output[-1] if output else {}
+                output = output if isinstance(output, dict) else {}
+                if status == "COMPLETED" and output.get("status") == "ready":
+                    state.update(
+                        ready=True,
+                        checked_at=time.time(),
+                        last_probe={
+                            "delay_ms": value.get("delayTime"),
+                            "execution_ms": value.get("executionTime"),
+                            "worker_id": str(value["workerId"]).replace(
+                                key, "[REDACTED]"
+                            )
+                            if value.get("workerId") is not None
+                            else None,
+                            "engine_load_s": output.get("engine_load_seconds"),
+                            "cold_start": output.get("cold_start"),
+                        },
+                    )
+                else:
+                    state["ready"] = False
+                    if status != "COMPLETED" or output.get("status") != "starting":
+                        state["error"] = "Worker health check failed"
+                return
+            if time.monotonic() >= deadline:
+                state.update(ready=False, error="Worker not taking jobs yet")
+                return
+            await asyncio.sleep(2)
+    finally:
+        if job and not terminal:
+            await request("POST", f"/cancel/{job}")
+        state["probe"] = "idle"
+
+
+async def prober(endpoint, key):
+    async with httpx.AsyncClient(
+        headers={"Authorization": f"Bearer {key}"}, timeout=15
+    ) as client:
+        while True:
+            try:
+                await probe_cycle(endpoint, key, client)
+            except (httpx.HTTPError, HTTPException, ValueError, KeyError, TypeError):
+                readiness(endpoint).update(
+                    ready=False, probe="idle", error="Could not check the worker"
+                )
+            await asyncio.sleep(120 if readiness(endpoint)["ready"] else 5)
 
 
 def state_path():
@@ -103,6 +209,9 @@ async def auto_off(endpoint, until):
                 await run_in_threadpool(remote, endpoint, key, 0)
                 persist(None)
                 STATE = CACHE = None
+                task = stop_prober(endpoint)
+                if task:
+                    await asyncio.gather(task, return_exceptions=True)
                 logs.LOG.info("GPU auto-off completed")
                 return
             except (HTTPException, OSError):
@@ -114,6 +223,7 @@ async def auto_off(endpoint, until):
 async def lifespan(app):
     global STATE, CACHE
     STATE = CACHE = None
+    READINESS.clear()
     endpoint, key, reason = credentials()
     if not reason:
         try:
@@ -123,6 +233,8 @@ async def lifespan(app):
             ):
                 STATE = saved
                 schedule(endpoint, saved["warm_until"])
+                if saved["warm_until"] > time.time():
+                    start_prober(endpoint, key)
                 if saved["warm_until"] <= time.time():
                     # Give the recovery task a chance to turn off before serving requests.
                     await asyncio.sleep(0)
@@ -131,8 +243,12 @@ async def lifespan(app):
     try:
         yield
     finally:
+        tasks = list(PROBERS.values())
+        for endpoint in list(PROBERS):
+            stop_prober(endpoint)
         task = TASK
         cancel()
+        await asyncio.gather(*tasks, return_exceptions=True)
         if task:
             await asyncio.gather(task, return_exceptions=True)
 
@@ -145,8 +261,14 @@ async def snapshot(endpoint, key, fresh=False):
     from app.backend.main import GPU_PRICE_PER_SEC, fetch_health
 
     if not fresh and CACHE and CACHE[0] == endpoint and time.monotonic() - CACHE[1] < 3:
-        return CACHE[2]
+        return {**CACHE[2], **ready_fields(endpoint)}
     settings = await run_in_threadpool(remote, endpoint, key)
+    if settings["workersMin"] >= 1:
+        start_prober(endpoint, key)
+    else:
+        task = stop_prober(endpoint)
+        if task:
+            await asyncio.gather(task, return_exceptions=True)
     try:
         health = await run_in_threadpool(fetch_health, endpoint, key)
     except Exception:
@@ -184,7 +306,15 @@ async def snapshot(endpoint, key, fresh=False):
         "cost_per_hour_high": round(max(prices), 2),
     }
     CACHE = endpoint, time.monotonic(), value
-    return value
+    return {**value, **ready_fields(endpoint)}
+
+
+def ready_fields(endpoint):
+    state = readiness(endpoint)
+    return {
+        **{k: v for k, v in state.items() if k != "error"},
+        "ready_error": state["error"],
+    }
 
 
 @router.get("/api/gpu")
@@ -229,7 +359,12 @@ async def change_gpu(change: Change, request: Request):
             STATE = saved
             schedule(endpoint, saved["warm_until"])
         await run_in_threadpool(remote, endpoint, key, int(change.on))
+        if change.on:
+            start_prober(endpoint, key)
         if not change.on:
+            task = stop_prober(endpoint)
+            if task:
+                await asyncio.gather(task, return_exceptions=True)
             cancel()
             try:
                 persist(None)
