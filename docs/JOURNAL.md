@@ -208,6 +208,22 @@ small team of agents does the work on one Runpod Serverless GPU, quickly.
   checker marks it on screen. Whether that is worth training a writer adapter (about $3–5) is
   Randy's call.
 
+## Step 16: The memo becomes a report, and every run can be traced
+- **What we did:** the memo used to arrive as five chat cards with the figures inside sentences.
+  It is now laid out like a credit document: a header (borrower, bank, period, evidence, who it
+  is for), a row of key figures, then five numbered sections. Cash flow and red flags are tables
+  built by code; the model only writes short commentary next to them. A "full report" button
+  opens it as a page of its own.
+- **Why tables from code:** the tables are always right and always the same shape, and the
+  fewer numbers the model writes, the fewer it can get wrong. It is also the cheapest answer to
+  "do we need to fine-tune the writer?": first make the writer's job smaller.
+- **Seeing what the agent did:** every answer now has a Trace button. It draws the path the run
+  took (router and analyst side by side, the five writers at once, a checker after each) and a
+  timeline in seconds. Clicking a step shows the log lines from that moment.
+- **What looking caught:** the report code passed its tests but would have crashed on every live
+  memo, because inside the worker the numbers had already been turned into text. The tests had
+  fed it raw numbers. Only running it on the real data showed it.
+
 ## Still to do
 - Release the worker fixes (sharp JPEG pages, heading check), then re-record the memo demo.
 - Decide on the writer adapter (4 of 30 memos keep an invented threshold).

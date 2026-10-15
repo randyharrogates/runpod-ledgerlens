@@ -203,7 +203,12 @@ def test_chat_logs(client, monkeypatch):
         yield {
             "type": "log",
             "entries": [
-                {"source": "worker", "message": "chat-secret worker", "level": "error"},
+                {
+                    "source": "worker",
+                    "message": "chat-secret worker",
+                    "level": "error",
+                    "ts": 123.5,
+                },
                 {"source": "vllm", "message": "model loaded", "section": "reader"},
             ],
         }
@@ -223,6 +228,7 @@ def test_chat_logs(client, monkeypatch):
     entries = logs.BUFFER.since(session=session, limit=1000)[0]
     workers = [e for e in entries if e["source"] in ("worker", "vllm")]
     assert len(workers) == 2
+    assert workers[0]["ts"] == 123.5
     assert all(e["job_id"] == "job-1" and len(e["turn"]) == 12 for e in workers)
     done = [e for e in entries if "agent turn done" in e["message"]]
     assert len(done) == 1 and "queue 0.1 s, execution 1.2 s" in done[0]["message"]

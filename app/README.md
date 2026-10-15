@@ -36,12 +36,17 @@ Extraction failures fall back only for bundled sample pages. Cached ground truth
 
 ## Workspace pages and exports
 
-Assistant (`/assistant`): chat with live steps, attached pages, cited memo cards, and Stop.
+Assistant (`/assistant`): chat with live steps, attached pages and Stop. A memo arrives as a
+report: header (borrower, bank, period, evidence), key figures, and five numbered sections whose
+tables (monthly cash flow, red flags, reconciliation) come from code, with the model's commentary
+beside them; "Open full report" shows it full width and "Copy memo" copies it as Markdown.
 Demo mode replays recorded agent turns, labelled "Recorded run". Stop cancels the Runpod job;
 in-flight worker work can take ~2–2.5 min to drain before the worker idles.
 
 The live Logs drawer combines app, browser, worker and vLLM logs for the current session, with
-filters and a "Logs for this turn" link. Runpod worker logs are polled by default;
+filters and a "Logs for this turn" link. Each turn's **Trace** tab draws the path the run
+took (flow graph) and a timeline of every step; clicking a step lists the log lines from that
+moment. Recorded turns are drawn with their recorded times. Runpod worker logs are polled by default;
 `RUNPOD_WORKER_LOGS=0` disables that feed.
 
 Read statements: add pages, check editable rows, review cash flow and cited flags, and write a memo. Download the current page or all checked pages as CSV. Save as PDF opens the browser print dialog and prints only the memo with plain-text citations.

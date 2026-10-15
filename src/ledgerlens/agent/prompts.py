@@ -7,13 +7,13 @@ SECTIONS = [
     {
         "id": "summary",
         "heading": "Summary",
-        "instruction": "Summarize the cash position and main credit concerns.",
+        "instruction": "In two or three sentences, give the cash position and the main credit concerns.",
         "analysis_keys": ["period_totals", "findings", "top_payer_concentration"],
     },
     {
         "id": "cash_flow",
         "heading": "Cash flow",
-        "instruction": "Describe monthly flows and observed balances. Note partial months when supplied.",
+        "instruction": "In two or three sentences, describe the trend in monthly flows and balances and note partial months. A month-by-month table is shown separately; do not list every month.",
         "analysis_keys": [
             "monthly",
             "period_totals",
@@ -24,19 +24,19 @@ SECTIONS = [
     {
         "id": "concentration",
         "heading": "Concentration",
-        "instruction": "Describe reliance on the largest payer.",
+        "instruction": "In one or two sentences, describe reliance on the largest payer and why it matters to a lender.",
         "analysis_keys": ["top_payer_concentration"],
     },
     {
         "id": "red_flags",
         "heading": "Red flags",
-        "instruction": "Explain each finding and reconciliation concern with its row citations, without guessing causes.",
+        "instruction": "One short bullet per finding or reconciliation concern: what it is and why it matters to a lender, with its row citations. Do not guess causes. Amounts are shown in a table separately.",
         "analysis_keys": ["findings", "reconciliation"],
     },
     {
         "id": "questions",
         "heading": "Questions for the applicant",
-        "instruction": "Ask the applicant to explain each supplied credit concern: its cause, the counterparty and what documents support it. Do not ask for figures the analysis already gives.",
+        "instruction": "Ask the applicant to explain each supplied credit concern: its cause, the counterparty and what documents support it. Do not ask for figures the analysis already gives. Write a numbered list, one question per concern, varied wording.",
         "analysis_keys": ["findings", "reconciliation", "top_payer_concentration"],
     },
 ]

@@ -345,7 +345,7 @@ def test_emitter_batches_and_flushes_before_events(monkeypatch, limit):
         return [e async for e in agent.events(work, FakeEngine())]
 
     events = asyncio.run(consume())
-    assert events[0] == {
+    assert {k: v for k, v in events[0].items() if k != "ts"} == {
         "type": "deltas",
         "parts": [
             {"part": "summary", "text": "abc"},
@@ -353,7 +353,7 @@ def test_emitter_batches_and_flushes_before_events(monkeypatch, limit):
         ],
     }
     assert events[1]["type"] == "section_reset"
-    assert events[2] == {
+    assert {k: v for k, v in events[2].items() if k != "ts"} == {
         "type": "deltas",
         "parts": [{"part": "answer", "text": "tail"}],
     }
@@ -448,7 +448,10 @@ def test_failure_cancels_other_sections():
     events = collect(
         agent.run_agent, {"message": "Memo", "documents": [document()]}, engine
     )
-    assert events[-1] == {"type": "error", "message": "writer failed"}
+    assert {k: v for k, v in events[-1].items() if k != "ts"} == {
+        "type": "error",
+        "message": "writer failed",
+    }
     assert engine.active == 0
     assert not any(e["type"] == "final" for e in events)
 
@@ -510,7 +513,11 @@ def test_read_dimensions_checked_before_model_call(monkeypatch):
     rows = [event for event in events if event["type"] == "rows"]
     assert len(rows) == 1 and not rows[0]["valid"]
     assert "megapixels" in rows[0]["validation_error"]
-    assert [event for event in events if event["type"] == "step"][-1] == {
+    assert {
+        k: v
+        for k, v in [event for event in events if event["type"] == "step"][-1].items()
+        if k != "ts"
+    } == {
         "type": "step",
         "name": "triage",
         "status": "error",
@@ -1052,3 +1059,107 @@ def test_writer_gets_share_percent_not_raw_share():
     ]
     assert writer
     assert all('"share_percent"' in text and '"share"' not in text for text in writer)
+
+
+@pytest.mark.parametrize("intent", ["memo", "edit_memo"])
+def test_report_precedes_writers_and_has_checked_data(intent):
+    events = collect(
+        agent.run_agent,
+        {
+            "message": "Write memo",
+            "documents": [document()],
+            "last_memo": {"summary": "## Summary\nPrevious"},
+        },
+        FakeEngine(intent),
+    )
+    report = next(e for e in events if e["type"] == "report")
+    assert all(isinstance(e["ts"], float) for e in events)
+    assert events.index(report) < next(
+        i for i, e in enumerate(events) if e["type"] == "deltas"
+    )
+    assert events[-1]["report"] == report
+    assert report["borrower"] == STATEMENT["account_holder"]
+    assert report["period"] == {
+        "start": STATEMENT["period_start"],
+        "end": STATEMENT["period_end"],
+    }
+    assert [m["month"] for m in report["monthly"]] == sorted(
+        m["month"] for m in report["monthly"]
+    )
+    from ledgerlens.agent.report import LABELS
+
+    assert all(f["label"] == LABELS[f["type"]] for f in report["findings"])
+    expected = agent.analyze(
+        [worker.MODELS["statement"].model_validate(STATEMENT)], ["p1"]
+    )
+    assert report["top_payer"]["share_percent"] == str(
+        round(expected["top_payer_concentration"]["share"] * 100, 2)
+    )
+    assert report["evidence"] == {"statements": 1, "invoices": 0, "page_ids": ["p1"]}
+
+
+def test_report_commentary_instructions():
+    instructions = {s["id"]: s["instruction"] for s in agent.SECTIONS}
+    assert "two or three sentences" in instructions["summary"]
+    assert "do not list every month" in instructions["cash_flow"]
+    assert "why it matters to a lender" in instructions["concentration"]
+    assert "Do not guess causes" in instructions["red_flags"]
+    assert "numbered list, one question per concern" in instructions["questions"]
+
+
+def test_report_fills_finding_amounts_and_caps_citations():
+    from decimal import Decimal
+
+    from ledgerlens.agent.report import build_report
+
+    statement = worker.MODELS["statement"].model_validate(STATEMENT)
+    analysis = agent.analyze([statement], ["p1"])
+    citation = {"page_id": "p1", "row_index": 0}
+    analysis["findings"] = [
+        {
+            "type": "returned_cheque",
+            "description": "Keep this description",
+            "citations": [{"page_id": "p1", "row_index": -1}] + [citation] * 5,
+        },
+        {
+            "type": "unreconciled_page",
+            "page_id": "p1",
+            "citations": [],
+            "difference": Decimal("-123.45"),
+        },
+    ]
+    analysis["reconciliation"][0]["difference"] = Decimal("-123.45")
+    report = build_report([statement], [], ["p1"], analysis, {})
+    row = statement.transactions[0]
+    assert Decimal(report["findings"][0]["amount"]) == (row.debit or row.credit)
+    assert report["findings"][0]["description"] == "Keep this description"
+    assert report["findings"][1]["amount"] == "123.45"
+    assert all(len(f["cites"]) <= 3 for f in report["findings"])
+
+
+def test_report_amounts_from_cited_analysis():
+    # The worker passes cited analysis: Decimals as strings, citations as "[p1:r1]".
+    from decimal import Decimal
+
+    from ledgerlens.agent.report import build_report
+
+    statement = worker.MODELS["statement"].model_validate(STATEMENT)
+    analysis = agent.analyze([statement], ["p1"])
+    analysis["findings"] = [
+        {
+            "type": "returned_cheque",
+            "description": "d",
+            "citations": [{"page_id": "p1", "row_index": 0}],
+        },
+        {
+            "type": "unreconciled_page",
+            "page_id": "p1",
+            "description": "d",
+            "citations": [],
+        },
+    ]
+    analysis["reconciliation"][0]["difference"] = Decimal("-123.45")
+    report = build_report([statement], [], ["p1"], agent.cited(analysis), {})
+    row = statement.transactions[0]
+    assert Decimal(report["findings"][0]["amount"]) == (row.debit or row.credit)
+    assert report["findings"][1]["amount"] == "123.45"
