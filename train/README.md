@@ -166,3 +166,25 @@ Request latency excludes semaphore waiting and image preparation. Split wall tim
 includes preparation, requests and prediction writes, including any server warm-up;
 failed requests count in both `invalid` and `errors`. This client measures a running
 server, not model initialization. Use separate output directories for each model.
+
+## Agent evaluations (E2–E5)
+
+Build deterministic cases offline, run them against an endpoint, then score saved
+results. E2 measures routing in four languages (including injections and empty
+contexts); E3 measures triage on originals, degraded pages and non-documents; E4
+checks data answers and refusals; E5 chains memo creation and shortening edits.
+
+```bash
+PYTHONPATH=src:. uv run python -m train.agent_eval build --suite all --out evals/agent
+PYTHONPATH=src:. uv run python -m train.agent_eval run --suite all --out evals/agent --endpoint ENDPOINT_ID --concurrency 8
+PYTHONPATH=src:. uv run python -m train.agent_eval score --suite all --out evals/agent
+```
+
+Use `--suite e2|e3|e4|e5` for one suite and `--limit N` for a smoke test (E3 limits
+batches of eight, E5 limits business pairs). Results append and resume by case ID;
+failed calls are recorded and also skipped on resume. Credentials are loaded only
+when running, through the worker client. Scores and an appended summary include
+execution seconds, summed request wall seconds, tokens and estimated GPU cost at
+$0.69/hour for the 24 GB pool. E4/E5 use six statement pages plus up to two invoices
+per business to fit the worker's eight-page limit; expectations use that same subset.
+Synthetic results do not establish accuracy on real customer documents.

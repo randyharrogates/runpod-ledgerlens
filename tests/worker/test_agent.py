@@ -797,3 +797,77 @@ def test_log_count_flush_retains_text_deadline(monkeypatch):
     events = asyncio.run(run())
     assert [event["type"] for event in events] == ["log", "deltas", "step"]
     assert len(events[0]["entries"]) == 20
+
+
+@pytest.mark.parametrize(
+    "intent,docs,last,expected",
+    [
+        ("memo", True, False, "memo"),
+        ("ask_data", False, False, "needs_documents"),
+        ("edit_memo", True, False, "memo"),
+        ("edit_memo", True, True, "edit_memo"),
+        ("off_topic", True, False, "off_topic"),
+    ],
+)
+def test_route_stop(intent, docs, last, expected, monkeypatch):
+    def forbidden(*args, **kwargs):
+        raise AssertionError("route-only ran analysis/tool")
+
+    monkeypatch.setattr(agent, "analyze", forbidden)
+    monkeypatch.setattr(agent, "run_tool", forbidden)
+    engine = FakeEngine(intent=intent)
+    data = dict(
+        message="Review this",
+        documents=[document()] if docs else [],
+        stop_after="route",
+        new_pages=[{"page_id": "p2", "image_base64": image()}],
+    )
+    if last:
+        data["last_memo"] = {"summary": "Summary\nExisting memo"}
+
+    async def collect():
+        return [e async for e in agent.run_agent(data, engine)]
+
+    events = asyncio.run(collect())
+    final = next(e for e in events if e["type"] == "final")
+    assert final["intent"] == expected
+    assert final["problems"] == []
+    assert final["plan"] == PLAN
+    assert "usage" in final and "timing" in final
+    assert len(engine.calls) == 1
+    assert not engine.streams
+    assert not any(e["type"] in ("rows", "triage", "tool", "section") for e in events)
+
+
+def test_triage_stop():
+    engine = FakeEngine()
+
+    async def collect():
+        return [
+            e
+            async for e in agent.run_read(
+                {
+                    "pages": [
+                        {"page_id": f"p{i}", "image_base64": image()} for i in range(3)
+                    ],
+                    "stop_after": "triage",
+                },
+                engine,
+            )
+        ]
+
+    events = asyncio.run(collect())
+    final = next(e for e in events if e["type"] == "final")
+    assert final["documents"] == []
+    assert len(final["triage"]) == 3
+    assert len(engine.calls) == 3
+    assert all(c["messages"][0]["content"] == agent.TRIAGE_SYSTEM for c in engine.calls)
+    assert not any(e["type"] == "rows" for e in events)
+
+
+@pytest.mark.parametrize(
+    "read,value", [(False, "triage"), (True, "route"), (False, None), (True, 1)]
+)
+def test_stop_validation(read, value):
+    with pytest.raises(ValueError, match="stop_after"):
+        agent.validate({"message": "hello", "stop_after": value}, read=read)
