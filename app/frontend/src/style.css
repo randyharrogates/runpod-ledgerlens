@@ -1014,6 +1014,7 @@ button.secondary {background:transparent;color:var(--text);border:1px solid var(
 .assistant-dot,.logs-status-dot {display:inline-block;width:6px;height:6px;border-radius:50%;background:var(--good);flex-shrink:0}
 .assistant-dot-bad {background:var(--bad)}.assistant-dot-running {background:var(--sky);animation:assistant-pulse 1.4s ease-in-out infinite}
 .assistant-thinking {display:flex;align-items:center;gap:10px;color:var(--muted);font-size:13px;padding:18px 0}
+.assistant-cold-note {display:block;color:var(--muted);font-size:12px;margin:-10px 0 12px;max-width:60ch}
 .assistant-typing {display:flex;gap:4px}.assistant-typing i {width:5px;height:5px;background:var(--intent);border-radius:50%;animation:assistant-pulse 1.2s ease-in-out infinite}.assistant-typing i:nth-child(2) {animation-delay:.2s}.assistant-typing i:nth-child(3) {animation-delay:.4s}
 @keyframes assistant-pulse {50% {opacity:.35;transform:translateY(-2px)}}
 .assistant-card {position:relative;border-top:2px solid var(--violet);background:var(--violet-soft)}

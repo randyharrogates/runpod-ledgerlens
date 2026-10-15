@@ -453,6 +453,10 @@ assert.equal(answer.answer,'Checked [p2:r1]');
 assert.equal(reduceTurn([{type:'error',message:'Traceback (most recent call last):\n File worker.py'}]).error,'The request failed');
 assert(render(React.createElement(TurnView,{turn:answer,jump:()=>{}})).includes('[p2:r1]</button>'));
 assert(render(React.createElement(TurnView,{turn:reduceTurn([{type:'error',message:'Connection lost'}]),jump:()=>{}})).includes('The agent stopped: Connection lost. Your pages are saved; try again.'));
+// A submitted job with no worker step yet says it is waiting for a GPU, not just "Thinking".
+const waiting=render(React.createElement(TurnView,{turn:reduceTurn([{type:'turn',turn_id:'t1'},{type:'job',job_id:'j1'}]),jump:()=>{}}));
+assert(waiting.includes('Waiting for a GPU worker · 0:00'),waiting);
+assert(!render(React.createElement(TurnView,{turn:reduceTurn([{type:'job',job_id:'j1'},{type:'step',name:'router',status:'start'}]),jump:()=>{}})).includes('Waiting for a GPU worker'));
 const checked=reduceTurn([{type:'route',intent:'memo'},{type:'section',section:'concentration',text:'## Concentration\nOne payer.',rewritten:true,problems:[{kind:'unverified_figure',detail:'31,363.11'},'plain note']},{type:'final',intent:'memo',memo:{concentration:'## Concentration\nOne payer.'},problems:[{kind:'too_long',detail:'x'}]}]);
 assert.deepEqual(checked.cards.concentration.problems,['Figure not found in the analysis: 31,363.11','plain note']);
 assert(render(React.createElement(TurnView,{turn:checked,jump:()=>{}})).includes('Figure not found in the analysis: 31,363.11'));
