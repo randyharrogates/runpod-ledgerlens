@@ -709,13 +709,14 @@ async def run_agent(data, engine):
                 }
                 previous = memo.get(section_id) if intent == "edit_memo" else None
                 problems = [clean["message"]] if intent == "edit_memo" else None
-                max_words = WORD_LIMITS[plan["length"]]
+                max_words = check_max_words = WORD_LIMITS[plan["length"]]
                 if previous and re.search(
                     r"\b(shorter|shorten|concise|brief|trim|cut|singkat|pendek|ringkas)\b|简短|缩短|精简|短一些|更短",
                     clean["message"],
                     re.IGNORECASE,
                 ):
                     max_words = max(25, word_count(previous) * 3 // 5)
+                    check_max_words = max(25, (word_count(previous) * 4 + 4) // 5)
                 request = {
                     "model": MEMO_MODEL,
                     "temperature": 0,
@@ -728,7 +729,7 @@ async def run_agent(data, engine):
                     "writer", lambda: stream(request, section_id), section_id
                 )
                 kwargs = {
-                    "max_words": max_words,
+                    "max_words": check_max_words,
                     "required_heading": section["heading"],
                 }
                 problems = await check(text, subset, section_id, **kwargs)
@@ -772,6 +773,31 @@ async def run_agent(data, engine):
             request = payload(DATA_AGENT_SYSTEM, clean["message"])
             request["tools"] = TOOL_SPECS
             collected = []
+            names = {}
+
+            def mask_names(value, key=""):
+                if isinstance(value, dict):
+                    return {k: mask_names(v, k) for k, v in value.items()}
+                if isinstance(value, list):
+                    return [mask_names(v, key) for v in value]
+                if (
+                    isinstance(value, str)
+                    and any(
+                        part in key.lower()
+                        for part in ("payer", "counterparty", "name", "description")
+                    )
+                    and any(ord(char) > 255 for char in value)
+                ):
+                    if value not in names:
+                        names[value] = f"NAME_{len(names) + 1}"
+                    return names[value]
+                return value
+
+            def restore_names(text):
+                originals = {token: original for original, token in names.items()}
+                return re.sub(
+                    r"\bNAME_\d+\b", lambda m: originals.get(m[0], m[0]), text
+                )
 
             async def data_agent():
                 for _ in range(MAX_TOOL_ROUNDS):
@@ -821,7 +847,7 @@ async def run_agent(data, engine):
                             {
                                 "role": "tool",
                                 "tool_call_id": call["id"],
-                                "content": json.dumps(result),
+                                "content": json.dumps(mask_names(result)),
                             }
                         )
                 await emit_log(
@@ -832,7 +858,8 @@ async def run_agent(data, engine):
                 request["tool_choice"] = "none"
                 return message(await engine.complete(request)).get("content") or ""
 
-            text = await step("data_agent", data_agent)
+            model_text = await step("data_agent", data_agent)
+            text = restore_names(model_text)
             await emit({"type": "_text", "part": "answer", "text": text})
             problems = await check(text, collected, question=clean["message"])
             if problems:
@@ -845,17 +872,22 @@ async def run_agent(data, engine):
                 request["tool_choice"] = "none"
                 request["messages"].extend(
                     [
-                        {"role": "assistant", "content": text},
+                        {"role": "assistant", "content": model_text},
                         {
                             "role": "user",
-                            "content": "Rewrite to fix: "
-                            + json.dumps(problems)
-                            + ". Copy names exactly from tools; never translate or replace them.",
+                            "content": "Your answer had these problems: "
+                            + "; ".join(f"{p['kind']}: {p['detail']}" for p in problems)
+                            + ". Answer the user's question again using only the tool results; "
+                            "copy names and figures exactly. Do not mention these problems.",
                         },
                     ]
                 )
                 await emit({"type": "section_reset", "section": "answer"})
-                text = await step("data_agent", lambda: stream(request, "answer"))
+                text = restore_names(
+                    await step("data_agent", lambda: stream(request, "answer"))
+                )
+                await emit({"type": "section_reset", "section": "answer"})
+                await emit({"type": "_text", "part": "answer", "text": text})
                 problems = await check(text, collected, question=clean["message"])
             final.update(answer=text, problems=problems)
         else:

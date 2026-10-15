@@ -133,6 +133,15 @@ def top_counterparties(ctx, n=5, direction="in"):
     )
 
 
+FINDING_TYPES = (
+    "returned_cheque",
+    "round_trip",
+    "large_cash_deposit",
+    "customer_concentration",
+    "unreconciled_page",
+)
+
+
 def list_findings(ctx):
     """List findings with stable zero-based indices and row evidence."""
     findings = [
@@ -144,7 +153,15 @@ def list_findings(ctx):
         }
         for index, finding in enumerate(detect_anomalies(ctx.statements, ctx.page_ids))
     ]
-    return _safe({"count": len(findings), "findings": findings})
+    return _safe(
+        {
+            "count": len(findings),
+            "findings": findings,
+            "counts_by_type": {
+                kind: sum(f["type"] == kind for f in findings) for kind in FINDING_TYPES
+            },
+        }
+    )
 
 
 def flag_detail(ctx, index):

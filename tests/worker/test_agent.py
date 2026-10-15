@@ -242,6 +242,7 @@ def test_overrides_and_canned_answers(intent, expected):
     events = collect(agent.run_agent, {"message": "Request"}, engine)
     assert events[-1]["answer"] == agent.REPLIES[expected]
     assert len(engine.calls) == 1
+    assert "A memo has been written: no." in engine.calls[0]["messages"][1]["content"]
     assert not engine.streams
 
 
@@ -835,6 +836,10 @@ def test_route_stop(intent, docs, last, expected, monkeypatch):
     assert final["plan"] == PLAN
     assert "usage" in final and "timing" in final
     assert len(engine.calls) == 1
+    assert (
+        f"A memo has been written: {'yes' if last else 'no'}."
+        in engine.calls[0]["messages"][1]["content"]
+    )
     assert not engine.streams
     assert not any(e["type"] in ("rows", "triage", "tool", "section") for e in events)
 
@@ -898,13 +903,14 @@ def test_knowledge_document_prompt(loaded):
         ("精简摘要", "中文字词" * 50),
     ],
 )
-def test_shorter_edit_rewrites_to_target(message, previous):
+@pytest.mark.parametrize("answer_words", [78, 90])
+def test_shorter_edit_rewrites_to_target(message, previous, answer_words):
     class LongEngine(FakeEngine):
         async def stream(self, request):
             if self.streams["summary"] == 0:
                 self.record(request)
                 self.streams["summary"] += 1
-                yield "## Summary\n" + "word " * 80
+                yield "## Summary\n" + "word " * answer_words
             else:
                 async for chunk in super().stream(request):
                     yield chunk
@@ -921,7 +927,7 @@ def test_shorter_edit_rewrites_to_target(message, previous):
         },
         engine,
     )
-    assert engine.streams["summary"] == 2
+    assert engine.streams["summary"] == (2 if answer_words == 90 else 1)
     writers = [
         r
         for r in engine.calls
@@ -930,8 +936,105 @@ def test_shorter_edit_rewrites_to_target(message, previous):
     assert all(
         f"at most {target} words" in r["messages"][0]["content"] for r in writers
     )
+    if answer_words == 78:
+        assert events[-1]["problems"] == []
+        return
     rewrite = json.loads(writers[1]["messages"][1]["content"])
     assert rewrite["problems"] == [
-        {"kind": "too_long", "detail": f"82 words exceeds {target}"}
+        {
+            "kind": "too_long",
+            "detail": f"92 words exceeds {max(25, (agent.word_count(previous) * 4 + 4) // 5)}",
+        }
     ]
     assert events[-1]["problems"] == []
+
+
+@pytest.mark.parametrize("rewrite", [False, True])
+def test_data_name_placeholders(monkeypatch, rewrite):
+    original = {
+        "counterparties": [
+            {"payer": "星林峰服务", "share_percent": "22.1", "cites": ["[p1:r6]"]}
+        ]
+    }
+    monkeypatch.setattr(agent, "run_tool", lambda *args: original)
+
+    class NameEngine(FakeEngine):
+        async def complete(self, request):
+            if request["messages"][0]["content"] != agent.DATA_AGENT_SYSTEM:
+                return await super().complete(request)
+            self.record(request)
+            if not any(m["role"] == "tool" for m in request["messages"]):
+                return {
+                    "choices": [
+                        {
+                            "message": {
+                                "content": None,
+                                "tool_calls": [
+                                    {
+                                        "id": "1",
+                                        "type": "function",
+                                        "function": {
+                                            "name": "top_counterparties",
+                                            "arguments": "{}",
+                                        },
+                                    }
+                                ],
+                            }
+                        }
+                    ]
+                }
+            return response(
+                "Invented 六福珠宝"
+                if rewrite
+                else "The largest payer is NAME_1, 22.1% [p1:r6]"
+            )
+
+        async def stream(self, request):
+            self.record(request)
+            yield "The largest payer is NAME_"
+            yield "1, 22.1% [p1:r6]"
+
+    original["rows"] = [
+        {"description": "星林峰服务"},
+        {"description": "FROM 星林峰服务"},
+        {"description": "FROM 星林峰服务"},
+        {"description": "Café Services"},
+    ]
+    engine = NameEngine("ask_data")
+    events = collect(
+        agent.run_agent,
+        {"message": "Largest payer?", "documents": [document()]},
+        engine,
+    )
+    final = events[-1]
+    assert "星林峰服务" in final["answer"]
+    assert "NAME_1" not in final["answer"]
+    assert final["problems"] == []
+    assert next(e for e in events if e["type"] == "tool")["result"] == original
+    tool_message = next(
+        m for r in engine.calls for m in r["messages"] if m["role"] == "tool"
+    )
+    assert "NAME_1" in tool_message["content"]
+    assert "星林峰服务" not in tool_message["content"]
+    masked = json.loads(tool_message["content"])
+    assert [r["description"] for r in masked["rows"]] == [
+        "NAME_1",
+        "NAME_2",
+        "NAME_2",
+        "Café Services",
+    ]
+    if rewrite:
+        instruction = engine.calls[-1]["messages"][-1]["content"]
+        assert "Your answer had these problems:" in instruction
+        assert '[{"kind"' not in instruction
+        assert "Do not mention these problems" in instruction
+    displayed = ""
+    for event in events:
+        if event["type"] == "section_reset":
+            displayed = ""
+        if event["type"] == "deltas":
+            displayed += "".join(
+                p["text"] for p in event["parts"] if p["part"] == "answer"
+            )
+    assert displayed == final["answer"]
+    assert "NAME_1" not in displayed

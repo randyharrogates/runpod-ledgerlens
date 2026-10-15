@@ -235,3 +235,21 @@ def test_refusal_score_accepts_knowledge(tmp_path):
     assert score["refusal_accuracy"] == 0.5
     assert score["per_template"]["refusal"] == {"accuracy": 0.5, "n": 2}
     assert score["accuracy"] == 0
+
+
+@pytest.mark.parametrize(
+    "answer,ok",
+    [
+        ("There are no returned cheques.", True),
+        ("There are 2 flags but none of them are returned cheques.", True),
+        ("0 returned cheques", True),
+        ("None.", True),
+        ("Zero.", True),
+        ("Tidak ada cek dikembalikan.", True),
+        ("没有退票。", True),
+        ("There are 2 returned cheques, none missing.", False),
+        ("There are 2 round trips.", False),
+    ],
+)
+def test_zero_flag_answer(answer, ok):
+    assert ev.answer_matches(answer, {"number": 0}) is ok
