@@ -1,32 +1,36 @@
 [
   {
-    "t": 1.05,
+    "t": 1.302,
     "name": "router",
     "status": "start",
+    "ts": 1792044542.141257,
     "type": "step"
   },
   {
-    "t": 1.05,
+    "t": 1.302,
     "name": "analyst",
     "status": "start",
+    "ts": 1792044542.141865,
     "type": "step"
   },
   {
-    "t": 2.358,
-    "ms": 4.33665097807534,
+    "t": 2.68,
+    "ms": 5.767959024524316,
     "name": "analyst",
     "status": "done",
+    "ts": 1792044542.147638,
     "type": "step"
   },
   {
-    "t": 3.732,
-    "ms": 1727.7323190064635,
+    "t": 4.064,
+    "ms": 1721.76880799816,
     "name": "router",
     "status": "done",
+    "ts": 1792044543.863034,
     "type": "step"
   },
   {
-    "t": 3.732,
+    "t": 4.064,
     "intent": "ask_data",
     "plan": {
       "audience": "credit committee",
@@ -34,35 +38,40 @@
       "language": "en",
       "length": "standard"
     },
-    "reason": "The request asks for a specific data point from loaded documents: the largest payer and their share of total money.",
+    "reason": "The request asks for data about the largest payer and their share of total money, which requires analyzing loaded documents.",
+    "ts": 1792044543.8639865,
     "type": "route"
   },
   {
-    "t": 3.732,
-    "name": "data_agent",
-    "status": "start",
-    "type": "step"
-  },
-  {
-    "t": 3.732,
+    "t": 4.064,
     "entries": [
       {
         "level": "info",
-        "message": "model call route on ledgerlens: 1728 ms, 353 tokens in / 73 out",
+        "message": "model call route on ledgerlens: 1722 ms, 353 tokens in / 73 out",
         "model": "ledgerlens",
-        "ms": 1727.684818994021,
-        "source": "worker"
+        "ms": 1721.7080480186269,
+        "source": "worker",
+        "ts": 1792044543.8630037
       },
       {
         "level": "info",
         "message": "route: ask_data",
-        "source": "worker"
+        "source": "worker",
+        "ts": 1792044543.8639834
       }
     ],
+    "ts": 1792044544.1340642,
     "type": "log"
   },
   {
-    "t": 3.732,
+    "t": 4.064,
+    "name": "data_agent",
+    "status": "start",
+    "ts": 1792044543.8642063,
+    "type": "step"
+  },
+  {
+    "t": 4.064,
     "arguments": "{\"n\": 1, \"direction\": \"in\"}",
     "name": "top_counterparties",
     "result": {
@@ -82,66 +91,75 @@
       "direction": "in",
       "total": "89218.66"
     },
+    "ts": 1792044544.6050713,
     "type": "tool"
   },
   {
-    "t": 3.732,
+    "t": 4.064,
     "entries": [
       {
         "level": "info",
-        "message": "model call data_agent on ledgerlens: 744 ms, 810 tokens in / 28 out",
+        "message": "model call data_agent on ledgerlens: 740 ms, 810 tokens in / 28 out",
         "model": "ledgerlens",
-        "ms": 744.2727589805145,
-        "source": "worker"
+        "ms": 739.7762149921618,
+        "source": "worker",
+        "ts": 1792044544.604031
       }
     ],
+    "ts": 1792044544.804949,
     "type": "log"
   },
   {
-    "t": 5.09,
-    "ms": 2019.5336760079954,
+    "t": 5.463,
+    "ms": 2007.3481790022925,
     "name": "data_agent",
     "status": "done",
+    "ts": 1792044545.8715715,
     "type": "step"
   },
   {
-    "t": 5.09,
+    "t": 5.463,
     "parts": [
       {
         "part": "answer",
         "text": "The largest payer is **Senja Hijau Damai Niaga**, and they make up **20.1%** of the money in. Supporting rows include: [p1:r3], [p2:r2], [p2:r9]."
       }
     ],
+    "ts": 1792044546.0171897,
     "type": "deltas"
   },
   {
-    "t": 5.09,
+    "t": 5.463,
     "entries": [
       {
         "level": "info",
-        "message": "model call data_agent on ledgerlens: 1274 ms, 942 tokens in / 53 out",
+        "message": "model call data_agent on ledgerlens: 1266 ms, 942 tokens in / 53 out",
         "model": "ledgerlens",
-        "ms": 1274.1767080151476,
-        "source": "worker"
+        "ms": 1266.380044980906,
+        "source": "worker",
+        "ts": 1792044545.8715465
       }
     ],
+    "ts": 1792044546.373598,
     "type": "log"
   },
   {
-    "t": 5.09,
+    "t": 5.463,
     "name": "checker",
     "status": "start",
+    "ts": 1792044545.8718746,
     "type": "step"
   },
   {
-    "t": 5.09,
-    "ms": 0.13840600149706006,
+    "t": 6.855,
+    "ms": 0.2395049959886819,
     "name": "checker",
     "status": "done",
+    "ts": 1792044545.8721206,
     "type": "step"
   },
   {
-    "t": 6.434,
+    "t": 6.855,
     "answer": "The largest payer is **Senja Hijau Damai Niaga**, and they make up **20.1%** of the money in. Supporting rows include: [p1:r3], [p2:r2], [p2:r9].",
     "gpu": "NVIDIA RTX PRO 6000 Blackwell Server Edition",
     "intent": "ask_data",
@@ -153,13 +171,14 @@
     "problems": [],
     "timing": {
       "per_step": {
-        "analyst": 0.00433665097807534,
-        "checker": 0.00013840600149706006,
-        "data_agent": 2.0195336760079954,
-        "router": 1.7277323190064635
+        "analyst": 0.005767959024524316,
+        "checker": 0.0002395049959886819,
+        "data_agent": 2.0073481790022925,
+        "router": 1.72176880799816
       },
-      "total_s": 4.24726653000107
+      "total_s": 4.645315406000009
     },
+    "ts": 1792044545.872128,
     "type": "final",
     "usage": {
       "completion_tokens": 154,

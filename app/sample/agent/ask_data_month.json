@@ -1,32 +1,36 @@
 [
   {
-    "t": 1.179,
+    "t": 1.052,
     "name": "router",
     "status": "start",
+    "ts": 1792044548.9083734,
     "type": "step"
   },
   {
-    "t": 1.179,
+    "t": 2.393,
     "name": "analyst",
     "status": "start",
+    "ts": 1792044548.9090073,
     "type": "step"
   },
   {
-    "t": 2.518,
-    "ms": 7.047737017273903,
+    "t": 2.393,
+    "ms": 5.321306001860648,
     "name": "analyst",
     "status": "done",
+    "ts": 1792044548.9143353,
     "type": "step"
   },
   {
-    "t": 3.937,
-    "ms": 1696.408966992749,
+    "t": 3.732,
+    "ms": 1686.3222130050417,
     "name": "router",
     "status": "done",
+    "ts": 1792044550.5947042,
     "type": "step"
   },
   {
-    "t": 3.937,
+    "t": 3.732,
     "intent": "ask_data",
     "plan": {
       "audience": "credit committee",
@@ -35,34 +39,39 @@
       "length": "standard"
     },
     "reason": "The request asks for a specific financial metric (lowest net cash flow) from loaded documents, which requires data extraction.",
+    "ts": 1792044550.5957663,
     "type": "route"
   },
   {
-    "t": 3.937,
+    "t": 3.732,
     "name": "data_agent",
     "status": "start",
+    "ts": 1792044550.5958047,
     "type": "step"
   },
   {
-    "t": 3.937,
+    "t": 3.732,
     "entries": [
       {
         "level": "info",
-        "message": "model call route on ledgerlens: 1696 ms, 345 tokens in / 72 out",
+        "message": "model call route on ledgerlens: 1686 ms, 345 tokens in / 72 out",
         "model": "ledgerlens",
-        "ms": 1696.3502189901192,
-        "source": "worker"
+        "ms": 1686.2559739965945,
+        "source": "worker",
+        "ts": 1792044550.594669
       },
       {
         "level": "info",
         "message": "route: ask_data",
-        "source": "worker"
+        "source": "worker",
+        "ts": 1792044550.5957625
       }
     ],
+    "ts": 1792044550.8945687,
     "type": "log"
   },
   {
-    "t": 3.937,
+    "t": 3.732,
     "arguments": "{}",
     "name": "monthly_totals",
     "result": {
@@ -163,66 +172,75 @@
         }
       }
     },
+    "ts": 1792044551.001722,
     "type": "tool"
   },
   {
-    "t": 3.937,
+    "t": 3.732,
     "entries": [
       {
         "level": "info",
-        "message": "model call data_agent on ledgerlens: 401 ms, 802 tokens in / 16 out",
+        "message": "model call data_agent on ledgerlens: 402 ms, 802 tokens in / 16 out",
         "model": "ledgerlens",
-        "ms": 401.4211999892723,
-        "source": "worker"
+        "ms": 402.3361929866951,
+        "source": "worker",
+        "ts": 1792044550.9981701
       }
     ],
+    "ts": 1792044551.198459,
     "type": "log"
   },
   {
-    "t": 6.151,
-    "ms": 1360.7165600114968,
+    "t": 5.08,
+    "ms": 1354.5748380129226,
     "name": "data_agent",
     "status": "done",
+    "ts": 1792044551.950384,
     "type": "step"
   },
   {
-    "t": 6.151,
+    "t": 5.08,
     "parts": [
       {
         "part": "answer",
         "text": "The month with the lowest net cash flow was **2026-03**, with a net cash flow of **SGD 935.99**."
       }
     ],
+    "ts": 1792044552.0376716,
     "type": "deltas"
   },
   {
-    "t": 6.151,
+    "t": 5.08,
     "entries": [
       {
         "level": "info",
-        "message": "model call data_agent on ledgerlens: 956 ms, 1481 tokens in / 37 out",
+        "message": "model call data_agent on ledgerlens: 948 ms, 1481 tokens in / 37 out",
         "model": "ledgerlens",
-        "ms": 956.2908480002079,
-        "source": "worker"
+        "ms": 948.469111986924,
+        "source": "worker",
+        "ts": 1792044551.95036
       }
     ],
+    "ts": 1792044552.1371849,
     "type": "log"
   },
   {
-    "t": 6.151,
+    "t": 5.08,
     "name": "checker",
     "status": "start",
+    "ts": 1792044551.9504101,
     "type": "step"
   },
   {
-    "t": 6.151,
-    "ms": 4.708783992100507,
+    "t": 5.08,
+    "ms": 0.35358499735593796,
     "name": "checker",
     "status": "done",
+    "ts": 1792044551.9507658,
     "type": "step"
   },
   {
-    "t": 6.151,
+    "t": 5.08,
     "answer": "The month with the lowest net cash flow was **2026-03**, with a net cash flow of **SGD 935.99**.",
     "gpu": "NVIDIA RTX PRO 6000 Blackwell Server Edition",
     "intent": "ask_data",
@@ -234,13 +252,14 @@
     "problems": [],
     "timing": {
       "per_step": {
-        "analyst": 0.007047737017273903,
-        "checker": 0.004708783992100507,
-        "data_agent": 1.3607165600114968,
-        "router": 1.696408966992749
+        "analyst": 0.005321306001860648,
+        "checker": 0.00035358499735593796,
+        "data_agent": 1.3545748380129226,
+        "router": 1.6863222130050417
       },
-      "total_s": 3.6055302929889876
+      "total_s": 3.5241705889930017
     },
+    "ts": 1792044551.9507725,
     "type": "final",
     "usage": {
       "completion_tokens": 125,

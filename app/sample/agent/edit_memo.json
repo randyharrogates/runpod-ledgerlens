@@ -1,32 +1,36 @@
 [
   {
-    "t": 1.02,
+    "t": 1.048,
     "name": "router",
     "status": "start",
+    "ts": 1792044553.9640908,
     "type": "step"
   },
   {
-    "t": 1.02,
+    "t": 2.383,
     "name": "analyst",
     "status": "start",
+    "ts": 1792044553.9647195,
     "type": "step"
   },
   {
-    "t": 2.391,
-    "ms": 5.034227011492476,
+    "t": 2.383,
+    "ms": 4.965547996107489,
     "name": "analyst",
     "status": "done",
+    "ts": 1792044553.96969,
     "type": "step"
   },
   {
-    "t": 3.913,
-    "ms": 1575.861402990995,
+    "t": 3.726,
+    "ms": 1567.4383939767722,
     "name": "router",
     "status": "done",
+    "ts": 1792044555.5315368,
     "type": "step"
   },
   {
-    "t": 3.913,
+    "t": 3.726,
     "intent": "edit_memo",
     "plan": {
       "audience": "credit committee",
@@ -35,382 +39,493 @@
       "length": "standard"
     },
     "reason": "The user wants to shorten the red flags section of an existing memo.",
+    "ts": 1792044555.5323398,
     "type": "route"
   },
   {
-    "t": 3.913,
+    "t": 3.726,
     "entries": [
       {
         "level": "info",
-        "message": "model call route on ledgerlens: 1576 ms, 343 tokens in / 67 out",
+        "message": "model call route on ledgerlens: 1567 ms, 343 tokens in / 67 out",
         "model": "ledgerlens",
-        "ms": 1575.7985899981577,
-        "source": "worker"
+        "ms": 1567.3838740040082,
+        "source": "worker",
+        "ts": 1792044555.5315075
       },
       {
         "level": "info",
         "message": "route: edit_memo",
-        "source": "worker"
+        "source": "worker",
+        "ts": 1792044555.5323367
       }
     ],
+    "ts": 1792044555.8114824,
     "type": "log"
   },
   {
-    "t": 3.913,
+    "t": 3.726,
+    "account": "****5845",
+    "audience": "credit committee",
+    "balances": {
+      "average": {
+        "cites": [
+          "[p1:r1]",
+          "[p1:r2]",
+          "[p1:r3]"
+        ],
+        "value": "72289.51144927536231884057971"
+      },
+      "minimum": {
+        "cites": [
+          "[p1:r2]"
+        ],
+        "value": "44587.78"
+      }
+    },
+    "bank": "Cloudpetal Bank",
+    "borrower": "Cedar Petal Reed Trading",
+    "currency": "SGD",
+    "evidence": {
+      "invoices": 1,
+      "page_ids": [
+        "p1",
+        "p2",
+        "p3",
+        "p4",
+        "p5"
+      ],
+      "statements": 4
+    },
+    "findings": [
+      {
+        "amount": "1499.51",
+        "cites": [
+          "[p1:r4]"
+        ],
+        "description": "Returned cheque \u00b7 SGD 1,499.51 \u00b7 5 Jan \u00b7 RETURNED CHEQUE",
+        "label": "Returned cheque",
+        "type": "returned_cheque"
+      },
+      {
+        "amount": "4671.52",
+        "cites": [
+          "[p3:r17]",
+          "[p4:r7]"
+        ],
+        "description": "Round trip \u00b7 SGD 4,671.52 out to Cedar Petal Reed Holdings on 19 Feb, back on 28 Feb",
+        "label": "Round trip",
+        "type": "round_trip"
+      },
+      {
+        "amount": "12071.87",
+        "cites": [
+          "[p2:r8]"
+        ],
+        "description": "Large cash deposit \u00b7 SGD 12,071.87 \u00b7 30 Jan \u00b7 CASH LODGEMENT \u00b7 6.3\u00d7 the median credit",
+        "label": "Large cash deposit",
+        "type": "large_cash_deposit"
+      },
+      {
+        "amount": "499.00",
+        "cites": [
+          "[p4:r17]"
+        ],
+        "description": "Unreconciled page \u00b7 printed closing balance off by SGD 499.00",
+        "label": "Unreconciled page",
+        "type": "unreconciled_page"
+      }
+    ],
+    "language": "en",
+    "length": "standard",
+    "monthly": [
+      {
+        "inflow": "46285.38",
+        "month": "2026-01",
+        "net": "24797.53",
+        "outflow": "21487.85",
+        "partial": false
+      },
+      {
+        "inflow": "34982.76",
+        "month": "2026-02",
+        "net": "8443.55",
+        "outflow": "26539.21",
+        "partial": false
+      },
+      {
+        "inflow": "7950.52",
+        "month": "2026-03",
+        "net": "935.99",
+        "outflow": "7014.53",
+        "partial": true
+      }
+    ],
+    "period": {
+      "end": "2026-06-30",
+      "start": "2026-01-01"
+    },
+    "prepared": "2026-10-15",
+    "reconciliation": [
+      {
+        "difference": "0.00",
+        "expected": "57406.02",
+        "ok": true,
+        "page_id": "p1",
+        "printed": "57406.02"
+      },
+      {
+        "difference": "0.00",
+        "expected": "81830.50",
+        "ok": true,
+        "page_id": "p2",
+        "printed": "81830.50"
+      },
+      {
+        "difference": "0.00",
+        "expected": "83643.62",
+        "ok": true,
+        "page_id": "p3",
+        "printed": "83643.62"
+      },
+      {
+        "difference": "499.00",
+        "expected": "87246.17",
+        "ok": false,
+        "page_id": "p4",
+        "printed": "86747.17"
+      }
+    ],
+    "subtitle": "Cash-flow review",
+    "title": "Credit memo",
+    "top_payer": {
+      "amount": "17898.73",
+      "cites": [
+        "[p1:r3]",
+        "[p2:r2]",
+        "[p2:r9]"
+      ],
+      "payer": "Senja Hijau Damai Niaga",
+      "share_percent": "20.06",
+      "total_inflow": "89218.66"
+    },
+    "totals": {
+      "full_months": "2",
+      "inflow": "89218.66",
+      "months": "3",
+      "net": "34177.07",
+      "outflow": "55041.59"
+    },
+    "ts": 1792044555.5328033,
+    "type": "report"
+  },
+  {
+    "t": 3.726,
     "name": "writer",
     "section": "red_flags",
     "status": "start",
+    "ts": 1792044555.5331492,
     "type": "step"
   },
   {
-    "t": 3.913,
+    "t": 3.726,
     "parts": [
       {
         "part": "red_flags",
-        "text": "## Red flags\n\n- [p1:r4]: Returned cheque SGD 1,499."
+        "text": "## Red flags  \n- Returned cheque: SGD 1,499.51 on 5 Jan \u2014 unexplained"
       }
     ],
+    "ts": 1792044556.217524,
     "type": "deltas"
   },
   {
-    "t": 3.913,
+    "t": 3.726,
     "parts": [
       {
         "part": "red_flags",
-        "text": "51 \u2014 unaccounted outflow.  \n- ["
+        "text": " deduction.  \n- Round trip: SGD 4,671"
       }
     ],
+    "ts": 1792044556.557781,
     "type": "deltas"
   },
   {
-    "t": 3.913,
+    "t": 5.06,
     "parts": [
       {
         "part": "red_flags",
-        "text": "p3:r17] & [p4:r7]:"
+        "text": ".52 to and from Cedar Petal Reed Holdings \u2014 requires verification"
       }
     ],
+    "ts": 1792044556.8652139,
     "type": "deltas"
   },
   {
-    "t": 5.276,
+    "t": 5.06,
     "parts": [
       {
         "part": "red_flags",
-        "text": " Round trip SGD 4,671.52"
+        "text": ".  \n- Large cash deposit: SGD 12,07"
       }
     ],
+    "ts": 1792044557.193839,
     "type": "deltas"
   },
   {
-    "t": 5.276,
+    "t": 5.06,
     "parts": [
       {
         "part": "red_flags",
-        "text": " \u2014 spans two pages, no reconciliation flag.  \n- [p"
+        "text": "1.87 on 30 Jan \u2014 6.3"
       }
     ],
+    "ts": 1792044557.532452,
     "type": "deltas"
   },
   {
-    "t": 5.276,
+    "t": 5.06,
     "parts": [
       {
         "part": "red_flags",
-        "text": "2:r8]: Large cash deposit SGD 12,"
+        "text": "\u00d7 median inflow \u2014 needs scrutiny.  \n- Unreconciled page"
       }
     ],
+    "ts": 1792044557.8697824,
     "type": "deltas"
   },
   {
-    "t": 5.276,
+    "t": 6.384,
     "parts": [
       {
         "part": "red_flags",
-        "text": "071.87 \u2014 6.3\u00d7 median"
+        "text": " p4: printed closing balance off by SGD 499."
       }
     ],
+    "ts": 1792044558.2093499,
     "type": "deltas"
   },
   {
-    "t": 5.276,
+    "t": 6.384,
     "parts": [
       {
         "part": "red_flags",
-        "text": " inflow.  \n- [p4:r17]:"
+        "text": "00 \u2014 reconciliation error."
       }
     ],
+    "ts": 1792044558.3587708,
     "type": "deltas"
   },
   {
-    "t": 6.601,
-    "parts": [
-      {
-        "part": "red_flags",
-        "text": " Unreconciled page \u2014 printed balance SGD 86,7"
-      }
-    ],
-    "type": "deltas"
-  },
-  {
-    "t": 6.601,
-    "parts": [
-      {
-        "part": "red_flags",
-        "text": "47.17 vs expected 87,24"
-      }
-    ],
-    "type": "deltas"
-  },
-  {
-    "t": 6.601,
-    "parts": [
-      {
-        "part": "red_flags",
-        "text": "6.17 \u2014 SGD 499.0"
-      }
-    ],
-    "type": "deltas"
-  },
-  {
-    "t": 6.601,
-    "parts": [
-      {
-        "part": "red_flags",
-        "text": "0 off."
-      }
-    ],
-    "type": "deltas"
-  },
-  {
-    "t": 6.601,
+    "t": 6.384,
     "entries": [
       {
         "level": "info",
-        "message": "model stream chat on ledgerlens: 3641 ms, 339 chars",
+        "message": "model stream chat on ledgerlens: 2824 ms, 351 chars",
         "model": "ledgerlens",
-        "ms": 3640.58064200799,
-        "source": "worker"
+        "ms": 2824.116993986536,
+        "source": "worker",
+        "ts": 1792044558.357286
       }
     ],
+    "ts": 1792044558.4869678,
     "type": "log"
   },
   {
-    "t": 6.601,
-    "ms": 3640.6054889957886,
+    "t": 6.384,
+    "ms": 2824.1457369877025,
     "name": "writer",
     "section": "red_flags",
     "status": "done",
+    "ts": 1792044558.3572998,
     "type": "step"
   },
   {
-    "t": 6.601,
+    "t": 6.384,
     "name": "checker",
     "section": "red_flags",
     "status": "start",
+    "ts": 1792044558.3573122,
     "type": "step"
   },
   {
-    "t": 6.601,
-    "ms": 0.3825879830401391,
+    "t": 6.384,
+    "ms": 0.7269289926625788,
     "name": "checker",
     "section": "red_flags",
     "status": "done",
+    "ts": 1792044558.358049,
     "type": "step"
   },
   {
-    "t": 6.601,
+    "t": 6.384,
     "section": "red_flags",
+    "ts": 1792044558.3580818,
     "type": "section_reset"
   },
   {
-    "t": 7.955,
+    "t": 6.384,
     "name": "writer",
     "section": "red_flags",
     "status": "start",
+    "ts": 1792044558.3581674,
     "type": "step"
   },
   {
-    "t": 7.955,
-    "parts": [
-      {
-        "part": "red_flags",
-        "text": "## Red flags\n\n- [p1:r4]: Returned cheque SGD 1,499.51 \u2014 unaccount"
-      }
-    ],
-    "type": "deltas"
-  },
-  {
-    "t": 7.955,
+    "t": 6.384,
     "entries": [
       {
         "level": "warning",
         "message": "checker found 1 problems in red_flags; rewriting once",
         "section": "red_flags",
-        "source": "worker"
+        "source": "worker",
+        "ts": 1792044558.3580797
       }
     ],
+    "ts": 1792044559.3036213,
     "type": "log"
   },
   {
-    "t": 7.955,
+    "t": 7.721,
     "parts": [
       {
         "part": "red_flags",
-        "text": "ed outflow.  \n- [p3:r17] & [p4:r"
+        "text": "## Red flags  \n- Returned cheque: SGD 1,499.51 on 5 Jan \u2014 unexplained"
       }
     ],
+    "ts": 1792044559.445378,
     "type": "deltas"
   },
   {
-    "t": 7.955,
+    "t": 7.721,
     "parts": [
       {
         "part": "red_flags",
-        "text": "7]: Round trip SGD 4,671."
+        "text": " deduction.  \n- Round trip: SGD 4,671.52 to and from Cedar Petal"
       }
     ],
+    "ts": 1792044559.5894704,
     "type": "deltas"
   },
   {
-    "t": 7.955,
+    "t": 7.721,
     "parts": [
       {
         "part": "red_flags",
-        "text": "52 \u2014 spans two pages, no reconciliation flag.  \n"
+        "text": " Reed Holdings \u2014 requires verification.  \n- Large cash deposit: SGD"
       }
     ],
+    "ts": 1792044559.8153822,
     "type": "deltas"
   },
   {
-    "t": 9.243,
+    "t": 7.721,
     "parts": [
       {
         "part": "red_flags",
-        "text": "- [p2:r8]: Large cash deposit SGD 1"
+        "text": " 12,071.87 on 3"
       }
     ],
+    "ts": 1792044560.1361907,
     "type": "deltas"
   },
   {
-    "t": 9.243,
+    "t": 7.721,
     "parts": [
       {
         "part": "red_flags",
-        "text": "2,071.87 \u2014 6."
+        "text": "0 Jan \u2014 6.3\u00d7 median inflow \u2014 needs scrutiny."
       }
     ],
+    "ts": 1792044560.4757714,
     "type": "deltas"
   },
   {
-    "t": 9.243,
+    "t": 9.066,
     "parts": [
       {
         "part": "red_flags",
-        "text": "3\u00d7 median inflow.  \n- [p4:r1"
+        "text": "  \n- Unreconciled page p4: printed closing balance off"
       }
     ],
+    "ts": 1792044560.8142638,
     "type": "deltas"
   },
   {
-    "t": 9.243,
+    "t": 9.066,
     "parts": [
       {
         "part": "red_flags",
-        "text": "7]: Unreconciled page \u2014 printed balance SGD "
+        "text": " by SGD 499.00 \u2014 reconciliation error."
       }
     ],
+    "ts": 1792044561.1218767,
     "type": "deltas"
   },
   {
-    "t": 9.243,
-    "parts": [
-      {
-        "part": "red_flags",
-        "text": "86,747.17 vs expected 8"
-      }
-    ],
-    "type": "deltas"
-  },
-  {
-    "t": 10.538,
-    "parts": [
-      {
-        "part": "red_flags",
-        "text": "7,246.17 \u2014 SGD 49"
-      }
-    ],
-    "type": "deltas"
-  },
-  {
-    "t": 10.539,
-    "parts": [
-      {
-        "part": "red_flags",
-        "text": "9.00 off."
-      }
-    ],
-    "type": "deltas"
-  },
-  {
-    "t": 10.539,
+    "t": 9.066,
     "entries": [
       {
         "level": "info",
-        "message": "model stream chat on ledgerlens: 3576 ms, 339 chars",
+        "message": "model stream chat on ledgerlens: 2763 ms, 351 chars",
         "model": "ledgerlens",
-        "ms": 3575.622473988915,
-        "source": "worker"
+        "ms": 2762.9904549976345,
+        "source": "worker",
+        "ts": 1792044561.1211882
       }
     ],
+    "ts": 1792044561.2541666,
     "type": "log"
   },
   {
-    "t": 10.539,
-    "ms": 3575.6461290002335,
+    "t": 9.066,
+    "ms": 2763.0425430252217,
     "name": "writer",
     "section": "red_flags",
     "status": "done",
+    "ts": 1792044561.121214,
     "type": "step"
   },
   {
-    "t": 10.539,
+    "t": 9.066,
     "name": "checker",
     "section": "red_flags",
     "status": "start",
+    "ts": 1792044561.1212294,
     "type": "step"
   },
   {
-    "t": 10.539,
-    "ms": 0.37183298263698816,
+    "t": 9.066,
+    "ms": 0.5499660037457943,
     "name": "checker",
     "section": "red_flags",
     "status": "done",
+    "ts": 1792044561.121781,
     "type": "step"
   },
   {
-    "t": 10.539,
+    "t": 9.066,
     "problems": [
       {
-        "detail": "54 words exceeds 50",
+        "detail": "59 words exceeds 48",
         "kind": "too_long"
       }
     ],
     "rewritten": true,
     "section": "red_flags",
-    "text": "## Red flags\n\n- [p1:r4]: Returned cheque SGD 1,499.51 \u2014 unaccounted outflow.  \n- [p3:r17] & [p4:r7]: Round trip SGD 4,671.52 \u2014 spans two pages, no reconciliation flag.  \n- [p2:r8]: Large cash deposit SGD 12,071.87 \u2014 6.3\u00d7 median inflow.  \n- [p4:r17]: Unreconciled page \u2014 printed balance SGD 86,747.17 vs expected 87,246.17 \u2014 SGD 499.00 off.",
+    "text": "## Red flags\n- Returned cheque: SGD 1,499.51 on 5 Jan \u2014 unexplained deduction.  \n- Round trip: SGD 4,671.52 to and from Cedar Petal Reed Holdings \u2014 requires verification.  \n- Large cash deposit: SGD 12,071.87 on 30 Jan \u2014 6.3\u00d7 median inflow \u2014 needs scrutiny.  \n- Unreconciled page p4: printed closing balance off by SGD 499.00 \u2014 reconciliation error.",
+    "ts": 1792044561.1218042,
     "type": "section"
   },
   {
-    "t": 10.539,
+    "t": 9.066,
     "gpu": "NVIDIA RTX PRO 6000 Blackwell Server Edition",
     "intent": "edit_memo",
     "memo": {
-      "cash_flow": "## Cash flow\n\nJanuary: inflow SGD 46,285.38, outflow SGD 21,487.85, net SGD 24,797.53.  \nFebruary: inflow SGD 34,982.76, outflow SGD 26,539.21, net SGD 8,443.55.  \nMarch: inflow SGD 7,950.52, outflow SGD 7,014.53, net SGD 935.99 (partial month).  \nAverage balance: SGD 72,289.51.  \nMinimum balance: SGD 44,587.78.",
-      "concentration": "## Concentration\n\nSenja Hijau Damai Niaga accounts for 20.06% of total inflow, amounting to SGD 17,898.73, out of SGD 89,218.66. This represents significant reliance on a single payer, as noted in [p1:r3], [p2:r2], [p2:r9], [p2:r14], [p3:r9], [p4:r1], [p4:r2], and [p4:r15].",
-      "questions": "## Questions for the applicant\n\nExplain the returned cheque (SGD 1,499.51) \u2014 its cause, counterparty, and supporting documents.  \nDetail the round trip (SGD 4,671.52) \u2014 its cause, counterparty, and supporting documents.  \nDescribe the large cash deposit (SGD 12,071.87) \u2014 its cause, counterparty, and supporting documents.  \nClarify the unreconciled page (p4) \u2014 its cause, counterparty, and supporting documents.",
-      "red_flags": "## Red flags\n\n- [p1:r4]: Returned cheque SGD 1,499.51 \u2014 unaccounted outflow.  \n- [p3:r17] & [p4:r7]: Round trip SGD 4,671.52 \u2014 spans two pages, no reconciliation flag.  \n- [p2:r8]: Large cash deposit SGD 12,071.87 \u2014 6.3\u00d7 median inflow.  \n- [p4:r17]: Unreconciled page \u2014 printed balance SGD 86,747.17 vs expected 87,246.17 \u2014 SGD 499.00 off.",
-      "summary": "## Summary\nCash position: SGD 34,177.07 net over 3 months (2 full).  \nMain credit concerns: Returned cheque SGD 1,499.51 [p1:r4]; large cash deposit SGD 12,071.87 (6.3\u00d7 median inflow) [p2:r8]; unreconciled page p4: SGD 499.00 difference [p4:r17].  \nTop payer: Senja Hijau Damai Niaga \u2014 SGD 17,898.73 (20.06% of total inflow)."
+      "cash_flow": "## Cash flow\n\nMonthly net flows declined from SGD 24,797.53 in January to SGD 8,443.55 in February, then dropped to SGD 935.99 in March, a partial month. Average balance stood at SGD 72,289.51, with a minimum of SGD 44,587.78 recorded in January.",
+      "concentration": "## Concentration\n\nSenja Hijau Damai Niaga accounts for 20.06% of total inflow, contributing SGD 17,898.73 out of SGD 89,218.66. This reliance matters to lenders as it indicates significant exposure to a single payer, increasing credit risk if that entity faces financial distress.",
+      "questions": "## Questions for the applicant\n\n1. Explain the cause, counterparty, and supporting documents for the returned cheque of SGD 1,499.51 dated 5 Jan [p1:r4].\n\n2. Detail the reason, counterparties, and documentation for the round trip transaction of SGD 4,671.52 between 19 Feb and 28 Feb [p3:r17; p4:r7].\n\n3. Describe the cause, counterparty, and evidence for the large cash deposit of SGD 12,071.87 on 30 Jan, which exceeds the median inflow by 6.3\u00d7 [p2:r8].\n\n4. Clarify the cause, counterparty, and supporting records for the SGD 499.00 discrepancy on page p4, where the printed closing balance differs from the expected [p4:r17].",
+      "red_flags": "## Red flags\n- Returned cheque: SGD 1,499.51 on 5 Jan \u2014 unexplained deduction.  \n- Round trip: SGD 4,671.52 to and from Cedar Petal Reed Holdings \u2014 requires verification.  \n- Large cash deposit: SGD 12,071.87 on 30 Jan \u2014 6.3\u00d7 median inflow \u2014 needs scrutiny.  \n- Unreconciled page p4: printed closing balance off by SGD 499.00 \u2014 reconciliation error.",
+      "summary": "## Summary\nCash position: SGD 34,177.07 net over 3 months, with SGD 12,071.87 large deposit and SGD 499.00 reconciliation discrepancy. Main credit concern: 20.06% inflow from Senja Hijau Damai Niaga, with returned cheque of SGD 1,499.51."
     },
     "models": {
       "base": "ledgerlens",
@@ -419,23 +534,179 @@
     },
     "problems": [
       {
-        "detail": "54 words exceeds 50",
+        "detail": "59 words exceeds 48",
         "kind": "too_long"
       }
     ],
+    "report": {
+      "account": "****5845",
+      "audience": "credit committee",
+      "balances": {
+        "average": {
+          "cites": [
+            "[p1:r1]",
+            "[p1:r2]",
+            "[p1:r3]"
+          ],
+          "value": "72289.51144927536231884057971"
+        },
+        "minimum": {
+          "cites": [
+            "[p1:r2]"
+          ],
+          "value": "44587.78"
+        }
+      },
+      "bank": "Cloudpetal Bank",
+      "borrower": "Cedar Petal Reed Trading",
+      "currency": "SGD",
+      "evidence": {
+        "invoices": 1,
+        "page_ids": [
+          "p1",
+          "p2",
+          "p3",
+          "p4",
+          "p5"
+        ],
+        "statements": 4
+      },
+      "findings": [
+        {
+          "amount": "1499.51",
+          "cites": [
+            "[p1:r4]"
+          ],
+          "description": "Returned cheque \u00b7 SGD 1,499.51 \u00b7 5 Jan \u00b7 RETURNED CHEQUE",
+          "label": "Returned cheque",
+          "type": "returned_cheque"
+        },
+        {
+          "amount": "4671.52",
+          "cites": [
+            "[p3:r17]",
+            "[p4:r7]"
+          ],
+          "description": "Round trip \u00b7 SGD 4,671.52 out to Cedar Petal Reed Holdings on 19 Feb, back on 28 Feb",
+          "label": "Round trip",
+          "type": "round_trip"
+        },
+        {
+          "amount": "12071.87",
+          "cites": [
+            "[p2:r8]"
+          ],
+          "description": "Large cash deposit \u00b7 SGD 12,071.87 \u00b7 30 Jan \u00b7 CASH LODGEMENT \u00b7 6.3\u00d7 the median credit",
+          "label": "Large cash deposit",
+          "type": "large_cash_deposit"
+        },
+        {
+          "amount": "499.00",
+          "cites": [
+            "[p4:r17]"
+          ],
+          "description": "Unreconciled page \u00b7 printed closing balance off by SGD 499.00",
+          "label": "Unreconciled page",
+          "type": "unreconciled_page"
+        }
+      ],
+      "language": "en",
+      "length": "standard",
+      "monthly": [
+        {
+          "inflow": "46285.38",
+          "month": "2026-01",
+          "net": "24797.53",
+          "outflow": "21487.85",
+          "partial": false
+        },
+        {
+          "inflow": "34982.76",
+          "month": "2026-02",
+          "net": "8443.55",
+          "outflow": "26539.21",
+          "partial": false
+        },
+        {
+          "inflow": "7950.52",
+          "month": "2026-03",
+          "net": "935.99",
+          "outflow": "7014.53",
+          "partial": true
+        }
+      ],
+      "period": {
+        "end": "2026-06-30",
+        "start": "2026-01-01"
+      },
+      "prepared": "2026-10-15",
+      "reconciliation": [
+        {
+          "difference": "0.00",
+          "expected": "57406.02",
+          "ok": true,
+          "page_id": "p1",
+          "printed": "57406.02"
+        },
+        {
+          "difference": "0.00",
+          "expected": "81830.50",
+          "ok": true,
+          "page_id": "p2",
+          "printed": "81830.50"
+        },
+        {
+          "difference": "0.00",
+          "expected": "83643.62",
+          "ok": true,
+          "page_id": "p3",
+          "printed": "83643.62"
+        },
+        {
+          "difference": "499.00",
+          "expected": "87246.17",
+          "ok": false,
+          "page_id": "p4",
+          "printed": "86747.17"
+        }
+      ],
+      "subtitle": "Cash-flow review",
+      "title": "Credit memo",
+      "top_payer": {
+        "amount": "17898.73",
+        "cites": [
+          "[p1:r3]",
+          "[p2:r2]",
+          "[p2:r9]"
+        ],
+        "payer": "Senja Hijau Damai Niaga",
+        "share_percent": "20.06",
+        "total_inflow": "89218.66"
+      },
+      "totals": {
+        "full_months": "2",
+        "inflow": "89218.66",
+        "months": "3",
+        "net": "34177.07",
+        "outflow": "55041.59"
+      },
+      "ts": 1792044555.5328033,
+      "type": "report"
+    },
     "timing": {
       "per_step": {
-        "analyst": 0.005034227011492476,
-        "checker:red_flags": 0.0007544209656771272,
-        "router": 1.575861402990995,
-        "writer:red_flags": 7.216251617996022
+        "analyst": 0.004965547996107489,
+        "checker:red_flags": 0.0012768949964083731,
+        "router": 1.5674383939767722,
+        "writer:red_flags": 5.587188280012924
       },
-      "total_s": 9.378226194006857
+      "total_s": 7.975577216013335
     },
+    "ts": 1792044561.1224768,
     "type": "final",
     "usage": {
-      "completion_tokens": 369,
-      "prompt_tokens": 2282
+      "completion_tokens": 301,
+      "prompt_tokens": 2308
     }
   }
 ]
