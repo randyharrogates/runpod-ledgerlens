@@ -4,6 +4,7 @@ import asyncio
 import base64
 import io
 import json
+import math
 import os
 import secrets
 import threading
@@ -278,9 +279,11 @@ async def offline_chat(pages, message):
         }
         return
     previous = 0
+    replay_start = time.time()
     for raw in json.loads(path.read_text()):
         chunk = dict(raw)
         timestamp = float(chunk.pop("t", previous))
+        chunk.setdefault("ts", replay_start + timestamp)
         await asyncio.sleep(min(1.5, max(0, timestamp - previous)))
         previous = timestamp
         if chunk.get("type") in ("final", "metrics"):
@@ -422,13 +425,21 @@ async def stream(
                             prefix = (
                                 f"[{entry['section']}] " if "section" in entry else ""
                             )
-                            logs.BUFFER.add(
+                            logged = logs.BUFFER.add(
                                 origin if origin in ("worker", "vllm") else "worker",
                                 entry.get("level", "info"),
                                 prefix + str(entry.get("message", "")),
                                 page_id=entry.get("page_id"),
                                 **fields,
                             )
+                            # Keep worker time so trace spans align even after transport delay.
+                            stamp = entry.get("ts")
+                            if isinstance(stamp, (int, float)) and math.isfinite(stamp):
+                                with logs.BUFFER.lock:
+                                    for line in reversed(logs.BUFFER.entries):
+                                        if line["id"] == logged["id"]:
+                                            line["ts"] = stamp
+                                            break
                         elif worker_lines == 500:
                             logs.LOG.warning(
                                 "worker log lines dropped after 500", extra=fields

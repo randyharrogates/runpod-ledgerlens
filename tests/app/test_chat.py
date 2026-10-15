@@ -429,3 +429,27 @@ def test_images_stay_lossless_within_budget():
     )
     with Image.open(io.BytesIO(base64.b64decode(tight[0]["image_base64"]))) as image:
         assert image.format == "JPEG"
+
+
+@pytest.mark.anyio
+async def test_recorded_timestamps_keep_original_gaps(monkeypatch, tmp_path):
+    monkeypatch.setattr(chat, "RECORDINGS", tmp_path)
+    monkeypatch.setattr(chat, "sample_business", lambda pages: True)
+    monkeypatch.setattr(chat.time, "time", lambda: 1000.0)
+    sleeps = []
+
+    async def sleep(delay):
+        sleeps.append(delay)
+
+    monkeypatch.setattr(chat.asyncio, "sleep", sleep)
+    recording = [
+        {"type": "step", "t": 0},
+        {"type": "step", "t": 5},
+        {"type": "final", "t": 8.5, "ts": 2000.0},
+    ]
+    name = chat.SUGGESTIONS[0][1]
+    (tmp_path / f"{name}.json").write_text(json.dumps(recording))
+    events = [event async for event in chat.offline_chat({}, chat.SUGGESTIONS[0][0])]
+    assert [event["ts"] for event in events] == [1000.0, 1005.0, 2000.0]
+    assert sleeps == [0, 1.5, 1.5]
+    assert all("t" not in event for event in events)

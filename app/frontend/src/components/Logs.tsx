@@ -1,7 +1,9 @@
 import { useEffect, useRef, useState } from 'react';
+import { Trace } from './Trace';
+import { ChatEvent } from '../api';
 import { filterLogs, LogEntry, LogFilter } from '../logs';
 
-export function LogRows({entries, filter}: {entries: LogEntry[]; filter: LogFilter}) {
+export function LogRows({entries, filter, emptyText = 'No log lines match these filters.'}: {entries: LogEntry[]; filter: LogFilter; emptyText?: string}) {
   const shown = filterLogs(entries, filter);
   return <>{shown.length ? shown.map(entry => <div className="log-row" data-level={entry.level} key={entry.id}>
     <div className="log-heading"><time>{new Date(entry.ts * 1000).toLocaleTimeString([], {hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false})}</time>
@@ -11,12 +13,13 @@ export function LogRows({entries, filter}: {entries: LogEntry[]; filter: LogFilt
     {(entry.session || entry.job_id || entry.page_id) && <small>{[
       entry.session?.slice(0, 6), entry.job_id && `job ${entry.job_id}`, entry.page_id,
     ].filter(Boolean).join(' · ')}</small>}
-  </div>) : <p>No log lines match these filters.</p>}</>;
+  </div>) : <p>{emptyText}</p>}</>;
 }
 
 export function LogsDrawer({open, onClose, session, initial}: {
-  open: boolean; onClose: () => void; session: string; initial?: {turn?: string; jobId?: string};
+  open: boolean; onClose: () => void; session: string; initial?: {turn?: string; jobId?: string; tab?: 'trace'|'logs'; events?: ChatEvent[]};
 }) {
+  const [tab, setTab] = useState(initial?.tab || 'logs');
   const [entries, setEntries] = useState<LogEntry[]>([]);
   const [source, setSource] = useState('');
   const [errorsOnly, setErrorsOnly] = useState(false);
@@ -26,7 +29,7 @@ export function LogsDrawer({open, onClose, session, initial}: {
   const [live, setLive] = useState(false);
   const [paused, setPaused] = useState(false);
   const list = useRef<HTMLDivElement>(null);
-  useEffect(() => { if (open) setTurn(initial?.turn || ''); }, [open, initial]);
+  useEffect(() => { if (open) { setTurn(initial?.turn || ''); setTab(initial?.tab || 'logs'); } }, [open, initial]);
   useEffect(() => {
     if (!open || !session) return;
     let closed = false;
@@ -63,9 +66,10 @@ export function LogsDrawer({open, onClose, session, initial}: {
     if (open && !paused && list.current) list.current.scrollTop = list.current.scrollHeight;
   }, [open, entries, shown, paused]);
   if (!open) return null;
-  return <aside className="logs-drawer" role="dialog" aria-label="Logs" aria-modal="false">
+  return <aside className={tab === 'trace' ? 'logs-drawer logs-drawer-wide' : 'logs-drawer'} role="dialog" aria-label="Logs" aria-modal="false">
     <div className="logs-header"><h2>Logs</h2><small>{shown} of {entries.length} lines</small><button className="secondary" onClick={onClose}>Close</button></div>
-    <div className="logs-filters">
+    <div className="logs-tabs" role="tablist" aria-label="Turn details"><button role="tab" aria-selected={tab==='trace'} onClick={()=>setTab('trace')}>Trace</button><button role="tab" aria-selected={tab==='logs'} onClick={()=>setTab('logs')}>Logs</button></div>
+    {tab==='trace' ? <Trace events={initial?.events || []} entries={entries} turn={initial?.turn} showLogs={name=>{setSource('');setErrorsOnly(false);setThisSession(true);setText(name);setTurn(initial?.turn || '');setTab('logs');}}/> : <><div className="logs-filters">
       <label>Source <select value={source} onChange={e => setSource(e.target.value)}>{[
         ['', 'All sources'], ['app', 'App'], ['browser', 'Browser'], ['worker', 'Worker'], ['vllm', 'vLLM'],
       ].map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label>
@@ -81,6 +85,6 @@ export function LogsDrawer({open, onClose, session, initial}: {
     <div className="logs-list" ref={list} onScroll={e => {
       const node = e.currentTarget;
       setPaused(node.scrollHeight - node.scrollTop - node.clientHeight > 40);
-    }}><LogRows entries={entries} filter={filter} /></div>
+    }}><LogRows entries={entries} filter={filter} /></div></> }
   </aside>;
 }

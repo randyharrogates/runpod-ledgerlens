@@ -32,6 +32,7 @@ from ledgerlens.agent.prompts import (
     WORD_LIMITS,
     section_messages,
 )
+from ledgerlens.agent.report import build_report
 from ledgerlens.agent.tools import TOOL_SPECS, ToolContext, run_tool
 from ledgerlens.analytics import analyze
 from ledgerlens.direction import check_direction
@@ -378,8 +379,12 @@ async def events(work, engine):
     timing = {}
     started = time.monotonic()
 
+    def stamped(event):
+        event["ts"] = time.time()
+        return event
+
     async def emit(event):
-        await queue.put(event)
+        await queue.put(stamped(event))
 
     async def log(level, message, source="worker", **fields):
         await emit(
@@ -410,7 +415,7 @@ async def events(work, engine):
             "source": "vllm",
             "message": line[:2000],
         }
-        loop.call_soon_threadsafe(queue.put_nowait, item)
+        loop.call_soon_threadsafe(queue.put_nowait, stamped(item))
 
     with VLLM_LISTENERS_LOCK:
         VLLM_LISTENERS.add(listener)
@@ -439,7 +444,7 @@ async def events(work, engine):
         pending.clear()
         chars = 0
         deadline = None
-        return event
+        return stamped(event)
 
     def flush_logs():
         nonlocal deadline
@@ -447,7 +452,7 @@ async def events(work, engine):
         logs.clear()
         if not pending:
             deadline = None
-        return event
+        return stamped(event)
 
     try:
         while True:
@@ -472,6 +477,7 @@ async def events(work, engine):
                         for key, value in event.items()
                         if key
                         in (
+                            "ts",
                             "level",
                             "source",
                             "message",
@@ -633,13 +639,13 @@ async def run_agent(data, engine):
                 return cited(analysis)
 
             analysis = await step("analyst", analyst)
-            return statements, ids, analysis, bool(documents)
+            return statements, ids, analysis, documents
 
         if clean.get("stop_after") == "route":
             route = await step("router", router)
             statements = [p for p in clean["documents"] if p["doc_type"] == "statement"]
         else:
-            route, (statements, ids, analysis, has_documents) = await together(
+            route, (statements, ids, analysis, documents) = await together(
                 step("router", router), prepare()
             )
         intent = route["intent"]
@@ -692,9 +698,7 @@ async def run_agent(data, engine):
                 "writer",
                 lambda: stream(
                     payload(
-                        KNOWLEDGE_DOCUMENTS_SYSTEM
-                        if has_documents
-                        else KNOWLEDGE_SYSTEM,
+                        KNOWLEDGE_DOCUMENTS_SYSTEM if documents else KNOWLEDGE_SYSTEM,
                         clean["message"],
                     ),
                     "answer",
@@ -702,6 +706,15 @@ async def run_agent(data, engine):
             )
             final["problems"] = await check(final["answer"], {})
         elif intent in ("memo", "edit_memo"):
+            report = build_report(
+                statements,
+                [p for p in documents if p["doc_type"] == "invoice"],
+                [p["page_id"] for p in documents],
+                analysis,
+                plan,
+            )
+            await emit(report)
+            final["report"] = report
             selected = (
                 route.get("edit_sections") if intent == "edit_memo" else None
             ) or [s["id"] for s in SECTIONS]

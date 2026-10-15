@@ -15,7 +15,7 @@ export function filterLogs(entries: LogEntry[], filter: LogFilter): LogEntry[] {
     && (!text || [entry.message, entry.job_id, entry.page_id, entry.task].some(value => value?.toLowerCase().includes(text))));
 }
 
-export function openLogs(detail: {turn?: string; jobId?: string} = {}) {
+export function openLogs(detail: {turn?: string; jobId?: string; tab?: 'trace'|'logs'; events?: import('./api').ChatEvent[]} = {}) {
   if (typeof window !== 'undefined') window.dispatchEvent(new CustomEvent('ledgerlens:logs', {detail}));
 }
 

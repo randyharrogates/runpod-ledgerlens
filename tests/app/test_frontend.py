@@ -550,3 +550,76 @@ assert(failed.includes('assistant-dot-bad'));assert(!failed.includes('open=""'))
         ["node", "-e", script], cwd=FRONTEND, capture_output=True, text=True
     )
     assert result.returncode == 0, result.stderr
+
+
+def test_memo_report_and_trace():
+    if not shutil.which("node") or not (FRONTEND / "node_modules/typescript").exists():
+        pytest.skip("Frontend node_modules and Node are required")
+    script = r"""
+const fs=require('fs'),assert=require('assert'),ts=require('typescript');
+require.extensions['.tsx']=require.extensions['.ts']=(m,f)=>m._compile(ts.transpileModule(fs.readFileSync(f,'utf8'),{compilerOptions:{target:ts.ScriptTarget.ES2022,esModuleInterop:true,module:ts.ModuleKind.CommonJS,jsx:ts.JsxEmit.ReactJSX}}).outputText,f);
+const React=require('react'),{renderToStaticMarkup:render}=require('react-dom/server');
+const {traceModel,Trace}=require('./src/components/Trace.tsx');
+const events=[{type:'step',name:'router',status:'start',ts:100},{type:'step',name:'analyst',status:'start',ts:100},{type:'step',name:'router',status:'done',ts:101},{type:'step',name:'analyst',status:'done',ts:102},{type:'step',name:'writer',section:'summary',status:'start',ts:102},{type:'step',name:'writer',section:'cash_flow',status:'start',ts:102},{type:'step',name:'writer',section:'summary',status:'done',ts:103},{type:'step',name:'writer',section:'cash_flow',status:'done',ts:104},{type:'step',name:'checker',section:'summary',status:'start',ts:103},{type:'step',name:'checker',section:'summary',status:'done',ts:104},{type:'section_reset',section:'summary',ts:104},{type:'step',name:'writer',section:'summary',status:'start',ts:104},{type:'step',name:'writer',section:'summary',status:'done',ts:106},{type:'final',ts:106},{type:'metrics',delayTime:2000,ts:106}];
+const model=traceModel(events);assert.equal(model.start,98);assert.equal(model.end,106);
+assert.equal(model.lanes[0].label,'Queue / cold start');const writers=model.lanes.filter(l=>l.kind==='writer');assert.equal(writers.length,2);assert.deepEqual(writers[0].spans.map(s=>s.rewrite),[false,true]);assert.deepEqual(writers[0].spans.map(s=>s.end-s.start),[1,2]);assert(model.edges.length);
+const replay=traceModel([{type:'step',name:'router',status:'start',t:0,rx:1000},{type:'step',name:'router',status:'done',t:2,rx:1000.01}]);assert.equal(replay.lanes[0].spans[0].end,1002);
+const html=render(React.createElement(Trace,{events,showLogs:()=>{}}));assert(html.includes('<svg'));assert(html.includes('Timeline'));assert(html.includes('role="button"'));
+const {LogsDrawer}=require('./src/components/Logs.tsx');const drawer=render(React.createElement(LogsDrawer,{open:true,session:'s',onClose:()=>{},initial:{tab:'trace',events}}));assert(drawer.includes('<svg'));assert(drawer.includes('Timeline'));
+const {reduceTurn,TurnView}=require('./src/components/Assistant.tsx');
+const report={type:'report',title:'Credit memo',subtitle:'Cash-flow review',borrower:'Fictional Goods',bank:'Harbour Bank',account:'***123',currency:'SGD',period:{start:'2026-01-01',end:'2026-02-28'},prepared:'2026-03-01',audience:'Credit officer',evidence:{statements:2,invoices:1,page_ids:['p1','p2','p3']},totals:{inflow:'10000',outflow:'9000',net:'1000'},balances:{average:{value:'2000',cites:[]},minimum:{value:'500',cites:[]}},monthly:[{month:'2026-01',inflow:'5000',outflow:'4000',net:'1000',partial:false},{month:'2026-02',inflow:'5000',outflow:'5000',net:'0',partial:true}],top_payer:{payer:'Juniper Goods',amount:'3000',total_inflow:'10000',share_percent:'30',cites:['[p1:r1]']},findings:[{type:'returned_cheque',label:'Returned cheque',amount:'100',cites:['[p1:r2]'],description:'Cheque returned'}],reconciliation:[]};
+const memo={summary:'## Summary\nSound cash position.',cash_flow:'## Cash flow\nStable flows.',questions:'## Questions for the applicant\n1. Explain the cheque.'};
+const view=es=>render(React.createElement(TurnView,{turn:reduceTurn(es),jump:()=>{}}));
+const withReport=view([report,{type:'final',intent:'memo',memo,problems:[]}]);for(const t of ['Credit memo','Key figures','10,000.00','2026-01','2026-02','Returned cheque','All figures checked','Copy memo'])assert(withReport.includes(t),t);
+
+const {MemoReport,ReportDialog,activityText}=require('./src/components/MemoReport.tsx');
+assert(!withReport.includes('<th>#</th>'));
+assert(withReport.includes('class="report-nowrap">Returned cheque</td>'));
+assert(withReport.includes('Open full report'));
+const activityReport={...report,totals:{...report.totals,months:3,full_months:2},
+ monthly:[...report.monthly,{month:'2026-03',partial:true}]};
+assert.equal(activityText(activityReport),'Jan – Mar 2026 (3 months, 2 full)');
+assert(view([activityReport,{type:'final',intent:'memo',memo}]).includes('Jan – Mar 2026 (3 months, 2 full)'));
+// The existing helpers render on the server, so exercise the dialog in its open state.
+const dialog=render(React.createElement(ReportDialog,{onClose:()=>{}},React.createElement(MemoReport,{report,finished:true,problems:0,texts:[]})));
+assert(dialog.includes('role="dialog"'));assert(dialog.includes('aria-modal="true"'));
+assert(dialog.includes('Close</button>'));assert(dialog.includes('Fictional Goods'));
+assert(drawer.includes('role="tab" aria-selected="true"'));
+assert(drawer.includes('role="tab" aria-selected="false"'));
+const sections=['summary','cash_flow','concentration','red_flags','questions'];
+const recorded=[
+ {type:'step',name:'router',status:'done',ms:100,t:0.1},
+ {type:'step',name:'analyst',status:'done',ms:100,t:0.2},
+ ...sections.flatMap((section,i)=>[
+  {type:'step',name:'writer',section,status:'done',ms:5000,t:6+i/10},
+  {type:'step',name:'checker',section,status:'done',ms:1,t:6.1+i/10}]),
+ {type:'final',intent:'memo',t:7,source:'recorded'},
+ {type:'metrics',total_s:8.5,t:7.1,source:'recorded'}
+].map(({t,...event})=>({...event,ts:1000+t,rx:1000+Math.min(t,4.3)}));
+const recordedModel=traceModel(recorded);
+assert(recordedModel.end-recordedModel.start>=8.5);
+assert.deepEqual(recordedModel.lanes.slice(2).map(l=>l.id),
+ sections.flatMap(s=>['writer:'+s,'checker:'+s]));
+const graph=render(React.createElement(Trace,{events:recorded,showLogs:()=>{}}));
+for(const id of ['router-0','analyst-0','answer',...sections.flatMap(s=>['writer:'+s+'-0','checker:'+s+'-0'])])
+ assert(graph.includes('data-node="'+id+'"'),id);
+assert(graph.includes('viewBox="0 0 ')&&graph.includes('width:100%'));assert(graph.includes('Recorded run · times as recorded'));
+assert(graph.includes('max(6px'));
+const originalUseState=React.useState;
+try {
+ React.useState=()=>['router-0',()=>{}];
+ const selected=render(React.createElement(Trace,{events:recorded,showLogs:()=>{},
+  entries:[{id:1,ts:1000.1,source:'worker',level:'info',message:'Router log in selected window'}]}));
+ assert(selected.includes('class="trace-selected"'));
+ assert(selected.includes('Router log in selected window'));
+ const empty=render(React.createElement(Trace,{events:recorded,showLogs:()=>{}}));
+ assert(empty.includes('No log lines in this window'));
+} finally { React.useState=originalUseState; }
+
+
+const old=view([{type:'final',intent:'memo',memo}]);assert(old.includes('Sound cash position.'));assert(!old.includes('Key figures'));assert(old.includes('report-paper'));
+"""
+    result = subprocess.run(
+        ["node", "-e", script], cwd=FRONTEND, capture_output=True, text=True
+    )
+    assert result.returncode == 0, result.stderr

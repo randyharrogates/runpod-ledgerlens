@@ -3,6 +3,7 @@ import { api, ChatEvent, Citation, Page, postEvents } from '../api';
 import { openLogs } from '../logs';
 import { modelState } from '../models';
 import { MemoContent } from './Memo';
+import { MemoReport, ReportSectionData } from './MemoReport';
 import { Upload } from './MobileUpload';
 
 export const sections = [
@@ -15,7 +16,7 @@ const labels: Record<string, string> = {
 };
 type Card = {text: string; changed: boolean; resetting: boolean; rewritten: boolean; problems: string[]};
 export type TurnState = {
-  steps: ChatEvent[]; route?: ChatEvent; answer: string; cards: Record<string, Card>;
+  events: ChatEvent[]; report?: import('../api').MemoReportData; steps: ChatEvent[]; route?: ChatEvent; answer: string; cards: Record<string, Card>;
   turnId?: string; jobId?: string; metrics?: ChatEvent; error?: string; notices: string[]; final?: ChatEvent;
 };
 
@@ -36,7 +37,7 @@ function plainError(value: unknown) {
 }
 
 export function reduceTurn(events: ChatEvent[], previous: Record<string, string> = {}): TurnState {
-  const turn: TurnState = {steps: [], answer: '', cards: {}, notices: []};
+  const turn: TurnState = {events, steps: [], answer: '', cards: {}, notices: []};
   for (const [id] of sections) turn.cards[id] = {
     text: previous[id] || '', changed: false, resetting: false, rewritten: false, problems: [],
   };
@@ -53,6 +54,7 @@ export function reduceTurn(events: ChatEvent[], previous: Record<string, string>
       }
     }
     if (event.type === 'tool') turn.steps.push(event);
+    if (event.type === 'report') turn.report = event as unknown as import('../api').MemoReportData;
     if (event.type === 'route') turn.route = event;
     if (event.type === 'notice') turn.notices.push(event.message);
     if (event.type === 'deltas') for (const part of event.parts || []) {
@@ -81,6 +83,7 @@ export function reduceTurn(events: ChatEvent[], previous: Record<string, string>
     }
     if (event.type === 'final') {
       turn.final = event;
+      if (event.report) turn.report = event.report;
       if (typeof event.answer === 'string') turn.answer = event.answer;
       if (event.memo) for (const [id] of sections) {
         if (typeof event.memo[id] === 'string') card(id).text = event.memo[id];
@@ -154,19 +157,19 @@ export function TurnView({turn, jump}: {turn: TurnState; jump: (citation: Citati
     {thinking && <div className="assistant-thinking" role="status"><span className="assistant-typing" aria-label="Typing"><i /><i /><i /></span>{thinkingText(running)}</div>}
     {intent && <div className="assistant-route"><strong className="assistant-intent-pill">{labels[intent] || 'General answer'}</strong>{turn.route?.reason && <small><MemoContent text={turn.route.reason} jump={jump} /></small>}</div>}
     {turn.notices.map((text, i) => <div key={i}><MemoContent text={text} jump={jump} /></div>)}
-    {memo ? <div className="assistant-cards">{sections.map(([id, heading]) => {
+    {memo ? <MemoReport report={turn.report} finished={finished} problems={turn.final?.problems?.length || Object.values(turn.cards).reduce((n,c)=>n+c.problems.length,0)} texts={sections.map(([id])=>turn.cards[id].text)}>{sections.map(([id, heading], index) => {
       const card = turn.cards[id];
       const unchanged = intent === 'edit_memo' && !card.changed;
-      return <section key={id} className={unchanged ? 'assistant-card unchanged' : 'assistant-card'}>
-        <h3>{heading}</h3>{card.text && <CopyButton text={sectionBody(card.text, heading)} label={`Copy ${heading}`} />}{unchanged && <small>unchanged</small>}
+      return <section key={id} className={unchanged ? 'report-section unchanged' : 'report-section'}>
+        <span className="report-number">{index+1}</span><h3>{heading}</h3>{card.text && <CopyButton text={sectionBody(card.text, heading)} label={`Copy ${heading}`} />}{unchanged && <small>unchanged</small>}
         {card.resetting && <small className="assistant-rewriting">rewriting after a check</small>}{card.rewritten && <small className="assistant-rewritten">rewritten once</small>}
-        <div className="memo"><MemoContent text={sectionBody(card.text, heading)} jump={jump} /></div>
+        <ReportSectionData id={id} report={turn.report} jump={jump}/><div className="memo"><MemoContent text={sectionBody(card.text, heading)} jump={jump} /></div>
         {card.problems.map((problem, i) => <div className="assistant-warning" key={i}><MemoContent text={problem} jump={jump} /></div>)}
       </section>;
-    })}</div> : <div className="memo"><MemoContent text={turn.answer} jump={jump} /></div>}
+    })}</MemoReport> : <div className="memo"><MemoContent text={turn.answer} jump={jump} /></div>}
     {finished && !memo && turn.answer && <CopyButton text={turn.answer} label="Copy answer" />}
     {turn.error && <p role="alert">{turn.error === 'Stopped' ? 'You stopped this answer. Your pages are saved.' : `The agent stopped: ${turn.error}. Your pages are saved; try again.`}</p>}
-    {(measured || turn.turnId) && <footer className="assistant-metrics">{measured && [
+    {(finished || measured || turn.turnId) && <footer className="assistant-metrics">{measured && [
       typeof measured.total_s === 'number' && `${seconds(measured.total_s)} total`,
       typeof measured.delayTime === 'number' && `${seconds(measured.delayTime / 1000)} queue / cold start`,
       typeof measured.executionTime === 'number' && `${seconds(measured.executionTime / 1000)} execution`,
@@ -174,7 +177,7 @@ export function TurnView({turn, jump}: {turn: TurnState; jump: (citation: Citati
       measured.gpu,
       typeof measured.cost === 'number' && `$${measured.cost.toFixed(5)}`,
     ].filter(Boolean).join(' · ')}{measured?.source === 'recorded' && <span className="assistant-recorded">Recorded run</span>}{!measured && turn.jobId && `job ${turn.jobId}`}{measured && turn.jobId && ` · job ${turn.jobId}`}
-      {turn.turnId && <>{(measured || turn.jobId) && ' · '}<button className="link-button" onClick={() => openLogs({turn: turn.turnId, jobId: turn.jobId})}>Logs for this turn</button></>}</footer>}
+      {turn.turnId && <>{(measured || turn.jobId) && ' · '}<button className="link-button" onClick={() => openLogs({turn: turn.turnId, jobId: turn.jobId})}>Logs for this turn</button></>}{finished && <> · <button className="link-button" onClick={() => openLogs({turn:turn.turnId,jobId:turn.jobId,tab:'trace',events:turn.events})}>Trace</button></>}</footer>}
   </article>;
 }
 

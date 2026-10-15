@@ -113,6 +113,8 @@ export const api = {
 
 export type ChatEvent = {
   type: string;
+  ts?: number; rx?: number; t?: number;
+  report?: MemoReportData;
   [key: string]: any;
 };
 
@@ -132,7 +134,7 @@ export async function postEvents(
   let data: string[] = [];
   function line(value: string) {
     if (!value) {
-      if (data.length) onEvent({ ...JSON.parse(data.join('\n')), type: kind });
+      if (data.length) { const event = {...JSON.parse(data.join('\n')), type:kind}; if (typeof event.ts !== 'number') event.rx = Date.now()/1000; onEvent(event); }
       kind = 'message';
       data = [];
     } else if (value.startsWith('event:')) kind = value.slice(6).trim();
@@ -158,3 +160,14 @@ export async function postEvents(
     reader.releaseLock();
   }
 }
+
+export type MemoReportData = {
+  title:string; subtitle:string; borrower:string; bank:string; account:string; currency:string;
+  period:{start:string;end:string}; prepared:string; audience:string; length:string; language:string;
+  evidence:{statements:number;invoices:number;page_ids:string[]};
+  totals:Record<string,string>; balances:{average:{value:string;cites:string[]};minimum:{value:string;cites:string[]}};
+  monthly:{month:string;inflow:string;outflow:string;net:string;partial:boolean}[];
+  top_payer:{payer:string;amount:string;total_inflow:string;share_percent:string;cites:string[]}|null;
+  findings:{type:string;label:string;description:string;amount:string|null;cites:string[]}[];
+  reconciliation:{page_id:string;printed:string;expected:string;difference:string;ok:boolean}[];
+};
