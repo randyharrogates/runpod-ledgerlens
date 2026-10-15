@@ -59,6 +59,9 @@ const json = (method: string, body: unknown) => ({
 export type GpuStatus = {
   available: boolean; reason?: string; endpoint_id?: string; name?: string;
   workers_min?: number; workers_max?: number; workers?: Record<string, number>;
+  ready?: boolean; checked_at?: number | null; probe?: 'idle' | 'waiting' | 'running';
+  ready_error?: string | null;
+  last_probe?: { delay_ms: number | null; execution_ms: number | null; worker_id: string | null; engine_load_s: number | null; cold_start: boolean | null } | null;
   warm_until?: number | null; cost_per_hour_low?: number; cost_per_hour_high?: number;
 };
 

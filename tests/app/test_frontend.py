@@ -30,7 +30,12 @@ for(const text of ['role="dialog"','$0.69–$1.58 per hour','flex list price','R
 const mainSource=fs.readFileSync('./src/main.tsx','utf8');
 assert(mainSource.indexOf('<GpuSwitch />')>mainSource.indexOf('<aside className="rail">'));
 assert(mainSource.indexOf('<GpuSwitch />')<mainSource.indexOf('aria-pressed={presenter}'));
-assert.equal(gpuLabel({available:true,workers_min:1,warm_until:3520,workers:{idle:1}},1000),'GPU ready · 42 min');
+assert.equal(gpuLabel({available:true,workers_min:1,warm_until:3520,workers:{idle:1},ready:true},1000),'GPU ready · 42 min');
+assert(gpuHtml.includes('Waiting for the model to load.'));
+assert.equal(gpuLabel({available:true,workers_min:1,warm_until:3520,workers:{idle:2},ready:false},1000),'GPU starting');
+assert.equal(gpuLabel({available:true,workers_min:1,warm_until:3520,ready_error:'Failed'},1000),'GPU problem');
+const readyHtml=gpuRender(React.createElement(GpuPopover,{status:{available:true,workers_min:1,ready:true,checked_at:Date.now()/1000-40,last_probe:{delay_ms:55,execution_ms:401}},busy:false,error:'',change:()=>{},close:()=>{}}));
+assert(readyHtml.includes('Model loaded — answered a test job in 0.06 s queue + 0.4 s (checked 40 s ago)'));
 assert.equal(gpuLabel({available:true,workers_min:1,warm_until:3520,workers:{initializing:1}},1000),'GPU starting');
 assert.equal(gpuLabel({available:true,workers_min:1,warm_until:null},1000),'GPU on (set elsewhere)');
 

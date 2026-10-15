@@ -41,6 +41,10 @@ def control(monkeypatch, tmp_path):
 
     transport = httpx.MockTransport(respond)
     client = httpx.Client(transport=transport)
+    original_async = httpx.AsyncClient
+    monkeypatch.setattr(
+        gpu.httpx, "AsyncClient", lambda **kw: original_async(transport=transport, **kw)
+    )
     monkeypatch.setattr(gpu.httpx, "get", client.get)
     monkeypatch.setattr(gpu.httpx, "patch", client.patch)
     yield state
@@ -58,6 +62,8 @@ def test_on_off(control, caplog):
         assert json.loads(gpu.state_path().read_text())["warm_until"] > time.time()
         assert client.post("/api/gpu", json={"on": False}).status_code == 200
         assert not gpu.state_path().exists()
+        assert not client.get("/api/gpu").json()["ready"]
+        assert not gpu.PROBERS
         assert control["patches"] == [1, 0]
         assert "private-test-key" not in response.text + caplog.text
 
@@ -124,3 +130,117 @@ def test_switch_refused_from_another_machine(monkeypatch):
     with pytest.raises(HTTPException) as error:
         asyncio.run(gpu.change_gpu(gpu.Change(on=True, minutes=30), request))
     assert error.value.status_code == 403
+
+
+@pytest.mark.parametrize("output_list", [False, True])
+@pytest.mark.parametrize("worker_status", ["ready", "starting", "failed", "exited"])
+def test_probe_result(output_list, worker_status):
+    async def run():
+        gpu.READINESS.clear()
+        calls = []
+
+        def respond(request):
+            calls.append(request.url.path)
+            if request.url.path.endswith("/health"):
+                return httpx.Response(200, json={"workers": {"idle": 2}})
+            if request.url.path.endswith("/run"):
+                assert json.loads(request.content) == {"input": {"task": "health"}}
+                return httpx.Response(200, json={"id": "probe-1"})
+            output = {
+                "status": worker_status,
+                "engine_load_seconds": 176.2,
+                "cold_start": False,
+            }
+            return httpx.Response(
+                200,
+                json={
+                    "status": "COMPLETED",
+                    "output": [output] if output_list else output,
+                    "delayTime": 55,
+                    "executionTime": 401,
+                    "workerId": "worker-1",
+                },
+            )
+
+        async with httpx.AsyncClient(transport=httpx.MockTransport(respond)) as client:
+            await gpu.probe_cycle("test", "secret", client)
+        state = gpu.ready_fields("test")
+        assert state["ready"] is (worker_status == "ready")
+        assert bool(state["ready_error"]) is (worker_status in ("failed", "exited"))
+        if state["ready"]:
+            assert state["checked_at"] <= time.time()
+            assert state["last_probe"] == {
+                "delay_ms": 55,
+                "execution_ms": 401,
+                "worker_id": "worker-1",
+                "engine_load_s": 176.2,
+                "cold_start": False,
+            }
+        assert calls.count("/v2/test/run") == 1
+
+    asyncio.run(run())
+
+
+@pytest.mark.parametrize("workers", [{"initializing": 1, "idle": 2}, {}])
+def test_probe_waits_for_workers(workers):
+    async def run():
+        def respond(request):
+            assert request.url.path.endswith("/health")
+            return httpx.Response(200, json={"workers": workers})
+
+        async with httpx.AsyncClient(transport=httpx.MockTransport(respond)) as client:
+            await gpu.probe_cycle("waiting", "secret", client)
+        assert not gpu.readiness("waiting")["ready"]
+        assert gpu.readiness("waiting")["probe"] == "waiting"
+
+    asyncio.run(run())
+
+
+def test_probe_queue_timeout(monkeypatch):
+    monkeypatch.setattr(gpu, "PROBE_TIMEOUT", 0)
+
+    async def run():
+        calls = []
+
+        def respond(request):
+            calls.append(request.url.path)
+            if request.url.path.endswith("/health"):
+                value = {"workers": {"ready": 1}}
+            elif request.url.path.endswith("/run"):
+                value = {"id": "queued"}
+            else:
+                value = {"status": "IN_QUEUE"}
+            return httpx.Response(200, json=value)
+
+        async with httpx.AsyncClient(transport=httpx.MockTransport(respond)) as client:
+            await gpu.probe_cycle("timeout", "secret", client)
+        assert "/v2/timeout/cancel/queued" in calls
+        assert not gpu.readiness("timeout")["ready"]
+        assert (
+            gpu.ready_fields("timeout")["ready_error"] == "Worker not taking jobs yet"
+        )
+
+    asyncio.run(run())
+
+
+def test_one_prober_and_stop(monkeypatch):
+    async def run():
+        entered = asyncio.Event()
+
+        async def blocked(endpoint, key):
+            entered.set()
+            await asyncio.Event().wait()
+
+        monkeypatch.setattr(gpu, "prober", blocked)
+        gpu.start_prober("single", "secret")
+        task = gpu.PROBERS["single"]
+        await entered.wait()
+        gpu.start_prober("single", "secret")
+        assert gpu.PROBERS["single"] is task
+        gpu.readiness("single")["ready"] = True
+        gpu.stop_prober("single")
+        await asyncio.gather(task, return_exceptions=True)
+        assert task.cancelled()
+        assert not gpu.readiness("single")["ready"]
+
+    asyncio.run(run())
