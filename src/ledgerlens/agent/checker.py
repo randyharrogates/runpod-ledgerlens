@@ -107,6 +107,21 @@ def unverified_names(text, collected, question):
     ]
 
 
+def heading(line):
+    """Compare headings without '#', a trailing '.' or ':', or case."""
+    return line.strip().lstrip("#").strip().rstrip(".:").strip().lower()
+
+
+def canonical_heading(text, required_heading):
+    """Rewrite a heading that only differs in punctuation or case to the exact one."""
+    return "\n".join(
+        f"## {required_heading}"
+        if line.lstrip().startswith("#") and heading(line) == heading(required_heading)
+        else line
+        for line in text.split("\n")
+    )
+
+
 def check_text(
     text, payload, row_counts, *, max_words=None, required_heading=None, question=None
 ) -> list[dict]:
@@ -128,9 +143,6 @@ def check_text(
                 "detail": f"{word_count(text)} words exceeds {max_words}",
             }
         )
-
-    def heading(line):
-        return line.strip().lstrip("#").strip().rstrip(".:").strip().lower()
 
     headings = {heading(line) for line in text.splitlines()}
     if required_heading is not None and heading(required_heading) not in headings:

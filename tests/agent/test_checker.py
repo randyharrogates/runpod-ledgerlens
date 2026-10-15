@@ -104,3 +104,13 @@ def test_unverified_names_skips_chinese_questions():
     assert unverified_names("The payer is 六福珠宝.", tools, "Who paid most?") == [
         {"kind": "unverified_name", "detail": "六福珠宝"}
     ]
+
+
+def test_canonical_heading_fixes_punctuation_only():
+    from ledgerlens.agent.checker import canonical_heading
+
+    text = "## Questions for the applicant.\n\n- Why?"
+    assert canonical_heading(text, "Questions for the applicant") == (
+        "## Questions for the applicant\n\n- Why?"
+    )
+    assert canonical_heading("## Other\n", "Summary") == "## Other\n"

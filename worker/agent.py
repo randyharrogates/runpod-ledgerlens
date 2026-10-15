@@ -11,7 +11,7 @@ from decimal import Decimal
 import httpx
 from pydantic import ValidationError
 
-from ledgerlens.agent.checker import check_text, word_count
+from ledgerlens.agent.checker import canonical_heading, check_text, word_count
 from ledgerlens.agent.findings import describe_finding
 from ledgerlens.agent.limits import (
     MAX_BODY_BYTES,
@@ -612,6 +612,9 @@ async def run_agent(data, engine):
 
             async def analyst():
                 analysis = await asyncio.to_thread(analyze, statements, ids)
+                # The raw share has 28 digits, which the writer copied into a memo.
+                concentration = analysis["top_payer_concentration"]
+                concentration["share"] = round(concentration["share"], 4)
                 pages = {p["page_id"]: p for p in documents}
                 for finding in analysis["findings"]:
                     finding["description"] = describe_finding(
@@ -749,6 +752,7 @@ async def run_agent(data, engine):
                         "writer", lambda: stream(request, section_id), section_id
                     )
                     problems = await check(text, subset, section_id, **kwargs)
+                text = canonical_heading(text, section["heading"])
                 memo[section_id] = text
                 await emit(
                     {
