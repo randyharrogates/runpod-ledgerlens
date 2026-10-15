@@ -586,9 +586,15 @@ def edit_not_applied(previous, text, request):
     def normal(value):
         return " ".join(value.split())
 
+    # Section texts are bounded (4000 chars in, 1500 tokens out); the quick ratios are
+    # upper bounds that skip the quadratic comparison for clearly different texts.
+    matcher = SequenceMatcher(
+        None, normal(previous)[:8000], normal(text)[:8000], autojunk=False
+    )
     if (
-        SequenceMatcher(None, normal(previous), normal(text), autojunk=False).ratio()
-        >= 0.97
+        matcher.real_quick_ratio() >= 0.97
+        and matcher.quick_ratio() >= 0.97
+        and matcher.ratio() >= 0.97
     ):
         return True
     if not re.search(

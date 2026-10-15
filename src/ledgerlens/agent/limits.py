@@ -9,6 +9,8 @@ MAX_TOOL_ROUNDS = 3
 MAX_TOOL_CALLS_PER_ROUND = 5
 # Bound per-document processing and request size.
 MAX_ROWS_PER_DOCUMENT = 500
+# Bounds total analysis work for a 100-page turn (real pages hold ~20-40 rows).
+MAX_TOTAL_ROWS = 10_000
 MAX_MEMO_SECTION_CHARS = 4000
 _SECTION_IDS = {"summary", "cash_flow", "concentration", "red_flags", "questions"}
 
@@ -84,6 +86,16 @@ def validate_agent_input(data: dict) -> dict:
         cleaned[field] = result
     if len(cleaned["new_pages"]) > MAX_NEW_PAGES:
         raise ValueError("At most 8 new pages are allowed")
+    total_rows = sum(
+        len(
+            page["document"].get("transactions")
+            or page["document"].get("line_items")
+            or []
+        )
+        for page in cleaned["documents"]
+    )
+    if total_rows > MAX_TOTAL_ROWS:
+        raise ValueError("At most 10000 rows across all documents are allowed")
     if len(ids) > MAX_DOCUMENTS:
         raise ValueError("At most 100 documents including new pages are allowed")
     if "last_memo" in data:

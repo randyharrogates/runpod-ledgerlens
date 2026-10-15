@@ -113,28 +113,31 @@ def detect_anomalies(
         if any(keyword in row.description.upper() for keyword in keywords):
             findings.append({"type": "returned_cheque", "citations": [citation]})
     keys = [payer_key(row.description) for row, _ in rows]
-    incoming_rows = sorted(
-        [
-            (row.date, i, row, citation)
-            for i, (row, citation) in enumerate(rows)
-            if row.credit
-        ],
-        key=lambda item: (item[0], item[1]),
-    )
-    dates = [item[0] for item in incoming_rows]
+    # Credits grouped by payer and sorted by date, so each debit scans only its payer's
+    # 10-day window, capped so crafted input with many same-day rows stays linear.
+    incoming_by_key: dict[str, list] = defaultdict(list)
+    for i, (row, citation) in enumerate(rows):
+        if row.credit:
+            incoming_by_key[keys[i]].append((row.date, i, row, citation))
+    for group in incoming_by_key.values():
+        group.sort(key=lambda item: (item[0], item[1]))
+    dates_by_key = {
+        key: [item[0] for item in group] for key, group in incoming_by_key.items()
+    }
     used_incoming: set[int] = set()
     for index, (outgoing, outgoing_citation) in enumerate(rows):
-        if not outgoing.debit:
+        if not outgoing.debit or keys[index] not in incoming_by_key:
             continue
+        group = incoming_by_key[keys[index]]
+        dates = dates_by_key[keys[index]]
         start = bisect_right(dates, outgoing.date)
         end = bisect_right(dates, outgoing.date + timedelta(days=10))
-        for _, i, incoming, incoming_citation in incoming_rows[start:end]:
+        for _, i, incoming, incoming_citation in group[start : min(end, start + 200)]:
             if (
                 i not in used_incoming
                 and outgoing.debit * Decimal("0.99")
                 <= incoming.credit
                 <= outgoing.debit
-                and keys[i] == keys[index]
             ):
                 findings.append(
                     {

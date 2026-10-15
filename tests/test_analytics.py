@@ -1,5 +1,6 @@
 """Cited cash flow and planted-anomaly detection on known ground truth."""
 
+from datetime import timedelta
 from decimal import Decimal
 
 import pytest
@@ -278,3 +279,22 @@ def test_unreconciled_page_is_not_also_a_balance_gap(pages):
     types = [f["type"] for f in detect_anomalies([prior, current], ["p3", "p4"])]
     assert "unreconciled_page" in types
     assert "balance_gap" not in types
+
+
+def test_round_trip_search_stays_fast_on_same_day_rows(pages):
+    import time
+
+    statement = pages[0].statement.model_copy(deep=True)
+    row = statement.transactions[0]
+    debit = row.model_copy(update={"debit": Decimal("100"), "credit": None})
+    credit = row.model_copy(
+        update={
+            "debit": None,
+            "credit": Decimal("1"),
+            "date": row.date + timedelta(days=1),
+        }
+    )
+    statement.transactions = [debit] * 5000 + [credit] * 5000
+    started = time.monotonic()
+    detect_anomalies([statement], ["p1"])
+    assert time.monotonic() - started < 5

@@ -125,3 +125,21 @@ def test_document_cap():
                 "new_pages": [{"page_id": "new", "image_base64": ""}],
             }
         )
+
+
+def test_total_rows_across_documents_are_capped():
+    import pytest
+
+    from ledgerlens.agent.limits import validate_agent_input
+
+    row = {"date": "2026-01-01", "description": "x", "debit": "1", "balance": "1"}
+    documents = [
+        {
+            "page_id": f"p{i}",
+            "doc_type": "statement",
+            "document": {"transactions": [row] * 500},
+        }
+        for i in range(21)
+    ]
+    with pytest.raises(ValueError, match="10000 rows"):
+        validate_agent_input({"message": "memo", "documents": documents})
