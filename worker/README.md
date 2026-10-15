@@ -183,3 +183,10 @@ stderr, so Runpod's Logs tab shows them; the last 80 lines still form the
 startup-failure message. While a job runs, vLLM lines with `WARNING`, `ERROR`
 or `Traceback` (at most 50) are added to its `log` events. The engine is
 shared, so with concurrent jobs such a line may belong to another job.
+
+For evaluations, `task: "agent"` accepts `stop_after: "route"`: it runs the normal
+router and document/memo overrides, emits `route`, then a final intent, plan and
+reason without reading, analysis, tools or writing. `task: "read"` accepts
+`stop_after: "triage"`: each page emits triage only, and the final response contains
+`documents: []` and a `triage` list. Both include normal usage and timing. Other
+`stop_after` values are input errors.

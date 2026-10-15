@@ -198,7 +198,7 @@ async def together(*coroutines):
         await asyncio.gather(*tasks, return_exceptions=True)
 
 
-async def read_pages(engine, pages, emit):
+async def read_pages(engine, pages, emit, *, triage_only=False):
     async def read(page):
         page_id = page["page_id"]
         validate_image(page["image_base64"])
@@ -270,6 +270,8 @@ async def read_pages(engine, pages, emit):
         await emit(
             {"type": "triage", "page_id": page_id, **triage, "accepted": accepted}
         )
+        if triage_only:
+            return {"page_id": page_id, **triage, "accepted": accepted}
         if not accepted:
             await emit_log(
                 emit, "info", f"{page_id} triage: {doc_type}, rejected", page_id=page_id
@@ -346,9 +348,15 @@ async def read_pages(engine, pages, emit):
 def validate(data, read=False):
     if len(json.dumps(data).encode()) > MAX_BODY_BYTES:
         raise ValueError("Input exceeds 9 MB")
-    return validate_agent_input(
+    allowed = "triage" if read else "route"
+    if "stop_after" in data and data["stop_after"] != allowed:
+        raise ValueError(f"stop_after must be {allowed}")
+    clean = validate_agent_input(
         {"message": "Read pages", "new_pages": data.get("pages", [])} if read else data
     )
+    if "stop_after" in data:
+        clean["stop_after"] = data["stop_after"]
+    return clean
 
 
 def cited(value):
@@ -526,9 +534,18 @@ async def events(work, engine):
 async def run_read(data, engine):
     async def work(emit):
         clean = validate(data, read=True)
-        documents = await read_pages(engine, clean["new_pages"], emit)
+        triage_only = clean.get("stop_after") == "triage"
+        documents = await read_pages(
+            engine, clean["new_pages"], emit, triage_only=triage_only
+        )
         await emit(
-            {"type": "final", "intent": "read", "documents": documents, "problems": []}
+            {
+                "type": "final",
+                "intent": "read",
+                "documents": [] if triage_only else documents,
+                "problems": [],
+                **({"triage": documents} if triage_only else {}),
+            }
         )
 
     async for event in events(work, engine):
@@ -610,9 +627,13 @@ async def run_agent(data, engine):
             analysis = await step("analyst", analyst)
             return statements, ids, analysis
 
-        route, (statements, ids, analysis) = await together(
-            step("router", router), prepare()
-        )
+        if clean.get("stop_after") == "route":
+            route = await step("router", router)
+            statements = [p for p in clean["documents"] if p["doc_type"] == "statement"]
+        else:
+            route, (statements, ids, analysis) = await together(
+                step("router", router), prepare()
+            )
         intent = route["intent"]
         original = intent
         if intent in ("memo", "ask_data", "edit_memo") and not statements:
@@ -635,6 +656,9 @@ async def run_agent(data, engine):
             }
         )
         final = {"type": "final", "intent": intent, "problems": []}
+        if clean.get("stop_after") == "route":
+            await emit({**final, "plan": plan, "reason": route["reason"]})
+            return
         row_counts = {
             page: len(statement.transactions)
             for page, statement in zip(ids, statements, strict=True)

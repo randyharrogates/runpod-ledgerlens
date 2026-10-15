@@ -24,6 +24,10 @@ def validate_agent_input(data: dict) -> dict:
     ):
         raise ValueError("Message must be non-empty text of at most 2000 characters")
     cleaned = {"message": message.strip()}
+    if "stop_after" in data:
+        if data["stop_after"] != "route":
+            raise ValueError("stop_after must be route")
+        cleaned["stop_after"] = "route"
     history = data.get("history", [])
     if not isinstance(history, list):
         raise ValueError("History must be a list")
