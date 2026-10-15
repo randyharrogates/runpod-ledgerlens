@@ -710,7 +710,7 @@ async def run_agent(data, engine):
             if intent != "capabilities":
                 rule = "capabilities"
             intent = "capabilities"
-        elif intent in ("edit_memo", "memo") and is_document_fact_edit(
+        elif intent in ("edit_memo", "memo", "off_topic") and is_document_fact_edit(
             clean["message"]
         ):
             if intent != "edit_memo" or edit_target != "document_facts":
