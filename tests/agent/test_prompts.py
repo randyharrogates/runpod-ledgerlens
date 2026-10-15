@@ -88,3 +88,19 @@ def test_systems_and_sections():
     ]
     assert all(s["analysis_keys"] and s["instruction"] for s in SECTIONS)
     assert set(REPLIES) == {"needs_documents", "off_topic"}
+
+
+def test_router_assessments_and_writer_figures():
+    assert "assessment" in ROUTER_SYSTEM
+    assert "penilaian kredit" in ROUTER_SYSTEM
+    assert "信用评估" in ROUTER_SYSTEM
+    messages = section_messages(
+        "summary",
+        {"length": "standard", "language": "en"},
+        {},
+        "old",
+        [{"kind": "unverified_figure", "detail": "70%"}],
+        max_words=25,
+    )
+    assert "at most 25 words" in messages[0]["content"]
+    assert "Remove these figures entirely: 70%" in messages[0]["content"]

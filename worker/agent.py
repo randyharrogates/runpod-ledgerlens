@@ -4,13 +4,14 @@ import asyncio
 import base64
 import json
 import os
+import re
 import time
 from decimal import Decimal
 
 import httpx
 from pydantic import ValidationError
 
-from ledgerlens.agent.checker import check_text
+from ledgerlens.agent.checker import check_text, word_count
 from ledgerlens.agent.findings import describe_finding
 from ledgerlens.agent.limits import (
     MAX_BODY_BYTES,
@@ -20,6 +21,7 @@ from ledgerlens.agent.limits import (
 )
 from ledgerlens.agent.prompts import (
     DATA_AGENT_SYSTEM,
+    KNOWLEDGE_DOCUMENTS_SYSTEM,
     KNOWLEDGE_SYSTEM,
     REPLIES,
     ROUTER_SCHEMA,
@@ -625,13 +627,13 @@ async def run_agent(data, engine):
                 return cited(analysis)
 
             analysis = await step("analyst", analyst)
-            return statements, ids, analysis
+            return statements, ids, analysis, bool(documents)
 
         if clean.get("stop_after") == "route":
             route = await step("router", router)
             statements = [p for p in clean["documents"] if p["doc_type"] == "statement"]
         else:
-            route, (statements, ids, analysis) = await together(
+            route, (statements, ids, analysis, has_documents) = await together(
                 step("router", router), prepare()
             )
         intent = route["intent"]
@@ -682,7 +684,15 @@ async def run_agent(data, engine):
         elif intent == "knowledge":
             final["answer"] = await step(
                 "writer",
-                lambda: stream(payload(KNOWLEDGE_SYSTEM, clean["message"]), "answer"),
+                lambda: stream(
+                    payload(
+                        KNOWLEDGE_DOCUMENTS_SYSTEM
+                        if has_documents
+                        else KNOWLEDGE_SYSTEM,
+                        clean["message"],
+                    ),
+                    "answer",
+                ),
             )
             final["problems"] = await check(final["answer"], {})
         elif intent in ("memo", "edit_memo"):
@@ -699,19 +709,26 @@ async def run_agent(data, engine):
                 }
                 previous = memo.get(section_id) if intent == "edit_memo" else None
                 problems = [clean["message"]] if intent == "edit_memo" else None
+                max_words = WORD_LIMITS[plan["length"]]
+                if previous and re.search(
+                    r"\b(shorter|shorten|concise|brief|trim|cut|singkat|pendek|ringkas)\b|简短|缩短|精简|短一些|更短",
+                    clean["message"],
+                    re.IGNORECASE,
+                ):
+                    max_words = max(25, word_count(previous) * 3 // 5)
                 request = {
                     "model": MEMO_MODEL,
                     "temperature": 0,
                     "max_tokens": 1500,
                     "messages": section_messages(
-                        section, plan, subset, previous, problems
+                        section, plan, subset, previous, problems, max_words=max_words
                     ),
                 }
                 text = await step(
                     "writer", lambda: stream(request, section_id), section_id
                 )
                 kwargs = {
-                    "max_words": WORD_LIMITS[plan["length"]],
+                    "max_words": max_words,
                     "required_heading": section["heading"],
                 }
                 problems = await check(text, subset, section_id, **kwargs)
@@ -725,7 +742,7 @@ async def run_agent(data, engine):
                     )
                     await emit({"type": "section_reset", "section": section_id})
                     request["messages"] = section_messages(
-                        section, plan, subset, text, problems
+                        section, plan, subset, text, problems, max_words=max_words
                     )
                     text = await step(
                         "writer", lambda: stream(request, section_id), section_id
@@ -817,7 +834,7 @@ async def run_agent(data, engine):
 
             text = await step("data_agent", data_agent)
             await emit({"type": "_text", "part": "answer", "text": text})
-            problems = await check(text, collected)
+            problems = await check(text, collected, question=clean["message"])
             if problems:
                 await emit_log(
                     emit,
@@ -831,13 +848,15 @@ async def run_agent(data, engine):
                         {"role": "assistant", "content": text},
                         {
                             "role": "user",
-                            "content": "Rewrite to fix: " + json.dumps(problems),
+                            "content": "Rewrite to fix: "
+                            + json.dumps(problems)
+                            + ". Copy names exactly from tools; never translate or replace them.",
                         },
                     ]
                 )
                 await emit({"type": "section_reset", "section": "answer"})
                 text = await step("data_agent", lambda: stream(request, "answer"))
-                problems = await check(text, collected)
+                problems = await check(text, collected, question=clean["message"])
             final.update(answer=text, problems=problems)
         else:
             raise ValueError("Unknown router intent")

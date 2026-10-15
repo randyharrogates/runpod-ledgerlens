@@ -187,4 +187,51 @@ def test_run_resume_and_errors(tmp_path, monkeypatch):
     assert rows[1]["error"] == "RuntimeError"
     assert "secret-test-key" not in path.read_text()
     ev.run("e2", tmp_path, "fake")
-    assert len(calls) == 2
+    # Only the failed case is sent again.
+    assert len(calls) == 3
+    assert ev.load_jsonl(path)[-1]["status"] == "COMPLETED"
+    ev.run("e2", tmp_path, "fake")
+    assert len(calls) == 3
+
+
+def test_refusal_score_accepts_knowledge(tmp_path):
+    ev.write_jsonl(
+        tmp_path / "e4/cases.jsonl",
+        [
+            {
+                "id": "0",
+                "template": "refusal",
+                "expected": {"refusal": True},
+                "payload": {"message": "Credit score?"},
+            },
+            {
+                "id": "1",
+                "template": "refusal",
+                "expected": {"refusal": True},
+                "payload": {"message": "Credit score?"},
+            },
+            {
+                "id": "2",
+                "template": "inflow",
+                "expected": {"amount": "1234.56"},
+                "payload": {"message": "Total?"},
+            },
+        ],
+    )
+    ev.write_jsonl(
+        tmp_path / "e4/results.jsonl",
+        [
+            result(
+                "0",
+                {"intent": "knowledge", "answer": "Not available in the documents."},
+            ),
+            result(
+                "1", {"intent": "knowledge", "answer": "Not available, perhaps 700."}
+            ),
+            result("2", {"intent": "knowledge", "answer": "1234.56"}),
+        ],
+    )
+    score = ev.score("e4", tmp_path)
+    assert score["refusal_accuracy"] == 0.5
+    assert score["per_template"]["refusal"] == {"accuracy": 0.5, "n": 2}
+    assert score["accuracy"] == 0

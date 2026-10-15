@@ -232,7 +232,7 @@ def test_dispatch_and_empty(ctx):
         "direction": "in",
     }
     assert balance_on(empty, "2026-01-01")["balance"] is None
-    assert len(TOOL_SPECS) == 5
+    assert len(TOOL_SPECS) == 6
     for spec in TOOL_SPECS:
         assert spec["type"] == "function"
         assert spec["function"]["parameters"]["additionalProperties"] is False
@@ -260,3 +260,28 @@ def test_citation_cap_and_multiple_pages(ctx):
         "[p1:r3]",
     ]
     assert balance_on(ctx, "2026-01-01")["cite"] == "[p2:r5]"
+
+
+def test_list_findings_and_largest_row(ctx):
+    from ledgerlens.agent.tools import list_findings
+
+    result = run_tool(ctx, "list_findings", {})
+    assert result == list_findings(ctx)
+    assert result["count"] == len(result["findings"])
+    assert result["findings"][0] == {
+        "index": 0,
+        "type": "returned_cheque",
+        "cites": ["[p1:r3]"],
+    }
+    assert list_findings(ToolContext([], [], "SGD")) == {"count": 0, "findings": []}
+    clean = ctx.statements[0].model_copy(
+        update={"transactions": [], "closing_balance": Decimal("0")}
+    )
+    assert list_findings(ToolContext([clean], ["p1"], "SGD"))["count"] == 0
+    ctx.statements[0].transactions[2].debit = Decimal("200")
+    result = run_tool(
+        ctx, "find_rows", {"direction": "out", "sort": "amount_desc", "limit": 1}
+    )
+    assert result["rows"][0]["cite"] == "[p1:r3]"
+    assert result["count"] == 2
+    assert "error" in run_tool(ctx, "find_rows", {"sort": "unknown"})

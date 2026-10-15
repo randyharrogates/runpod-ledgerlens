@@ -168,8 +168,29 @@ small team of agents does the work on one Runpod Serverless GPU, quickly.
 - **What a cancel costs:** pressing Stop cancels the job at once, but the worker keeps running
   for about 2 minutes while it finishes what it had started, then goes idle by itself.
 
+## Step 14: Testing every part of the assistant on the live endpoint
+- **What we did:** built four test sets and ran them all against the live endpoint in about
+  6 minutes for about $0.07: 180 messages to the router (in English, Indonesian, Malay and
+  Chinese, including 20 attempts to trick it), 156 pages for the page check, 95 questions about
+  the data, and 30 memos each followed by an edit.
+- **Why this way:** a test switch makes the worker stop right after the step being tested (for
+  example after routing), so we pay for 2 seconds per message instead of a whole memo. The data
+  and memo tests use the true rows of our synthetic businesses, so a wrong answer is the
+  assistant's fault, not the reader's.
+- **What we learned:**
+  - The page check was right every time; the router 91% (memo requests worded as an
+    "assessment" were missed, mostly in Malay and Chinese).
+  - Data answers 66%: two tools were missing (one to list red flags, one to find the single
+    largest payment), and on Chinese-named businesses the model swapped the name from the tool
+    for a famous brand name. That last one is the most worrying, and it is why a code check
+    for names comes next.
+  - Memos: every section, heading and citation right, but "make it shorter" was followed in
+    only 5 of 30 edits, and 5 of 30 memos kept an invented percentage the checker had flagged.
+- **What we decided:** every failure has a cheap fix in code or prompts, so we fix those first
+  and test again before training anything new.
+
 ## Still to do
 - Release the worker fixes (sharp JPEG pages, heading check), then re-record the memo demo.
-- Measure routing, triage, data answers and memo quality (ask before spending).
+- Fix what the tests found, release, and run the tests again.
 - Train a memo-writing adapter and a better reader only if the tests show they're needed (ask
   before spending).

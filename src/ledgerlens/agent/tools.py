@@ -34,7 +34,9 @@ def _safe(value):
     return value
 
 
-def find_rows(ctx, text=None, month=None, min_amount=None, direction=None, limit=20):
+def find_rows(
+    ctx, text=None, month=None, min_amount=None, direction=None, limit=20, sort="date"
+):
     """Find rows matching all supplied filters."""
     matches = []
     threshold = Decimal(str(min_amount)) if min_amount is not None else None
@@ -59,6 +61,18 @@ def find_rows(ctx, text=None, month=None, min_amount=None, direction=None, limit
         ):
             continue
         matches.append({**row.model_dump(mode="json"), "cite": _cite(citation)})
+    if sort == "amount_desc":
+        keys = (
+            ["debit"]
+            if direction == "out"
+            else ["credit"]
+            if direction == "in"
+            else ["debit", "credit"]
+        )
+        matches.sort(
+            key=lambda row: max(Decimal(row[key] or "0") for key in keys),
+            reverse=True,
+        )
     return {
         "currency": ctx.currency,
         "rows": matches[:limit],
@@ -117,6 +131,20 @@ def top_counterparties(ctx, n=5, direction="in"):
             "direction": direction,
         }
     )
+
+
+def list_findings(ctx):
+    """List findings with stable zero-based indices and row evidence."""
+    findings = [
+        {
+            "index": index,
+            "type": finding["type"],
+            **({"amount": finding["amount"]} if "amount" in finding else {}),
+            "cites": [_cite(c) for c in finding["citations"] if c["row_index"] >= 0],
+        }
+        for index, finding in enumerate(detect_anomalies(ctx.statements, ctx.page_ids))
+    ]
+    return _safe({"count": len(findings), "findings": findings})
 
 
 def flag_detail(ctx, index):
@@ -180,20 +208,25 @@ TOOL_SPECS = [
     for name, description, properties, required in [
         (
             "find_rows",
-            "Find matching statement rows.",
+            "Find individual transactions; use sort amount_desc and limit 1 for the single largest payment.",
             {
                 "text": {"type": "string"},
                 "month": {"type": "string", "pattern": r"^\d{4}-(0[1-9]|1[0-2])$"},
                 "min_amount": {"type": "number", "minimum": 0},
                 "direction": {"type": "string", "enum": ["in", "out"]},
                 "limit": {"type": "integer", "minimum": 1, "maximum": 50},
+                "sort": {
+                    "type": "string",
+                    "enum": ["date", "amount_desc"],
+                    "default": "date",
+                },
             },
             [],
         ),
         ("monthly_totals", "Get monthly cash flows.", {}, []),
         (
             "top_counterparties",
-            "Rank counterparties: direction 'in' = who paid the business (payers, customers; the default), 'out' = whom it paid (suppliers, payroll).",
+            "Return each counterparty's TOTAL over the period: direction 'in' = who paid the business (payers, customers; the default), 'out' = whom it paid (suppliers, payroll).",
             {
                 "n": {"type": "integer", "minimum": 1, "maximum": 10},
                 "direction": {"type": "string", "enum": ["in", "out"]},
@@ -201,8 +234,14 @@ TOOL_SPECS = [
             [],
         ),
         (
+            "list_findings",
+            "List all red flags (returned cheques, round trips, large cash deposits, customer concentration, unreconciled pages) with their index.",
+            {},
+            [],
+        ),
+        (
             "flag_detail",
-            "Explain a finding by zero-based index.",
+            "Explain a finding by zero-based index from list_findings.",
             {"index": {"type": "integer", "minimum": 0}},
             ["index"],
         ),
@@ -266,6 +305,7 @@ def run_tool(ctx, name, arguments: dict | str) -> dict:
             "monthly_totals": monthly_totals,
             "top_counterparties": top_counterparties,
             "flag_detail": flag_detail,
+            "list_findings": list_findings,
             "balance_on": balance_on,
         }[name](ctx, **args)
     except (ValueError, TypeError, InvalidOperation, OverflowError) as exc:
