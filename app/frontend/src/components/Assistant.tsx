@@ -136,6 +136,19 @@ function thinkingText(step?: ChatEvent) {
   return `${step.name}${step.page_id ? ` · ${step.page_id}` : ''}…`;
 }
 
+// Before the worker sends its first step, the job is queued or a worker is loading the model.
+function useQueueSeconds(waiting: boolean) {
+  const [since, setSince] = useState<number | null>(null);
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    if (!waiting) { setSince(null); return; }
+    setSince(value => value ?? Date.now());
+    const id = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(id);
+  }, [waiting]);
+  return since === null ? 0 : Math.max(0, Math.floor((now - since) / 1000));
+}
+
 export function TurnView({turn, jump}: {turn: TurnState; jump: (citation: Citation) => void}) {
   const intent = turn.route?.intent || turn.final?.intent || (turn.error ? 'error' : undefined);
   const memo = !!turn.final?.memo || ((intent === 'memo' || intent === 'edit_memo') && !turn.final?.answer);
@@ -145,6 +158,8 @@ export function TurnView({turn, jump}: {turn: TurnState; jump: (citation: Citati
   const accent = turn.error || intent === 'error' ? 'bad' : memo ? 'violet' : intent === 'ask_data' ? 'sky' : intent === 'knowledge' ? 'good' : 'orange';
   const running = [...turn.steps].reverse().find(step => step.status === 'start');
   const thinking = !finished && !turn.answer && !Object.values(turn.cards).some(card => card.changed && card.text);
+  const queued = thinking && !!turn.jobId && turn.steps.length === 0;
+  const waited = useQueueSeconds(queued);
   const elapsed = measured?.total_s ?? turn.steps.reduce((sum, step) => sum + (step.ms || 0) / 1000, 0);
   return <article className={`assistant-turn assistant-intent-${accent}`} aria-live="polite">
     <span className="assistant-avatar" aria-label="LedgerLens">LL</span>
@@ -156,7 +171,8 @@ export function TurnView({turn, jump}: {turn: TurnState; jump: (citation: Citati
         <small>{step.status === 'start' ? finished ? 'stopped' : 'running' : step.status === 'error' || step.status === 'stopped' ? 'stopped' : seconds((step.ms || 0) / 1000)}</small>
       </div>)}
     </details>}
-    {thinking && <div className="assistant-thinking" role="status"><span className="assistant-typing" aria-label="Typing"><i /><i /><i /></span>{thinkingText(running)}</div>}
+    {thinking && <div className="assistant-thinking" role="status"><span className="assistant-typing" aria-label="Typing"><i /><i /><i /></span>{queued ? `Waiting for a GPU worker · ${Math.floor(waited / 60)}:${String(waited % 60).padStart(2, '0')}` : thinkingText(running)}</div>}
+    {queued && waited >= 20 && <small className="assistant-cold-note">No warm worker yet, so one is starting. That takes about 3–4 minutes; later turns take seconds. The GPU switch on the left keeps one ready.</small>}
     {intent && <div className="assistant-route"><strong className="assistant-intent-pill">{labels[intent] || 'General answer'}</strong>{turn.route?.reason && <small><MemoContent text={turn.route.reason} jump={jump} /></small>}</div>}
     {turn.notices.map((text, i) => <div key={i}><MemoContent text={text} jump={jump} /></div>)}
     {memo ? <MemoReport report={turn.report} finished={finished} problems={turn.final?.problems?.length || Object.values(turn.cards).reduce((n,c)=>n+c.problems.length,0)} texts={sections.map(([id])=>turn.cards[id].text)}>{sections.map(([id, heading], index) => {
