@@ -750,6 +750,7 @@ async def run_agent(data, engine):
                 kwargs = {
                     "max_words": check_max_words,
                     "required_heading": section["heading"],
+                    "language": plan["language"],
                 }
                 problems = await check(text, subset, section_id, **kwargs)
                 rewritten = bool(problems)

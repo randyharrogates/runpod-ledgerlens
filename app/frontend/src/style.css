@@ -1073,7 +1073,7 @@ button.secondary {background:transparent;color:var(--text);border:1px solid var(
 .report-reading {max-width:980px;margin:auto}
 .report-reading .report-paper {max-width:none}
 .report-reading .report-header > button {display:none}
-.report-close {position:sticky;top:0;z-index:1;display:block;margin-left:auto}
+.report-close-bar {position:sticky;top:-24px;z-index:1;display:flex;justify-content:flex-end;padding:12px 0;margin-top:-12px;background:var(--ground)}
 .logs-tabs {display:flex;gap:8px;padding:12px 18px}
 .logs-tabs [role=tab] {background:transparent;color:var(--sky);border:1px solid var(--sky)}
 .logs-tabs [aria-selected=true] {background:var(--sky);color:var(--ground)}
@@ -1087,3 +1087,4 @@ button.secondary {background:transparent;color:var(--text);border:1px solid var(
 }
 .logs-drawer-wide {width:min(1180px,96vw)}
 .trace-view .trace-timeline {min-width:520px}
+.report-partial {margin-left:6px;color:var(--orange)}

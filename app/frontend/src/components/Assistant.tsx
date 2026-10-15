@@ -22,7 +22,8 @@ export type TurnState = {
 
 const problemLabels: Record<string, string> = {
   unverified_figure: 'Figure not found in the analysis', bad_citation: 'Unknown row reference',
-  too_long: 'Too long', missing_heading: 'Missing heading',
+  too_long: 'Too long', missing_heading: 'Missing heading', wrong_language: 'Wrong language',
+  unverified_name: 'Name not in the documents',
 };
 export function problemText(problem: unknown) {
   if (typeof problem === 'string') return problem;

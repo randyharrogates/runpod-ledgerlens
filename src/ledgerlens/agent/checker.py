@@ -8,6 +8,27 @@ MEMO_NUMBER = re.compile(
     r"\d+(?:\.\d+)?%|\d{1,3}(?:,\d{3})+(?:\.\d+)?|\d+\.\d+|(?<![\d:r])\d{4,}(?![\d,]|\.\d)"
 )
 MEMO_CITATION = re.compile(r"\[p\d+:r\d+[^\]]*\]")
+SCALES = {
+    "k": Decimal(10) ** 3,
+    "thousand": Decimal(10) ** 3,
+    "ribu": Decimal(10) ** 3,
+    "m": Decimal(10) ** 6,
+    "mn": Decimal(10) ** 6,
+    "million": Decimal(10) ** 6,
+    "juta": Decimal(10) ** 6,
+    "b": Decimal(10) ** 9,
+    "bn": Decimal(10) ** 9,
+    "billion": Decimal(10) ** 9,
+    "miliar": Decimal(10) ** 9,
+}
+# An amount written with a scale word: "3.77M", "1.2 million", "455,5 juta" is not matched
+# (comma decimals are rare in these memos; they stay checked as plain numbers).
+SCALED = re.compile(
+    r"(?<![\w.])(?P<value>\d{1,3}(?:,\d{3})*(?:\.\d+)?)\s?(?P<unit>"
+    + "|".join(sorted(SCALES, key=len, reverse=True))
+    + r")\b",
+    re.IGNORECASE,
+)
 
 
 def unverified_memo_numbers(text, payload):
@@ -42,7 +63,17 @@ def unverified_memo_numbers(text, payload):
 
     collect(payload)
     unverified = []
-    for match in MEMO_NUMBER.finditer(MEMO_CITATION.sub("", text)):
+    plain = MEMO_CITATION.sub("", text)
+    for match in SCALED.finditer(plain):
+        # "IDR 3.77M" passes only if a real figure rounds to it at the shown precision.
+        number = Decimal(match["value"].replace(",", ""))
+        scale = SCALES[match["unit"].lower()]
+        places = len(match["value"].split(".")[1]) if "." in match["value"] else 0
+        tolerance = Decimal(5) * Decimal(10) ** -(places + 1) * scale
+        if not any(abs(number * scale - value) <= tolerance for value in allowed):
+            unverified.append(match.group().strip())
+    plain = SCALED.sub(" ", plain)
+    for match in MEMO_NUMBER.finditer(plain):
         token = match.group()
         number = Decimal(token.replace(",", "").rstrip("%"))
         if token.isdigit() and 1900 <= number <= 2100:
@@ -122,8 +153,27 @@ def canonical_heading(text, required_heading):
     )
 
 
+def _strings(value):
+    """Every string inside a nested payload (names in the analysis may be Chinese)."""
+    if isinstance(value, str):
+        yield value
+    elif isinstance(value, dict):
+        for item in value.values():
+            yield from _strings(item)
+    elif isinstance(value, (list, tuple)):
+        for item in value:
+            yield from _strings(item)
+
+
 def check_text(
-    text, payload, row_counts, *, max_words=None, required_heading=None, question=None
+    text,
+    payload,
+    row_counts,
+    *,
+    max_words=None,
+    required_heading=None,
+    question=None,
+    language=None,
 ) -> list[dict]:
     """Check figures, references, length and the section heading."""
     problems = [
@@ -136,6 +186,13 @@ def check_text(
     )
     if question is not None:
         problems.extend(unverified_names(text, payload, question))
+    # A section in en/id/ms must not switch script ("fraud嫌疑" in an English memo).
+    if language in ("en", "id", "ms"):
+        problems.extend(
+            {"kind": "wrong_language", "detail": run}
+            for run in dict.fromkeys(CJK.findall(MEMO_CITATION.sub("", text)))
+            if not any(run in str(value) for value in _strings(payload))
+        )
     if max_words is not None and word_count(text) > max_words:
         problems.append(
             {
