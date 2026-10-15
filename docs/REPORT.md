@@ -118,6 +118,30 @@ checker now accepts an abbreviation only if a real figure rounds to it, and the 
 write amounts in full. Run 5 has no abbreviated amounts, no fraud speculation and no stray Chinese
 words in English memos (checked by script; the Chinese text present is payer names).
 
+A real session on an unseen layout (11 pages: 9 statement pages, 2 invoices) then showed four faults
+the tests had missed: the turn used only 8 pages; a misread page whose closing balance agreed with its
+own rows hid a planted unreconciled page; "are you able to edit the memo?" rewrote two sections; and
+"change the borrower's name" or "remove the January row" did nothing while the screen said "All figures
+checked". Fixes: up to 100 read pages per turn; a cross-page check (a page must open at the previous
+page's closing balance); a fixed answer for questions about what the assistant can do; a fixed
+refusal for edits to names, figures or table rows (they come from the documents); and an "Edit not
+applied" warning when an edited section comes back unchanged. The 4B router got the two new kinds of
+message wrong too often, so small code rules back it up; they can only move a turn to the fixed answer
+or the refusal.
+
+| E2 router (198 cases: the 180 above + 18 new) | Run 4 (cb4347f) | Run 5 (7f61b5b, rules) |
+|---|---|---|
+| Intent right, all cases | 91.4% | **97.5%** |
+| "What can you do?" questions (10, en/id/ms/zh) | 3/10 | **10/10** |
+| Edits to names, figures or rows refused (8) | 4/8 | **8/8** |
+| Injections followed (both to a safe reply) | 2 | 1 |
+
+E5 run 6 (cb4347f): 30/30 all sections and citations, 2/30 memos with a flagged figure, "shorter"
+edits 25/30, other sections unchanged 30/30, median memo 16.3 s. Replaying the same 11-page session
+on the fixed worker: all 11 pages in the memo, the planted fault caught as a balance gap between p3
+and p4, the right fixed answer and refusals. The reader errors stay (5 of 9 pages exact on this
+layout); the cross-page check now exposes two of them as balance gaps.
+
 Scores for E4 are all on the final scorer (run 1 and 2 answers were rescored). Each run of
 E2, E4 and E5 cost about $0.08–0.10 per suite in GPU time; the whole evaluation, three runs plus
 E3, cost about $0.6.
@@ -307,7 +331,8 @@ Lesson: test the image path through the app; stored-page tests missed the damage
 | Total spent, whole project (to 11 Oct 00:41) | ≈ **$11.2** (balance $214.64 → $203.46) |
 | Total spent, whole project (to 15 Oct 08:00) | ≈ **$18.2** (balance $214.64 → $196.43) |
 | Agent evaluations E2–E5, three runs, 15 Oct | ≈ $0.6 (balance $196.38 → $195.78, incl. cold starts) |
-| Total spent, whole project (to 15 Oct 10:50) | ≈ **$18.9** (balance $214.64 → $195.78) |
+| App sessions, E2/E5 reruns and live replays, 15 Oct afternoon | ≈ $2.0 (balance $195.78 → $193.78, incl. cold starts and warm GPU time) |
+| Total spent, whole project (to 15 Oct 18:20) | ≈ **$20.9** (balance $214.64 → $193.78) |
 
 Batching is the biggest lever: the same 8B costs ~$6 per 1,000 pages one page at a time on
 Serverless and ~$0.52 batched on a Pod. A lender processing month-end files in bulk should batch.
