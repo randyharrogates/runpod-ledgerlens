@@ -612,9 +612,12 @@ async def run_agent(data, engine):
 
             async def analyst():
                 analysis = await asyncio.to_thread(analyze, statements, ids)
-                # The raw share has 28 digits, which the writer copied into a memo.
+                # The writer copied the raw share (28 digits, then "0.2006") into memos;
+                # it gets the percentage it should write instead.
                 concentration = analysis["top_payer_concentration"]
-                concentration["share"] = round(concentration["share"], 4)
+                concentration["share_percent"] = round(
+                    concentration.pop("share") * 100, 2
+                )
                 pages = {p["page_id"]: p for p in documents}
                 for finding in analysis["findings"]:
                     finding["description"] = describe_finding(

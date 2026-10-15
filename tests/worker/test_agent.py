@@ -1038,3 +1038,17 @@ def test_data_name_placeholders(monkeypatch, rewrite):
             )
     assert displayed == final["answer"]
     assert "NAME_1" not in displayed
+
+
+def test_writer_gets_share_percent_not_raw_share():
+    engine = FakeEngine()
+    collect(
+        agent.run_agent, {"message": "Write memo", "documents": [document()]}, engine
+    )
+    writer = [
+        c["messages"][1]["content"]
+        for c in engine.calls
+        if "top_payer_concentration" in str(c["messages"][-1]["content"])
+    ]
+    assert writer
+    assert all('"share_percent"' in text and '"share"' not in text for text in writer)
