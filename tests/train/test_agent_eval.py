@@ -253,3 +253,26 @@ def test_refusal_score_accepts_knowledge(tmp_path):
 )
 def test_zero_flag_answer(answer, ok):
     assert ev.answer_matches(answer, {"number": 0}) is ok
+
+
+def test_router_capabilities_and_edit_target_score(tmp_path):
+    cases = ev.build("e2", tmp_path)
+    cases = [c for c in cases if c["id"].startswith("e2-live-")]
+    assert len({c["id"] for c in cases}) == 18
+    assert sum(c["expected"] == "capabilities" for c in cases) == 10
+    assert all(c["payload"].get("last_memo") for c in cases)
+    ev.write_jsonl(tmp_path / "e2/cases.jsonl", cases)
+    results = [
+        result(
+            c["id"],
+            {"intent": c["expected"], "edit_target": c.get("edit_target", "text")},
+        )
+        for c in cases
+    ]
+    results[-1]["events"][-1]["edit_target"] = "text"
+    ev.write_jsonl(tmp_path / "e2/results.jsonl", results)
+    score = ev.score("e2", tmp_path)
+    assert score["accuracy"] == pytest.approx(17 / 18)
+    assert score["edit_target_accuracy"] == pytest.approx(7 / 8)
+    assert score["per_intent"]["capabilities"] == 1
+    assert score["misses"][0]["expected_edit_target"] == "document_facts"

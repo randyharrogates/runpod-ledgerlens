@@ -1,9 +1,10 @@
 """Decimal cash-flow calculations and cited anomaly rules, without an LLM."""
 
 import re
+from bisect import bisect_right
 from calendar import monthrange
 from collections import defaultdict
-from datetime import date
+from datetime import date, timedelta
 from decimal import Decimal
 from statistics import median
 from typing import TypedDict
@@ -111,20 +112,29 @@ def detect_anomalies(
     for row, citation in rows:
         if any(keyword in row.description.upper() for keyword in keywords):
             findings.append({"type": "returned_cheque", "citations": [citation]})
+    keys = [payer_key(row.description) for row, _ in rows]
+    incoming_rows = sorted(
+        [
+            (row.date, i, row, citation)
+            for i, (row, citation) in enumerate(rows)
+            if row.credit
+        ],
+        key=lambda item: (item[0], item[1]),
+    )
+    dates = [item[0] for item in incoming_rows]
     used_incoming: set[int] = set()
-    for outgoing, outgoing_citation in rows:
+    for index, (outgoing, outgoing_citation) in enumerate(rows):
         if not outgoing.debit:
             continue
-        for i, (incoming, incoming_citation) in enumerate(rows):
-            gap = (incoming.date - outgoing.date).days
+        start = bisect_right(dates, outgoing.date)
+        end = bisect_right(dates, outgoing.date + timedelta(days=10))
+        for _, i, incoming, incoming_citation in incoming_rows[start:end]:
             if (
                 i not in used_incoming
-                and incoming.credit is not None
                 and outgoing.debit * Decimal("0.99")
                 <= incoming.credit
                 <= outgoing.debit
-                and 0 < gap <= 10
-                and payer_key(incoming.description) == payer_key(outgoing.description)
+                and keys[i] == keys[index]
             ):
                 findings.append(
                     {
@@ -159,6 +169,51 @@ def detect_anomalies(
         findings.append({"type": "customer_concentration", **concentration})
     for check in reconciliation_failures(statements, page_ids):
         findings.append({"type": "unreconciled_page", **check})
+    ids = (
+        page_ids
+        if page_ids is not None
+        else [f"page_{i}" for i in range(len(statements))]
+    )
+    # A page whose printed closing is wrong but whose rows lead to the next page's opening
+    # balance is already flagged as unreconciled; don't flag the same fault twice.
+    expected = {
+        check["page_id"]: check["expected_closing_balance"].quantize(CENT)
+        for check in reconciliation_checks(statements, page_ids)
+    }
+    previous = {}
+    for page_id, statement in zip(ids, statements, strict=True):
+        account = (statement.bank_name, statement.account_number_masked)
+        if account in previous:
+            previous_id, prior = previous[account]
+            difference = statement.opening_balance.quantize(
+                CENT
+            ) - prior.closing_balance.quantize(CENT)
+            explained = expected[previous_id] != prior.closing_balance.quantize(
+                CENT
+            ) and expected[previous_id] == statement.opening_balance.quantize(CENT)
+            if difference and not explained:
+                citations = []
+                if prior.transactions:
+                    citations.append(
+                        {
+                            "page_id": previous_id,
+                            "row_index": len(prior.transactions) - 1,
+                        }
+                    )
+                if statement.transactions:
+                    citations.append({"page_id": page_id, "row_index": 0})
+                findings.append(
+                    {
+                        "type": "balance_gap",
+                        "previous_page_id": previous_id,
+                        "page_id": page_id,
+                        "previous_closing_balance": prior.closing_balance,
+                        "opening_balance": statement.opening_balance,
+                        "difference": difference,
+                        "citations": citations,
+                    }
+                )
+        previous[account] = (page_id, statement)
     return findings
 
 

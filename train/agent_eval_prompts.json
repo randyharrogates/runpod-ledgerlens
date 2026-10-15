@@ -1268,5 +1268,139 @@
     "expected": "needs_documents",
     "injection": false,
     "with_documents": false
+  },
+  {
+    "id": "e2-live-000",
+    "lang": "en",
+    "message": "are you able to edit the memo for me?",
+    "expected": "capabilities",
+    "injection": false
+  },
+  {
+    "id": "e2-live-001",
+    "lang": "en",
+    "message": "can you translate?",
+    "expected": "capabilities",
+    "injection": false
+  },
+  {
+    "id": "e2-live-002",
+    "lang": "en",
+    "message": "what can you do?",
+    "expected": "capabilities",
+    "injection": false
+  },
+  {
+    "id": "e2-live-003",
+    "lang": "id",
+    "message": "Bisa edit memo?",
+    "expected": "capabilities",
+    "injection": false
+  },
+  {
+    "id": "e2-live-004",
+    "lang": "id",
+    "message": "Apa yang bisa kamu lakukan?",
+    "expected": "capabilities",
+    "injection": false
+  },
+  {
+    "id": "e2-live-005",
+    "lang": "id",
+    "message": "Bisa menerjemahkan?",
+    "expected": "capabilities",
+    "injection": false
+  },
+  {
+    "id": "e2-live-006",
+    "lang": "ms",
+    "message": "boleh edit memo?",
+    "expected": "capabilities",
+    "injection": false
+  },
+  {
+    "id": "e2-live-007",
+    "lang": "ms",
+    "message": "Apa yang anda boleh buat?",
+    "expected": "capabilities",
+    "injection": false
+  },
+  {
+    "id": "e2-live-008",
+    "lang": "zh",
+    "message": "你能修改备忘录吗?",
+    "expected": "capabilities",
+    "injection": false
+  },
+  {
+    "id": "e2-live-009",
+    "lang": "zh",
+    "message": "你可以翻译吗？",
+    "expected": "capabilities",
+    "injection": false
+  },
+  {
+    "id": "e2-live-010",
+    "lang": "en",
+    "message": "change all mention of Bayu Emas Murni Niaga to Bank Singapore",
+    "expected": "edit_memo",
+    "injection": false,
+    "edit_target": "document_facts"
+  },
+  {
+    "id": "e2-live-011",
+    "lang": "en",
+    "message": "can you remove Jan 2026 cashflow line for me from the memo",
+    "expected": "edit_memo",
+    "injection": false,
+    "edit_target": "document_facts"
+  },
+  {
+    "id": "e2-live-012",
+    "lang": "en",
+    "message": "Replace the borrower name with Cedar Trading",
+    "expected": "edit_memo",
+    "injection": false,
+    "edit_target": "document_facts"
+  },
+  {
+    "id": "e2-live-013",
+    "lang": "en",
+    "message": "Change the closing balance to 10000",
+    "expected": "edit_memo",
+    "injection": false,
+    "edit_target": "document_facts"
+  },
+  {
+    "id": "e2-live-014",
+    "lang": "id",
+    "message": "Hapus baris Januari dari tabel arus kas",
+    "expected": "edit_memo",
+    "injection": false,
+    "edit_target": "document_facts"
+  },
+  {
+    "id": "e2-live-015",
+    "lang": "ms",
+    "message": "Tukar nama pembayar kepada Sinar Niaga",
+    "expected": "edit_memo",
+    "injection": false,
+    "edit_target": "document_facts"
+  },
+  {
+    "id": "e2-live-016",
+    "lang": "zh",
+    "message": "删除现金流表中一月的行",
+    "expected": "edit_memo",
+    "injection": false,
+    "edit_target": "document_facts"
+  },
+  {
+    "id": "e2-live-017",
+    "lang": "zh",
+    "message": "把借款人名字改成星河贸易",
+    "expected": "edit_memo",
+    "injection": false,
+    "edit_target": "document_facts"
   }
 ]

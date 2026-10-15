@@ -1163,3 +1163,114 @@ def test_report_amounts_from_cited_analysis():
     row = statement.transactions[0]
     assert Decimal(report["findings"][0]["amount"]) == (row.debit or row.credit)
     assert report["findings"][1]["amount"] == "123.45"
+
+
+@pytest.mark.parametrize(
+    "intent,target,key",
+    [
+        ("capabilities", "text", "capabilities"),
+        ("edit_memo", "document_facts", "document_facts"),
+    ],
+)
+def test_fixed_replies_no_writer(intent, target, key):
+    class RouterOnly(FakeEngine):
+        async def complete(self, request):
+            self.record(request)
+            assert request["messages"][0]["content"] == agent.ROUTER_SYSTEM
+            return response(
+                {
+                    "intent": intent,
+                    "reason": "Requested",
+                    "plan": PLAN,
+                    "edit_sections": ["summary"],
+                    "edit_target": target,
+                }
+            )
+
+    engine = RouterOnly()
+    previous = {"summary": "## Summary\nOriginal."}
+    final = collect(
+        agent.run_agent,
+        {"message": "Edit memo?", "documents": [document()], "last_memo": previous},
+        engine,
+    )[-1]
+    assert final["answer"] == agent.REPLIES[key]
+    assert "memo" not in final
+    assert previous == {"summary": "## Summary\nOriginal."}
+    assert len(engine.calls) == 1 and not engine.streams
+
+
+def test_unchanged_edit_problem():
+    engine = FakeEngine("edit_memo", edits=["summary"])
+    final = collect(
+        agent.run_agent,
+        {
+            "message": "Rewrite summary",
+            "documents": [document()],
+            "last_memo": {"summary": "## Summary\nObserved evidence."},
+        },
+        engine,
+    )[-1]
+    assert final["problems"] == [
+        {
+            "kind": "edit_not_applied",
+            "section": "summary",
+            "detail": "The requested change was not made to this section.",
+        }
+    ]
+
+
+def test_edit_explicit_target_left_behind():
+    assert agent.edit_not_applied(
+        "Old commentary about Cedar Trading",
+        "Completely rewritten commentary about Cedar Trading",
+        'remove "Cedar Trading"',
+    )
+    assert agent.edit_not_applied(
+        "Old commentary about Cedar Trading",
+        "Completely rewritten commentary about Cedar Trading",
+        "change all mention of Cedar Trading to Pine Trading",
+    )
+    assert not agent.edit_not_applied(
+        "Old commentary about Cedar Trading",
+        "New commentary about Pine Trading",
+        'replace "Cedar Trading" with "Pine Trading"',
+    )
+
+
+def test_balance_gap_report():
+    from decimal import Decimal
+
+    from ledgerlens.agent.report import build_report
+    from ledgerlens.analytics import analyze
+    from ledgerlens.schema import Statement
+
+    prior = Statement.model_validate(STATEMENT)
+    current = prior.model_copy(deep=True)
+    prior.closing_balance = Decimal("6014.30")
+    current.opening_balance = Decimal("6204.27")
+    report = build_report(
+        [prior, current],
+        [],
+        ["p5", "p6"],
+        analyze([prior, current], ["p5", "p6"]),
+        PLAN,
+    )
+    flag = next(f for f in report["findings"] if f["type"] == "balance_gap")
+    assert flag["label"] == "Balance gap between pages"
+    assert flag["amount"] == "189.97"
+    assert (
+        "p5 closes at SGD 6,014.30 but p6 opens at SGD 6,204.27" in flag["description"]
+    )
+    assert len(flag["cites"]) == 2
+
+
+def test_writer_subset_bounds():
+    subset = agent.writer_subset(
+        {
+            "findings": [{"citations": ["ref"] * 2500}] * 100,
+            "reconciliation": [{}] * 100,
+        }
+    )
+    assert len(subset["findings"]) == len(subset["reconciliation"]) == 50
+    assert len(subset["findings"][0]["citations"]) == 3

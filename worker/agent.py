@@ -7,6 +7,7 @@ import os
 import re
 import time
 from decimal import Decimal
+from difflib import SequenceMatcher
 
 import httpx
 from pydantic import ValidationError
@@ -560,6 +561,52 @@ async def run_read(data, engine):
         yield event
 
 
+def writer_subset(value, key=""):
+    """Bound repeated evidence and analysis arrays sent to section writers."""
+    if isinstance(value, dict):
+        items = list(value.items())
+        if key == "monthly":
+            items = items[:36]
+        result = {k: writer_subset(v, k) for k, v in items}
+        for k, v in items:
+            if isinstance(v, list) and len(v) > (3 if k == "citations" else 50):
+                result[k + "_count"] = len(v)
+            if k == "monthly" and isinstance(v, dict) and len(v) > 36:
+                result["monthly_count"] = len(v)
+        return result
+    if isinstance(value, list):
+        cap = 3 if key == "citations" else 50
+        return [writer_subset(item) for item in value[:cap]]
+    return value
+
+
+def edit_not_applied(previous, text, request):
+    """Catch unchanged rewrites and explicitly named text left behind."""
+
+    def normal(value):
+        return " ".join(value.split())
+
+    if (
+        SequenceMatcher(None, normal(previous), normal(text), autojunk=False).ratio()
+        >= 0.97
+    ):
+        return True
+    if not re.search(
+        r"remove|replace|change|delete|hapus|ganti|buang|删除|替换", request, re.I
+    ):
+        return False
+    targets = re.findall(r"[\"“‘']([^\"”’']+)[\"”’']", request)
+    # Unquoted names in common replacement/removal requests.
+    match = re.search(
+        r"(?:mention of|replace|remove|delete)\s+(.+?)(?:\s+(?:to|with|from)\b|$)",
+        request,
+        re.I,
+    )
+    if match:
+        targets.append(match[1].strip())
+    return any(target in previous and target in text for target in targets)
+
+
 async def run_agent(data, engine):
     async def work(emit):
         clean = validate(data)
@@ -648,11 +695,20 @@ async def run_agent(data, engine):
             route, (statements, ids, analysis, documents) = await together(
                 step("router", router), prepare()
             )
+        edit_target = route.get("edit_target", "text")
         intent = route["intent"]
         original = intent
-        if intent in ("memo", "ask_data", "edit_memo") and not statements:
+        if (
+            intent in ("memo", "ask_data", "edit_memo")
+            and not statements
+            and not (intent == "edit_memo" and edit_target == "document_facts")
+        ):
             intent = "needs_documents"
-        elif intent == "edit_memo" and not clean.get("last_memo"):
+        elif (
+            intent == "edit_memo"
+            and edit_target != "document_facts"
+            and not clean.get("last_memo")
+        ):
             intent = "memo"
         await emit_log(
             emit,
@@ -666,10 +722,16 @@ async def run_agent(data, engine):
                 "intent": intent,
                 "plan": plan,
                 "reason": route["reason"],
+                "edit_target": edit_target,
                 **({"overridden_from": original} if original != intent else {}),
             }
         )
-        final = {"type": "final", "intent": intent, "problems": []}
+        final = {
+            "type": "final",
+            "intent": intent,
+            "edit_target": edit_target,
+            "problems": [],
+        }
         if clean.get("stop_after") == "route":
             await emit({**final, "plan": plan, "reason": route["reason"]})
             return
@@ -691,7 +753,9 @@ async def run_agent(data, engine):
 
             return await step("checker", operation, section)
 
-        if intent in REPLIES:
+        if intent == "edit_memo" and edit_target == "document_facts":
+            final["answer"] = REPLIES["document_facts"]
+        elif intent in REPLIES:
             final["answer"] = REPLIES[intent]
         elif intent == "knowledge":
             final["answer"] = await step(
@@ -722,10 +786,12 @@ async def run_agent(data, engine):
 
             async def write(section):
                 section_id = section["id"]
-                subset = {
-                    "currency": statements[0].currency,
-                    **{key: analysis[key] for key in section["analysis_keys"]},
-                }
+                subset = writer_subset(
+                    {
+                        "currency": statements[0].currency,
+                        **{key: analysis[key] for key in section["analysis_keys"]},
+                    }
+                )
                 previous = memo.get(section_id) if intent == "edit_memo" else None
                 problems = [clean["message"]] if intent == "edit_memo" else None
                 max_words = check_max_words = WORD_LIMITS[plan["length"]]
@@ -770,6 +836,16 @@ async def run_agent(data, engine):
                     )
                     problems = await check(text, subset, section_id, **kwargs)
                 text = canonical_heading(text, section["heading"])
+                if previous is not None and edit_not_applied(
+                    previous, text, clean["message"]
+                ):
+                    problems.append(
+                        {
+                            "kind": "edit_not_applied",
+                            "section": section_id,
+                            "detail": "The requested change was not made to this section.",
+                        }
+                    )
                 memo[section_id] = text
                 await emit(
                     {

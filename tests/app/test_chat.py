@@ -120,10 +120,10 @@ def test_payload_cap_history_and_memo(client, monkeypatch):
     )
     events = parse(client.post(f"/api/sessions/{s}/chat", json={"message": "Write it"}))
     assert events[0]["type"] == "turn"
-    assert events[1]["type"] == "notice"
+    assert not any(e["type"] == "notice" for e in events)
     assert [d["page_id"] for d in inputs[0]["documents"]] == ["p1"]
     assert [d["page_id"] for d in inputs[0]["new_pages"]] == [
-        f"p{i}" for i in range(2, 9)
+        f"p{i}" for i in range(2, 10)
     ]
     assert session["chat"]["history"][0] == {"role": "user", "text": "Write it"}
     assert len(session["chat"]["history"][1]["text"]) == 4000
@@ -503,3 +503,37 @@ async def test_background_batches_progress_and_cancel(client, monkeypatch):
     assert session["pages"]["p1"]["error"] == "Cancelled"
     assert session["pages"]["p1"]["phase"] == "error"
     assert session["chat"]["idle"].is_set()
+
+
+def test_chat_includes_eleven_cached_documents(client, monkeypatch):
+    s, session = setup(client, 11)
+    for item in session["pages"].values():
+        item["document"] = document()
+    inputs = []
+    fake(monkeypatch, [{"type": "final", "intent": "memo", "problems": []}], inputs)
+    events = parse(
+        client.post(f"/api/sessions/{s}/chat", json={"message": "Write a memo"})
+    )
+    assert len(inputs[0]["documents"]) == 11
+    assert inputs[0]["new_pages"] == []
+    assert not any(e["type"] == "notice" for e in events)
+    assert len(json.dumps(inputs[0]).encode()) < chat.MAX_BODY_BYTES
+
+
+def test_fact_refusal_preserves_cached_memo(client, monkeypatch):
+    s, session = setup(client)
+    previous = {"summary": "Original memo"}
+    chat.state(session)["last_memo"] = previous.copy()
+    fake(
+        monkeypatch,
+        [
+            {
+                "type": "final",
+                "intent": "edit_memo",
+                "answer": "I can't change that",
+                "problems": [],
+            }
+        ],
+    )
+    client.post(f"/api/sessions/{s}/chat", json={"message": "Rename the borrower"})
+    assert session["chat"]["last_memo"] == previous

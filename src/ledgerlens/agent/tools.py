@@ -90,7 +90,7 @@ def monthly_totals(ctx):
                 {
                     **{key: bucket[key] for key in ("inflow", "outflow", "net")},
                     "citations_count": len(bucket["citations"]),
-                    "cites": [_cite(c) for c in bucket["citations"]],
+                    "cites": [_cite(c) for c in bucket["citations"][:3]],
                 }
             )
             for month, bucket in analyze(ctx.statements, ctx.page_ids)[
@@ -139,6 +139,7 @@ FINDING_TYPES = (
     "large_cash_deposit",
     "customer_concentration",
     "unreconciled_page",
+    "balance_gap",
 )
 
 
@@ -149,14 +150,17 @@ def list_findings(ctx):
             "index": index,
             "type": finding["type"],
             **({"amount": finding["amount"]} if "amount" in finding else {}),
-            "cites": [_cite(c) for c in finding["citations"] if c["row_index"] >= 0],
+            "cites": [
+                _cite(c) for c in finding["citations"][:3] if c["row_index"] >= 0
+            ],
         }
         for index, finding in enumerate(detect_anomalies(ctx.statements, ctx.page_ids))
     ]
     return _safe(
         {
             "count": len(findings),
-            "findings": findings,
+            "findings": findings[:50],
+            "truncated": len(findings) > 50,
             "counts_by_type": {
                 kind: sum(f["type"] == kind for f in findings) for kind in FINDING_TYPES
             },
@@ -171,7 +175,9 @@ def flag_detail(ctx, index):
         return {"error": "Finding index is out of range"}
     finding = {
         **findings[index],
-        "citations": [c for c in findings[index]["citations"] if c["row_index"] >= 0],
+        "citations": [
+            c for c in findings[index]["citations"][:3] if c["row_index"] >= 0
+        ],
     }
     pages = {
         page_id: {"document": statement.model_dump(mode="json")}
@@ -181,7 +187,9 @@ def flag_detail(ctx, index):
         {
             **finding,
             "description": describe_finding(finding, pages, ctx.currency),
-            "cites": [_cite(c) for c in finding["citations"] if c["row_index"] >= 0],
+            "cites": [
+                _cite(c) for c in finding["citations"][:3] if c["row_index"] >= 0
+            ],
         }
     )
 

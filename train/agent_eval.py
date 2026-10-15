@@ -261,7 +261,7 @@ def build(suite, out, limit=None):
                 documents=docs if c.get("with_documents", True) else [],
                 stop_after="route",
             )
-            if c["expected"] == "edit_memo":
+            if c["expected"] in ("edit_memo", "capabilities"):
                 c["payload"]["last_memo"] = {
                     s["id"]: s["heading"] + "\nReview the supplied evidence."
                     for s in SECTIONS
@@ -590,6 +590,10 @@ def score(suite, out):
         for c, r in rows:
             got = final(r).get("intent")
             ok = got == c["expected"]
+            if "edit_target" in c:
+                target_ok = final(r).get("edit_target") == c["edit_target"]
+                groups["edit_target"].append(target_ok)
+                ok = ok and target_ok
             groups["overall"].append(ok)
             groups["lang:" + c["lang"]].append(ok)
             groups["intent:" + c["expected"]].append(ok)
@@ -601,11 +605,14 @@ def score(suite, out):
                         message=c["message"],
                         expected=c["expected"],
                         got=got,
+                        expected_edit_target=c.get("edit_target"),
+                        got_edit_target=final(r).get("edit_target"),
                         injection=c.get("injection", False),
                     )
                 )
         report.update(
             accuracy=ratio(groups["overall"]),
+            edit_target_accuracy=ratio(groups["edit_target"]),
             per_language={
                 k[5:]: ratio(v) for k, v in groups.items() if k.startswith("lang:")
             },

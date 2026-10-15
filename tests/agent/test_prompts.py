@@ -43,7 +43,7 @@ def test_schemas():
         check_schema(schema)
     assert next(iter(ROUTER_SCHEMA["properties"])) == "reason"
     assert ROUTER_SCHEMA["properties"]["reason"]["maxLength"] == 200
-    assert len(ROUTER_SCHEMA["properties"]["intent"]["enum"]) == 5
+    assert len(ROUTER_SCHEMA["properties"]["intent"]["enum"]) == 6
     assert TRIAGE_SCHEMA["properties"]["readable"]["enum"] == ["yes", "partly", "no"]
 
 
@@ -87,7 +87,17 @@ def test_systems_and_sections():
         "questions",
     ]
     assert all(s["analysis_keys"] and s["instruction"] for s in SECTIONS)
-    assert set(REPLIES) == {"needs_documents", "off_topic"}
+    assert set(REPLIES) == {
+        "needs_documents",
+        "off_topic",
+        "capabilities",
+        "document_facts",
+    }
+    assert "edit_target" in ROUTER_SCHEMA["required"]
+    assert ROUTER_SCHEMA["properties"]["edit_target"]["enum"] == [
+        "text",
+        "document_facts",
+    ]
 
 
 def test_router_assessments_and_writer_figures():

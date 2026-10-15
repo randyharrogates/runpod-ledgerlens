@@ -40,6 +40,12 @@ def describe_finding(finding, pages, currency):
     if kind == "large_cash_deposit":
         ratio = Decimal(finding["amount"]) / Decimal(finding["median_inflow"])
         return f"Large cash deposit · {amount(finding['amount'], currency)} · {when(row)} · {row['description']} · {ratio:.1f}× the median credit"
+    if kind == "balance_gap":
+        return (
+            f"{finding['previous_page_id']} closes at {amount(finding['previous_closing_balance'], currency)} "
+            f"but {finding['page_id']} opens at {amount(finding['opening_balance'], currency)}; "
+            "pages missing, out of order, or misread"
+        )
     if kind == "unreconciled_page":
         return f"Unreconciled page · printed closing balance off by {amount(abs(Decimal(finding['difference'])), currency)}"
     if kind == "customer_concentration":

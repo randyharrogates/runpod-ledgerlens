@@ -282,6 +282,7 @@ def test_list_findings_and_largest_row(ctx):
             "large_cash_deposit",
             "customer_concentration",
             "unreconciled_page",
+            "balance_gap",
         ],
         0,
     )
