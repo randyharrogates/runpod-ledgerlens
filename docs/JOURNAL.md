@@ -189,8 +189,27 @@ small team of agents does the work on one Runpod Serverless GPU, quickly.
 - **What we decided:** every failure has a cheap fix in code or prompts, so we fix those first
   and test again before training anything new.
 
+## Step 15: Two rounds of fixes, tested again each time
+- **What we did:** fixed what the tests found, released, and ran the same tests again, twice.
+  Results after the second round: the router picks the right job 98% of the time (target 95%),
+  data questions are all right (80 of 80; target 90%), and "make it shorter" works in 23 of 30
+  edits instead of 5.
+- **The fixes, all in code and prompts:** two new data tools (list the red flags with a count
+  per type; sort payments by size), wording in the router prompt, and a length target for edits
+  that code checks.
+- **The name problem, and why placeholders:** on businesses with Chinese names, the model kept
+  writing a famous brand name instead of the name the tool gave it. Telling it to copy exactly
+  didn't work, and asking it to fix its answer made it print the error list. So now the model
+  never sees those names: it sees NAME_1, NAME_2, and code puts the real names back afterwards.
+  Payer questions went from 5 of 10 right to 10 of 10.
+- **A lesson about fixes:** the first router fix made memo requests work but broke two other
+  kinds of request, so the total barely moved. Only running the full set again showed it.
+- **What is left:** 4 of 30 memos still contain an invented threshold such as "exceeds 70%". The
+  checker marks it on screen. Whether that is worth training a writer adapter (about $3–5) is
+  Randy's call.
+
 ## Still to do
 - Release the worker fixes (sharp JPEG pages, heading check), then re-record the memo demo.
-- Fix what the tests found, release, and run the tests again.
+- Decide on the writer adapter (4 of 30 memos keep an invented threshold).
 - Train a memo-writing adapter and a better reader only if the tests show they're needed (ask
   before spending).

@@ -848,3 +848,11 @@ Released c695f7c (Randy ran release-worker.sh, 546 passed). Four idle workers st
 - Writer prompt: cite real page ids, never `pN` or a range. Router: translating or summarising an existing memo is edit_memo; explaining a term in any language is knowledge.
 - Scorer: "no returned cheques" counts for an expected 0. Rescoring run 2 with it: E4 80.0% → 86.3% (flags 10% → 60%).
 - 560 tests pass. Needs a release, then run 3.
+
+### 2026-10-15 10:50 SGT: Agent evaluations, third run (image 782e297)
+Randy released 782e297. Image live 10:40; workers cycled; E2, E4, E5 re-run 10:41–10:50, 0 errors. Balance $195.92 → $195.78.
+- **E2 router 97.8%** (target 95% met): en 95.6%, id 100%, ms 97.3%, zh 100%. Misses: "Draft the questions for the applicant" → ask_data; "Translate hello into French" → memo; "Bulan manakah aliran tunai bersih terendah?" → memo; the "approve this loan" label case → off_topic.
+- **E4 data questions 100%** (80/80; target 90% met): payer 50% → 100% (name placeholders), flags 100% (counts by type), largest payment 100%. Off-limits questions: 15/15 answers contain no number in all three runs (checked by script); 7 say the documents don't hold it, 8 get the fixed off-topic reply (the router now sends "director's credit score" and "revenue forecast" to off_topic), which the scorer counts as a miss.
+- **E5:** all sections and valid citations 30/30; memos with a flagged figure left 4/30 (invented thresholds "70%", "10%", "5%", "60%"); shorter edits 23/30 (the misses are 1–9 words over the 80% limit); other sections unchanged 30/30; median memo 15.1 s.
+- Total for the three evaluation runs plus E3: about $0.6. REPORT gains "Agent evaluations (E2–E5)".
+- Decision left to Randy: whether 4/30 invented thresholds justify the memo adapter (estimated $3–5).
