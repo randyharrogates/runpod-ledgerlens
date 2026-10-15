@@ -856,3 +856,8 @@ Randy released 782e297. Image live 10:40; workers cycled; E2, E4, E5 re-run 10:4
 - **E5:** all sections and valid citations 30/30; memos with a flagged figure left 4/30 (invented thresholds "70%", "10%", "5%", "60%"); shorter edits 23/30 (the misses are 1–9 words over the 80% limit); other sections unchanged 30/30; median memo 15.1 s.
 - Total for the three evaluation runs plus E3: about $0.6. REPORT gains "Agent evaluations (E2–E5)".
 - Decision left to Randy: whether 4/30 invented thresholds justify the memo adapter (estimated $3–5).
+
+### 2026-10-15 11:05 SGT: Demo re-recording found three memo faults
+- Re-recorded all demo scenarios on image 782e297 (warm): read 6 pages 44.6 s, memo 12.1 s (0 problems), largest payer 6.5 s, lowest month 5.2 s, edit 11.7 s (flagged: 54 words over a 50-word limit), general answer 5.3 s, fixed replies 3.7–3.8 s.
+- Reading the memo showed: (1) the Questions section printed the payer share as `0.2006164405517859156369306600`: the analysis passed the raw 28-digit Decimal, and the checker allows any figure in the analysis; (2) the questions asked for figures the memo already gives ("What is the amount of the returned cheque?"); (3) a heading kept its trailing full stop.
+- Fixes: the agent rounds the share to 4 places before the writer sees it; the Questions instruction asks the applicant to explain each concern (cause, counterparty, supporting documents) and not to ask for given figures; code rewrites a heading that differs only in punctuation or case to the exact heading. 561 tests pass. Needs a release, then re-record.

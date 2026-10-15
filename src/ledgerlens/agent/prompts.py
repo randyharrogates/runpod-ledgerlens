@@ -36,7 +36,7 @@ SECTIONS = [
     {
         "id": "questions",
         "heading": "Questions for the applicant",
-        "instruction": "Ask concise questions that resolve the supplied credit concerns.",
+        "instruction": "Ask the applicant to explain each supplied credit concern: its cause, the counterparty and what documents support it. Do not ask for figures the analysis already gives.",
         "analysis_keys": ["findings", "reconciliation", "top_payer_concentration"],
     },
 ]
