@@ -55,6 +55,8 @@ def state(session):
     if "chat" not in session:
         session["chat"] = {
             "triage": {},
+            "read_tasks": {},
+            "read_slots": asyncio.Semaphore(2),
             "reading": set(),
             "history": [],
             "last_memo": {},
@@ -291,6 +293,18 @@ async def offline_chat(pages, message):
         yield chunk
 
 
+ACTIVE_PHASES = {"queued", "submitted", "starting", "triage", "reading"}
+
+
+def phase(session, ids, value, job_id=None):
+    for p in ids:
+        item = session["pages"][p]
+        if item.get("phase") != value:
+            item.update(phase=value, phase_since=time.time())
+        if job_id is not None:
+            item["job_id"] = job_id
+
+
 def update_page(session, chunk):
     p = chunk.get("page_id")
     if p not in session["pages"]:
@@ -300,6 +314,7 @@ def update_page(session, chunk):
         state(session)["triage"][p] = chunk
         if not chunk.get("accepted"):
             item.update(status="rejected", document=None)
+            phase(session, [p], "rejected")
     elif chunk["type"] == "rows":
         if chunk.get("valid") and chunk.get("document"):
             item.update(
@@ -308,6 +323,7 @@ def update_page(session, chunk):
                 direction_fixes=chunk.get("balance_fixes", []),
             )
             item.pop("error", None)
+            phase(session, [p], "done")
         else:
             item.update(
                 status="error",
@@ -315,13 +331,16 @@ def update_page(session, chunk):
                 error=str(chunk.get("validation_error", "Could not read page"))[:300],
             )
 
+            phase(session, [p], "error")
 
-def release(session, ids, reason="Reading stopped"):
+
+def release(session, ids, reason="The GPU job ended before this page was read"):
     chat = state(session)
     chat["reading"].difference_update(ids)
     for p in ids:
         if session["pages"][p]["status"] == "reading":
             session["pages"][p].update(status="error", error=reason[:300])
+            phase(session, [p], "error")
     if not chat["reading"]:
         chat["idle"].set()
 
@@ -332,7 +351,9 @@ def reserve(session, ids):
     if ids:
         chat["idle"].clear()
     for p in ids:
-        session["pages"][p]["status"] = "reading"
+        session["pages"][p].update(status="reading", job_id=None)
+        session["pages"][p].pop("error", None)
+        phase(session, [p], "queued")
 
 
 def bounded(payload):
@@ -397,6 +418,7 @@ async def stream(
                 if kind == "job":
                     job_id = chunk.get("job_id")
                     fields["job_id"] = job_id
+                    phase(session, ids, "submitted", job_id)
                     logs.LOG.info("runpod job submitted", extra=fields)
                     yield main.event("job", {"job_id": job_id})
                     if (
@@ -416,6 +438,28 @@ async def stream(
                             )
                         )
                     continue
+                if kind in ("log", "status"):
+                    if kind == "log" or chunk.get("status") == "IN_PROGRESS":
+                        phase(
+                            session,
+                            [
+                                p
+                                for p in ids
+                                if session["pages"][p].get("phase") == "submitted"
+                            ],
+                            "starting",
+                        )
+                if kind == "step" and chunk.get("name") in ("triage", "reader"):
+                    p = chunk.get("page_id")
+                    if (
+                        p in session["pages"]
+                        and session["pages"][p].get("phase") in ACTIVE_PHASES
+                    ):
+                        phase(
+                            session,
+                            [p],
+                            "triage" if chunk["name"] == "triage" else "reading",
+                        )
                 if kind == "log":
                     for entry in chunk.get("entries", []):
                         if not isinstance(entry, dict):
@@ -495,7 +539,11 @@ async def stream(
             yield main.event("metrics", measured)
     except Exception as exc:
         failed = True
-        error = main.clean(str(exc))[:300]
+        error = (
+            "Timed out after 15 min"
+            if isinstance(exc, TimeoutError)
+            else "The GPU job failed: " + main.clean(str(exc))
+        )[:300]
         logs.LOG.error(error, extra=fields)
         yield main.event("error", {"message": error})
     finally:
@@ -528,53 +576,103 @@ async def stream(
         else:
             logs.LOG.warning(f"{label} stopped before it finished", extra=fields)
         # Pages left unread show the worker's own reason, not a generic one.
-        release(session, ids, error or "Reading stopped")
+        release(session, ids, error or "The GPU job ended before this page was read")
+
+
+async def run_read(session, ids, s):
+    endpoint, key, live = connection()
+
+    async def batch(batch_ids):
+        try:
+            async with state(session)["read_slots"]:
+                try:
+                    payload = bounded(
+                        {
+                            "task": "read",
+                            "pages": await run_in_threadpool(
+                                images, session["pages"], batch_ids
+                            )
+                            if live
+                            else [],
+                        }
+                    )
+                except Exception:
+                    release(session, batch_ids, "The page image could not be decoded")
+                    return
+                async with asyncio.timeout(900):
+                    async with aclosing(
+                        stream(
+                            session,
+                            payload,
+                            "runpod" if live else "recorded",
+                            endpoint,
+                            key,
+                            live,
+                            batch_ids,
+                            session_id=s,
+                        )
+                    ) as events:
+                        async for _ in events:
+                            pass
+        except asyncio.CancelledError:
+            for p in batch_ids:
+                if session["pages"][p].get("phase") == "error":
+                    session["pages"][p]["error"] = "Cancelled"
+            release(session, batch_ids, "Cancelled")
+            raise
+        except TimeoutError:
+            for p in batch_ids:
+                if session["pages"][p].get("phase") == "error":
+                    session["pages"][p]["error"] = "Timed out after 15 min"
+            release(session, batch_ids, "Timed out after 15 min")
+        except Exception as exc:
+            release(
+                session, batch_ids, "The GPU job failed: " + backend().clean(str(exc))
+            )
+
+    tasks = [asyncio.create_task(batch(ids[i : i + 8])) for i in range(0, len(ids), 8)]
+    try:
+        await asyncio.gather(*tasks)
+    finally:
+        for task in tasks:
+            task.cancel()
+        await asyncio.gather(*tasks, return_exceptions=True)
 
 
 @router.post("/api/sessions/{s}/read")
 async def read(s: str, request: ReadRequest):
     session = backend().session(s)
-    chat = state(session)
+    current = state(session)
     pages = session["pages"]
     ids = request.page_ids
     if ids is None:
         ids = [
             p
             for p, item in pages.items()
-            if not item.get("document")
-            and item["status"] != "rejected"
-            and p not in chat["reading"]
+            if not item.get("document") and item["status"] != "rejected"
         ]
-    if len(ids) > 8:
-        raise HTTPException(400, "Read at most 8 pages at once")
     if any(p not in pages for p in ids):
         raise HTTPException(404, "Page not found")
-    ids = list(dict.fromkeys(p for p in ids if p not in chat["reading"]))
-    endpoint, key, live = connection()
+    ids = list(dict.fromkeys(p for p in ids if p not in current["reading"]))
     reserve(session, ids)
-    try:
-        payload = bounded(
-            {
-                "task": "read",
-                "pages": await run_in_threadpool(images, pages, ids) if live else [],
-            }
-        )
-    except BaseException:
-        release(session, ids)
-        raise
-    return StreamingResponse(
-        stream(
-            session,
-            payload,
-            "runpod" if live else "recorded",
-            endpoint,
-            key,
-            live,
-            ids,
-            session_id=s,
-        ),
-        media_type="text/event-stream",
-    )
+    read_id = secrets.token_hex(6)
+    task = asyncio.create_task(run_read(session, ids, s))
+    current["read_tasks"][read_id] = task
+    task.add_done_callback(lambda _: current["read_tasks"].pop(read_id, None))
+    return {"page_ids": ids, "read_id": read_id}
+
+
+@router.post("/api/sessions/{s}/read/cancel")
+async def cancel_read(s: str):
+    session = backend().session(s)
+    current = state(session)
+    tasks = list(current["read_tasks"].values())
+    ids = list(current["reading"])
+    for task in tasks:
+        task.cancel()
+    await asyncio.gather(*tasks, return_exceptions=True)
+    release(session, ids, "Cancelled")
+    return {"cancelled": ids}
 
 
 @router.post("/api/sessions/{s}/chat")
@@ -596,7 +694,7 @@ async def chat(s: str, request: ChatRequest):
                     "notice",
                     {"message": "Waiting for attached pages to finish reading."},
                 )
-                await asyncio.wait_for(current["idle"].wait(), 120)
+                await asyncio.wait_for(current["idle"].wait(), 960)
             pages = session["pages"]
             cached = sorted(
                 [

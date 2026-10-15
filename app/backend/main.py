@@ -26,6 +26,7 @@ from starlette.concurrency import run_in_threadpool
 from app.backend import logs
 from app.backend.chat import router as chat_router
 from app.backend.datasets import router as datasets_router
+from app.backend.gpu import router as gpu_router
 from app.backend.insights import router as insights_router
 from app.backend.training import router as training_router
 from app.backend.training import shutdown_runs
@@ -71,6 +72,7 @@ app.include_router(chat_router)
 app.include_router(insights_router)
 app.include_router(datasets_router)
 app.include_router(training_router)
+app.include_router(gpu_router)
 
 
 def config(model):

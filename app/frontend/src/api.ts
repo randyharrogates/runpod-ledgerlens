@@ -13,6 +13,9 @@ export type Page = {
   date_format?: string | null;
   thumbnail_url: string;
   status: string;
+  phase?: 'queued' | 'submitted' | 'starting' | 'triage' | 'reading' | 'done' | 'rejected' | 'error';
+  phase_since?: number;
+  job_id?: string | null;
   document: {
     doc_type: string;
     currency: string;
@@ -53,7 +56,15 @@ const json = (method: string, body: unknown) => ({
   body: JSON.stringify(body),
 });
 
+export type GpuStatus = {
+  available: boolean; reason?: string; endpoint_id?: string; name?: string;
+  workers_min?: number; workers_max?: number; workers?: Record<string, number>;
+  warm_until?: number | null; cost_per_hour_low?: number; cost_per_hour_high?: number;
+};
+
 export const api = {
+  gpu: () => request<GpuStatus>('/api/gpu'),
+  setGpu: (on: boolean, minutes = 30) => request<GpuStatus>('/api/gpu', json('POST', {on, minutes})),
   create: () => request<{
     session: string;
     upload_url_for_phone: string;
@@ -63,6 +74,8 @@ export const api = {
     pages: Page[];
     requests: Record<string, unknown>[];
   }>(`/api/sessions/${session}`),
+  read: (session: string, page_ids: string[]) => request<{page_ids: string[]; read_id: string}>(`/api/sessions/${session}/read`, json('POST', {page_ids})),
+  cancelRead: (session: string) => request(`/api/sessions/${session}/read/cancel`, {method: 'POST'}),
   sample: (session: string) => request(`/api/sessions/${session}/sample`, { method: 'POST' }),
   extract: (session: string, page: string, model: string, doc_type: string) => request<{
     document: Page['document'];
