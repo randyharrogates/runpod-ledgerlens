@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { modelState } from '../models';
-import { api, Citation } from '../api';
+import { api, Analysis, Citation } from '../api';
+import { CoverCard } from './CoverCard';
 
 export function Memo({ session, model, jump, status = {} }: {
   status?: Record<string, unknown>;
@@ -9,6 +10,7 @@ export function Memo({ session, model, jump, status = {} }: {
   jump: (citation: Citation) => void;
 }) {
   const [text, setText] = useState('');
+  const [analysis, setAnalysis] = useState<Analysis | null>(null);
   const [unverified, setUnverified] = useState<string[]>([]);
   const [busy, setBusy] = useState(false);
   const [cached, setCached] = useState(false);
@@ -26,6 +28,9 @@ export function Memo({ session, model, jump, status = {} }: {
   function generate() {
     stream.current?.close();
     setText('');
+    setAnalysis(null);
+    // The cover starts with the memo, not after it: the image and the prose are made in parallel.
+    void api.analysis(session).then(setAnalysis).catch(() => setAnalysis(null));
     setUnverified([]);
     setCached(false);
     setElapsed(0);
@@ -57,6 +62,11 @@ export function Memo({ session, model, jump, status = {} }: {
     <>
       {cached && <p className="cached">Cached demo · no live model call</p>}
       {busy && <p role="status">Writing · {elapsed}s elapsed{['asleep', 'waking up'].includes(modelState(status, model)) && <span> · Waiting for a GPU: the model was asleep. This can take a few minutes.</span>}</p>}
+      {(busy || text) && analysis && <CoverCard session={session} autoStart={true} title="Credit memo" subtitle="Cash-flow review" facts={[
+        ['Months covered', String(Object.keys(analysis.monthly).length)],
+        ['Net cash flow', `${analysis.currency} ${Object.values(analysis.monthly).reduce((sum, month) => sum + Number(month.net), 0).toLocaleString('en', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`],
+        ['Red flags', String(analysis.findings.length)],
+      ]} />}
       <article className="memo" data-tour="memo">
         {!text && <p className="memo-info">Generate a credit memo from the checked rows, cash flow and cited red flags.</p>}
       <button disabled={busy || !session} onClick={generate}>

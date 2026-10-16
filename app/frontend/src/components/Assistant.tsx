@@ -149,7 +149,7 @@ function useQueueSeconds(waiting: boolean) {
   return since === null ? 0 : Math.max(0, Math.floor((now - since) / 1000));
 }
 
-export function TurnView({turn, jump}: {turn: TurnState; jump: (citation: Citation) => void}) {
+export function TurnView({turn, jump, session}: {session?: string; turn: TurnState; jump: (citation: Citation) => void}) {
   const intent = turn.route?.intent || turn.final?.intent || (turn.error ? 'error' : undefined);
   const memo = !!turn.final?.memo || ((intent === 'memo' || intent === 'edit_memo') && !turn.final?.answer);
   const measured = turn.metrics;
@@ -175,7 +175,7 @@ export function TurnView({turn, jump}: {turn: TurnState; jump: (citation: Citati
     {queued && waited >= 20 && <small className="assistant-cold-note">No warm worker yet, so one is starting. That takes about 3–4 minutes; later turns take seconds. The GPU switch on the left keeps one ready.</small>}
     {intent && <div className="assistant-route"><strong className="assistant-intent-pill">{labels[intent] || 'General answer'}</strong>{turn.route?.reason && <small><MemoContent text={turn.route.reason} jump={jump} /></small>}</div>}
     {turn.notices.map((text, i) => <div key={i}><MemoContent text={text} jump={jump} /></div>)}
-    {memo ? <MemoReport report={turn.report} finished={finished} problems={turn.final?.problems?.length || Object.values(turn.cards).reduce((n,c)=>n+c.problems.length,0)} texts={sections.map(([id])=>turn.cards[id].text)}>{sections.map(([id, heading], index) => {
+    {memo ? <MemoReport session={session} report={turn.report} finished={finished} problems={turn.final?.problems?.length || Object.values(turn.cards).reduce((n,c)=>n+c.problems.length,0)} texts={sections.map(([id])=>turn.cards[id].text)}>{sections.map(([id, heading], index) => {
       const card = turn.cards[id];
       const unchanged = intent === 'edit_memo' && !card.changed;
       return <section key={id} className={unchanged ? 'report-section unchanged' : 'report-section'}>
@@ -324,7 +324,7 @@ export function Assistant({session, pages, refresh, status, jump}: {
         {turns.length === 0 && <article className="assistant-welcome"><h2>Hi — I'm the LedgerLens credit assistant.</h2><p>I turn your business documents into a cited credit memo and help you explore the figures.</p>{suggestionChips(true)}</article>}
         {turns.map((turn, i) => <div className="assistant-exchange" key={i}>
           <div className="user-bubble"><MemoContent text={turn.message} jump={jump} /></div>
-          <TurnView turn={reduceTurn(turn.events, turn.previous)} jump={jump} />
+          <TurnView session={session} turn={reduceTurn(turn.events, turn.previous)} jump={jump} />
           {reduceTurn(turn.events).error && <button className="assistant-retry secondary" disabled={streaming} onClick={() => void send(turn.message)}>Try again</button>}
         </div>)}
       </div>
