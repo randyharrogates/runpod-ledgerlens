@@ -141,7 +141,7 @@ export function MemoReport({
   const paper = <div className="report-paper">
     {session && r && <CoverCard session={session} autoStart={true} title={r.borrower} subtitle={`${date(r.period.start)} – ${date(r.period.end)}`} facts={[
       ['Money in', money(r.totals.inflow)], ['Net', money(r.totals.net)], ['Red flags', String(r.findings.length)],
-      ['Evidence', `${r.evidence.statements} statement pages, ${r.evidence.invoices} invoices`],
+      ['Evidence', `${r.evidence.statements} statement page${r.evidence.statements === 1 ? '' : 's'}, ${r.evidence.invoices} invoice${r.evidence.invoices === 1 ? '' : 's'}`],
     ]} />}
     <header className="report-header">
       <h2>Credit memo · Cash-flow review</h2>

@@ -124,9 +124,18 @@ def start_cover(s: str, request: CoverRequest):
     with main.LOCK:
         session = main.session(s)
         auto = request.prompt is None
-        info = cover_prompt(
-            [p["document"] for p in session["pages"].values() if p.get("document")]
-        )
+        documents = [
+            p["document"] for p in session["pages"].values() if p.get("document")
+        ]
+        if auto and not documents:
+            # Nothing read yet: a "general trading" picture would cost a GPU job and say
+            # nothing. Not stored, so the session stays idle and a later memo starts one.
+            return {
+                "status": "error",
+                "auto": True,
+                "error": "No pages read yet; showing figures only.",
+            }
+        info = cover_prompt(documents)
         try:
             prompt = info["prompt"] if auto else user_prompt(request.prompt)
         except ValueError as exc:

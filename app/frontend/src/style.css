@@ -1114,7 +1114,7 @@ button.secondary {background:transparent;color:var(--text);border:1px solid var(
 .cover-card { background: var(--tile); border: 1px solid var(--hairline); border-radius: 12px; overflow: hidden; margin-bottom: 24px; break-inside: avoid; }
 .cover-art { position: relative; min-height: 320px; background: #263b42; color: white; display: flex; flex-direction: column; justify-content: flex-end; }
 .cover-art img { display: block; width: 100%; aspect-ratio: 16 / 9; object-fit: cover; }
-.cover-overlay { padding: 24px; background: linear-gradient(transparent, rgba(0,0,0,.88)); }
+.cover-overlay { padding: 24px; background: linear-gradient(transparent, rgba(0,0,0,.72) 32%, rgba(0,0,0,.9)); text-shadow: 0 1px 3px rgba(0,0,0,.8); }
 .cover-with-image .cover-overlay { position: absolute; bottom: 0; left: 0; right: 0; }
 .cover-overlay h2 { margin: 0; color: white; }
 .cover-overlay p { margin: 8px 0; }

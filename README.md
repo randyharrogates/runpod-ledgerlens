@@ -2,7 +2,7 @@
 
 **Phone photos of messy small-business bank statements and invoices go in; checked transaction
 rows, a cash-flow analysis, cited red flags and a credit memo come out.** Open vision models
-(Qwen3-VL) run on **Runpod Serverless**, so a Southeast Asian lender can keep confidential documents
+(Qwen3-VL) run on **Runpod Serverless**, and FLUX.1-dev draws the memo's cover illustration, so a Southeast Asian lender can keep confidential documents
 off US-hosted APIs and pay a known price per page.
 
 The ML question behind it: *can a 4B model, LoRA fine-tuned on our own synthetic documents, match
@@ -15,14 +15,14 @@ an 8B model zero-shot on extraction quality (row F1), speed and cost per 1,000 p
 
 | A Serverless worker needs | Where it is |
 |---|---|
-| A `handler.py` for serverless requests | [`worker/handler.py`](worker/handler.py): starts vLLM once per worker, then serves `generate` (plain prompt to text), `extract` (page image to checked JSON), `memo` (streamed text), `read` (page triage and reading), `agent` (chat) and `health` |
-| A Docker image with the handler and the model | [`worker/Dockerfile`](worker/Dockerfile) loads weights from model cache / volume for the three live endpoints; [`worker/Dockerfile.baked`](worker/Dockerfile.baked) bakes weights into the image (not yet built) |
-| A deployed Serverless endpoint | 8B `szucrtrufff80a`, fine-tuned 4B `5078uudfkeaw2v`, base 4B `cuvgn5z2av09my` serves the credit assistant |
-| Accept an input, return a generated output | `{"input":{"task":"generate","prompt":"..."}}` returns generated text; a bare `prompt` goes to the chat agent on the agent endpoint. Document tasks return validated JSON rows and a streamed credit memo. [Call it with curl](#call-the-endpoint-with-curl) |
+| A `handler.py` for serverless requests | [`worker/handler.py`](worker/handler.py): starts vLLM once per worker, then serves `generate` (plain prompt to text), `extract` (page image to checked JSON), `memo` (streamed text), `read` (page triage and reading), `agent` (chat) and `health`. [`image_worker/handler.py`](image_worker/handler.py): loads FLUX.1-dev once per worker, then serves `image` (text prompt to JPEG/PNG) and `health` |
+| A Docker image with the handler and the model | [`worker/Dockerfile`](worker/Dockerfile) loads weights from model cache / volume for the three LLM endpoints; [`worker/Dockerfile.baked`](worker/Dockerfile.baked) bakes weights into the image (not yet built); [`image_worker/Dockerfile`](image_worker/Dockerfile) for FLUX, weights from the model cache |
+| A deployed Serverless endpoint | 8B `szucrtrufff80a`, fine-tuned 4B `5078uudfkeaw2v`, base 4B `cuvgn5z2av09my` serves the credit assistant, FLUX.1-dev `qj707h1pdzzpez` draws memo covers |
+| Accept an input, return a generated output | `{"input":{"task":"generate","prompt":"..."}}` returns generated text; a bare `prompt` goes to the chat agent on the agent endpoint; `{"input":{"prompt":"..."}}` on the FLUX endpoint returns a generated image. Document tasks return validated JSON rows and a streamed credit memo. [Call it with curl](#call-the-endpoint-with-curl) |
 | Show it working | The demo app (`app/`, with a 3-minute Presenter tour) calls the live endpoints |
 | Code, configuration and clear docs | This README, [`worker/README.md`](worker/README.md), [`docs/REPORT.md`](docs/REPORT.md), [`docs/BUILD_LOG.md`](docs/BUILD_LOG.md), [`docs/DECISIONS.md`](docs/DECISIONS.md) |
 
-**Two ways to ship the model.** The three live endpoints use `worker/Dockerfile` and load
+**Two ways to ship the model.** The three LLM endpoints use `worker/Dockerfile` and load
 weights from Runpod storage:
 
 - **8B:** Runpod's **model cache**. 16.3 GiB of weights load in 5.7 s with no download,
@@ -32,6 +32,9 @@ weights from Runpod storage:
 - **Agent, base 4B:** Runpod's **model cache** plus the trained reader as a **LoRA adapter**
   on the beta **global volume** `ledgerlens-global`. Workers can start in any data centre;
   the compile cache stays on container disk because global storage has no locking or atomic rename.
+- **FLUX.1-dev (image endpoint):** Runpod's **model cache** (gated model, so the endpoint carries
+  a Hugging Face token). The image is built by GitHub Actions and pulled from GHCR, because
+  Runpod's GitHub builder failed to start on 17 Oct (see the build log).
 
 `worker/Dockerfile.baked` downloads the pinned 8B weights during the build and sets
 `MODEL_PATH=/models/model` and `HF_HUB_OFFLINE=1`. It includes both the handler and model,
@@ -51,6 +54,10 @@ Health reports `model_source: "baked"`.
    (returned cheques, round trips, large cash deposits…). Every figure cites its page and row.
 4. **Write.** The model writes the memo prose from those computed numbers only, streamed over
    `/stream`. Citations in the memo jump back to the evidence row.
+5. **Cover.** FLUX.1-dev draws a cover illustration of the business (a text prompt in, an image
+   out). Code builds the prompt from a fixed template (industry from invoice keywords, country from
+   the currency), so no document text reaches the image model. The app draws the figures on top
+   and labels the picture as an illustration, not evidence.
 
 ### Credit assistant
 
@@ -74,6 +81,8 @@ flowchart LR
   epagent --- globalvol[("Global volume: reader adapter")]
   ep8 --- cache[("Runpod model cache: 8B weights")]
   epft --- vol[("Network volume EU-RO-1: merged 4B")]
+  app -- "/run + /status (cover prompt)" --> epimg["Serverless endpoint: FLUX.1-dev"]
+  epimg --- cacheimg[("Runpod model cache: FLUX.1-dev")]
   app --> rules["Python: balance check, cash flow, red flags, citations"]
   subgraph Pod["GPU Pod, training run"]
     gen["Synthetic generator + CORD v2"] --> sft["Unsloth LoRA SFT"] --> merged["Merged 16-bit model"]
@@ -91,6 +100,7 @@ flowchart LR
 | 8B weights | Runpod **model cache** (`Qwen/Qwen3-VL-8B-Instruct`, pinned commit) | 16.3 GiB loaded in 5.7 s; no download at cold start |
 | Fine-tuned 4B weights | **Network volume** (`MODEL_PATH`), same image and template | No rebuild or upload to swap models; pins the endpoint to EU-RO-1 |
 | Agent endpoint | `cuvgn5z2av09my`: base 4B model cache + reader LoRA on global volume `ledgerlens-global` | One engine for chat and reading; workers can start in any data centre |
+| Image endpoint | `qj707h1pdzzpez`: `image_worker/Dockerfile` (PyTorch 2.8 + diffusers), image from GHCR, FLUX.1-dev from model cache; 48 GB GPUs first (A40 / A6000), then 32 GB PRO with CPU offload; max 1 worker | FLUX.1-dev is ~34 GB in bf16, so 48 GB runs it fully on GPU |
 | Scaling | Active 0, max 2, idle 60 s, FlashBoot on, queue-delay scaling 4 s, timeout 600 s | Nothing bills while idle; one Active worker only for the demo hour |
 | GPUs | 32 GB class (RTX 5090 / RTX PRO 4500), CUDA ≥ 12.9; the 4B agent endpoint also allows 24 GB pools (it has run on RTX PRO 6000 Blackwell MIG 1g.24gb) | The 8B in bf16 fits 32 GB at 8,192 tokens; older drivers can't start the image |
 | Safety | Image size checked before decoding (decompression bombs); engine start failures fail jobs fast with the error instead of crash-looping paid workers | Both found or hardened during the build (see `docs/BUILD_LOG.md`) |
@@ -161,8 +171,8 @@ uv sync && uv run ruff check . && uv run ruff format --check . && uv run pytest 
 ```
 
 - **Demo app, offline** (cached sample results): see `app/README.md`; `DEMO_MODE=1`, port 8090.
-- **Demo app, live:** set `RUNPOD_ENDPOINT_8B`, `RUNPOD_ENDPOINT_FT` and
-  `RUNPOD_ENDPOINT_AGENT=cuvgn5z2av09my`; the key is read from
+- **Demo app, live:** set `RUNPOD_ENDPOINT_8B`, `RUNPOD_ENDPOINT_FT`,
+  `RUNPOD_ENDPOINT_AGENT=cuvgn5z2av09my` and `RUNPOD_ENDPOINT_IMAGE=qj707h1pdzzpez`; the key is read from
   `runpodctl`'s config, never from the browser.
 - **One page from the command line:**
   `uv run python worker/client.py extract --endpoint-id <id> --image page.png --doc-type statement`
@@ -214,6 +224,18 @@ curl -s -X POST "https://api.runpod.ai/v2/$EP/run" \
 curl -s "https://api.runpod.ai/v2/$EP/stream/<job id>" -H "Authorization: Bearer $RUNPOD_API_KEY"
 ```
 
+For an image, use the FLUX endpoint. The output is one object with the image as base64.
+
+```sh
+EP=qj707h1pdzzpez                  # FLUX.1-dev
+curl -s -X POST "https://api.runpod.ai/v2/$EP/run" \
+  -H "Authorization: Bearer $RUNPOD_API_KEY" -H "Content-Type: application/json" \
+  -d '{"input":{"prompt":"Editorial photograph of a small food wholesale business in Singapore: a tidy storeroom with sacks of rice. No people, no text.","width":1024,"height":576,"seed":7,"format":"jpeg"}}'
+# Poll /status until COMPLETED, then save the picture
+curl -s "https://api.runpod.ai/v2/$EP/status/<job id>" -H "Authorization: Bearer $RUNPOD_API_KEY" \
+  | python3 -c "import sys,json,base64; o=json.load(sys.stdin)['output']; open('cover.jpg','wb').write(base64.b64decode(o['image_base64'])); print(o['seed'], o['timing'])"
+```
+
 The memo task streams: send `{"input":{"task":"memo","analysis":{...}}}` to `/run`, then read
 `/stream/<job id>` for the text as it is written. `worker/client.py` does all of this for you.
 
@@ -247,6 +269,8 @@ uses keep their own licences:
 |---|---|---|
 | [Qwen3-VL-8B-Instruct](https://huggingface.co/Qwen/Qwen3-VL-8B-Instruct), [Qwen3-VL-4B-Instruct](https://huggingface.co/Qwen/Qwen3-VL-4B-Instruct) (Qwen team, Alibaba Cloud) | The served models; the 4B is the base of the fine-tune | Apache 2.0 |
 | [CORD v2](https://huggingface.co/datasets/naver-clova-ix/cord-v2) (NAVER Clova) | Train split in fine-tuning; test split as the held-out real-receipt set | [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/) |
+| [FLUX.1 [dev]](https://huggingface.co/black-forest-labs/FLUX.1-dev) (Black Forest Labs) | Memo cover illustrations on the image endpoint (weights pulled by Runpod's model cache, not stored here) | [FLUX.1 [dev] Non-Commercial License](https://huggingface.co/black-forest-labs/FLUX.1-dev/blob/main/LICENSE.md): the model is for non-commercial use; its generated outputs may be used for any purpose (§2(d)), with content filtering or human review and AI disclosure where required (§2(e)). A commercial deployment needs a BFL commercial licence or an Apache 2.0 model such as FLUX.1 [schnell] |
+| [Diffusers](https://github.com/huggingface/diffusers), [PyTorch](https://github.com/pytorch/pytorch) and its `pytorch/pytorch` image | FLUX inference in the image worker | Apache 2.0; BSD-3-Clause |
 | [vLLM](https://github.com/vllm-project/vllm) and its `vllm/vllm-openai` image | Inference in the worker and batch evaluation | Apache 2.0 |
 | [Runpod Python SDK](https://github.com/runpod/runpod-python) | The Serverless handler | MIT |
 | [Unsloth](https://github.com/unslothai/unsloth), [TRL](https://github.com/huggingface/trl), [Transformers](https://github.com/huggingface/transformers), [Datasets](https://github.com/huggingface/datasets) | LoRA fine-tuning on the Pod | Apache 2.0 |

@@ -33,4 +33,17 @@ curl -sS "https://api.runpod.ai/v2/$ENDPOINT_ID/status/$JOB_ID" \
 cat result.json | python3 -c "import json,sys,base64;o=json.load(sys.stdin)['output'];open('cover.png','wb').write(base64.b64decode(o['image_base64']))"
 ```
 
-Measured: see docs/BUILD_LOG.md
+Endpoint: `qj707h1pdzzpez`. The image is built by `.github/workflows/image-worker.yml` and
+published as `ghcr.io/randyharrogates/ledgerlens-flux:<commit>`.
+
+Measured on 17 Oct 2026 (1024×576, 28 steps, guidance 3.5, no CPU offload):
+
+| | NVIDIA A40 48 GB ($1.22/h) | RTX PRO 6000 Blackwell MIG 2g.48gb ($1.75/h) |
+|---|---|---|
+| Cold start, fresh worker (queue time) | | 123 s, model load 11.7 s of it |
+| Model load from Runpod's model cache | 14.4 s | 11.7 s |
+| One image | 16.9–18.7 s | 10.4 s |
+| Paused worker resumed by FlashBoot | 0.1–1.1 s queue | |
+| Cost per image, warm | ≈ $0.006 | ≈ $0.005 |
+
+Details: `docs/BUILD_LOG.md`.
