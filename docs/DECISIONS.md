@@ -165,6 +165,25 @@ we gave up. The full timeline, with times and costs, is in `BUILD_LOG.md`.
   595×841 sample scan from 15/18 exact rows (PNG) into 0/18. Upscaling gave 13/18, so we skipped it.
 - **Lesson:** test the full upload path. Direct tests of stored pages missed the app's image damage.
 
+### A generated cover image, kept out of the evidence
+
+- **Choice:** FLUX.1-dev on its own endpoint (`qj707h1pdzzpez`, `image_worker/`) draws one cover
+  illustration per memo. Code builds the prompt from a fixed template: industry from invoice and
+  statement keywords, country from the currency, and always "no people, no text, no logos, no
+  documents, no numbers". The app draws the real figures on top and labels the picture
+  as an illustration, not evidence.
+- **Why:** a text-to-image step makes the memo easier to recognise at a glance, but a generated
+  picture inside the evidence would read as a fabricated document. Keeping document text out of the
+  prompt also means an uploaded page cannot steer the image model.
+- **Alternatives:** images inside the memo sections (rejected: looks like evidence); charts drawn
+  by the model (rejected: numbers belong to code); FLUX.1 [schnell] (Apache 2.0, 4 steps; the
+  route for a commercial deployment, since FLUX.1 [dev] is non-commercial for the model itself).
+- **Own endpoint, own branch:** FLUX needs PyTorch + diffusers and a 48 GB GPU, not the vLLM image,
+  and it tracks `deploy-image` so the LLM endpoints never rebuild for it.
+- **Image built on GitHub Actions:** Runpod's GitHub builder failed twice on 17 Oct before reading
+  the Dockerfile (runc could not start buildkit). The workflow `.github/workflows/image-worker.yml`
+  builds the same Dockerfile and pushes it to GHCR; the endpoint's template points at that image.
+
 ## 8. Where it runs
 
 - **EU-RO-1 (Romania)** for training and the merged fine-tuned model's network volume. The

@@ -272,6 +272,7 @@ GPU_PRICE_PER_SEC = {
 IMAGE_GPU_PRICE_PER_SEC = {
     "L40": 1.75 / 3600,
     "6000 Ada": 1.75 / 3600,
+    "MIG 2g.48gb": 1.75 / 3600,  # RTX PRO 6000 Blackwell slice, in the 48 GB PRO tier
     "A40": 1.22 / 3600,
     "A6000": 1.22 / 3600,
 }

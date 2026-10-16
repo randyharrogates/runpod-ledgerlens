@@ -18,7 +18,15 @@ def setup(monkeypatch, tmp_path):
     monkeypatch.setattr(cover, "SAMPLE_PATH", tmp_path / "sample.jpg")
     client = TestClient(main.app)
     s = client.post("/api/sessions").json()["session"]
+    main.SESSIONS[s]["pages"]["p1"] = {"document": READ}
     return client, s, f"/api/sessions/{s}/cover"
+
+
+READ = {
+    "doc_type": "invoice",
+    "currency": "SGD",
+    "line_items": [{"description": "Sugar"}],
+}
 
 
 def picture(size=(8, 8)):
@@ -152,6 +160,20 @@ def test_failed_and_oversized(setup, monkeypatch, result):
     assert len(state["error"]) <= 300
 
 
+def test_no_read_pages_skips_the_gpu(setup, monkeypatch):
+    client, s, url = setup
+    calls = fake_http(monkeypatch, {"status": "COMPLETED"})
+    main.SESSIONS[s]["pages"].clear()
+    state = client.post(url, json={}).json()
+    assert state["status"] == "error"
+    assert state["error"] == "No pages read yet; showing figures only."
+    assert calls == []
+    assert client.get(url).json() == {"status": "idle"}
+    main.SESSIONS[s]["pages"]["p1"] = {"document": READ}
+    assert client.post(url, json={}).json()["status"] == "running"
+    assert len(calls) == 1
+
+
 def test_invalid_prompt(setup):
     client, _, url = setup
     assert client.post(url, json={"prompt": "  "}).status_code == 422
@@ -162,4 +184,6 @@ def test_image_gpu_prices_apply_only_to_the_image_endpoint():
 
     assert main.gpu_price("image", "NVIDIA L40S") == 1.75 / 3600
     assert main.gpu_price("image", "NVIDIA RTX A6000") == 1.22 / 3600
+    blackwell = "NVIDIA RTX PRO 6000 Blackwell Server Edition MIG 2g.48gb"
+    assert main.gpu_price("image", blackwell) == 1.75 / 3600
     assert main.gpu_price("agent", "NVIDIA L40S") == main.GPU_PRICE_PER_SEC["RTX 5090"]
