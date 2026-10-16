@@ -659,3 +659,31 @@ const old=view([{type:'final',intent:'memo',memo}]);assert(old.includes('Sound c
         ["node", "-e", script], cwd=FRONTEND, capture_output=True, text=True
     )
     assert result.returncode == 0, result.stderr
+
+
+def test_cover_card_states_and_report_position():
+    if not shutil.which("node") or not (FRONTEND / "node_modules/typescript").exists():
+        pytest.skip("Frontend node_modules and Node are required")
+    script = r"""
+const fs=require('fs'),assert=require('assert'),ts=require('typescript');
+require.extensions['.tsx']=require.extensions['.ts']=(m,f)=>m._compile(ts.transpileModule(fs.readFileSync(f,'utf8'),{compilerOptions:{target:ts.ScriptTarget.ES2022,esModuleInterop:true,module:ts.ModuleKind.CommonJS,jsx:ts.JsxEmit.ReactJSX}}).outputText,f);
+const React=require('react'),{renderToStaticMarkup:render}=require('react-dom/server');
+const {CoverView,coverLabel}=require('./src/components/CoverCard.tsx');
+const props={title:'Juniper Textiles',subtitle:'January 2026',facts:[['Net','SGD 1,000.00'],['Red flags','2']]};
+const view=state=>render(React.createElement(CoverView,{...props,state,elapsed:25}));
+const running=view({status:'running'});
+for(const text of ['role="status"','Painting the cover illustration · 0:25','The image GPU may be starting','Net','SGD 1,000.00'])assert(running.includes(text),text);
+const done=view({status:'done',image:'data:image/jpeg;base64,abc',industry:'textiles',country:'Malaysia',auto:true,basis:['batik','fabric'],metrics:{executionTime:2000,gpu:'RTX 3090',cost:0.001}});
+for(const text of ['<img','data:image/jpeg;base64,abc','AI illustration: textiles business in Malaysia',coverLabel,'Edit prompt','Red flags','Prompt built from: batik, fabric','Generated in 2.0 s on RTX 3090'])assert(done.includes(text),text);
+const error=view({status:'error',error:'Image unavailable'});assert(error.includes('Image unavailable'));assert(error.includes('SGD 1,000.00'));
+const {MemoReport}=require('./src/components/MemoReport.tsx');
+const report={borrower:'Juniper Textiles',bank:'Harbour Bank',account:'***123',currency:'SGD',period:{start:'2026-01-01',end:'2026-01-31'},prepared:'2026-02-01',audience:'Credit officer',evidence:{statements:1,invoices:2},totals:{inflow:'2000',outflow:'1000',net:'1000',months:1,full_months:1},balances:{average:{value:'1000'},minimum:{value:'100'}},monthly:[],findings:[],reconciliation:[]};
+const html=render(React.createElement(MemoReport,{session:'s1',report,finished:true,problems:0,texts:[]}));
+assert(html.indexOf('class="report-paper"')<html.indexOf('class="cover-card"'));
+assert(html.indexOf('class="cover-card"')<html.indexOf('class="report-header"'));
+assert(html.includes('1 statement pages, 2 invoices'));
+"""
+    result = subprocess.run(
+        ["node", "-e", script], cwd=FRONTEND, capture_output=True, text=True
+    )
+    assert result.returncode == 0, result.stderr

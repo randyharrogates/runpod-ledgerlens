@@ -65,7 +65,16 @@ export type GpuStatus = {
   warm_until?: number | null; cost_per_hour_low?: number; cost_per_hour_high?: number;
 };
 
+export type CoverState = {
+  status: 'idle' | 'running' | 'done' | 'error';
+  prompt?: string; auto?: boolean; industry?: string; country?: string; basis?: string[];
+  image?: string | null; seed?: number | null; error?: string | null; started?: number;
+  source?: string; metrics?: {executionTime?: number; gpu?: string; cost?: number} | null;
+};
+
 export const api = {
+  cover: (session: string) => request<CoverState>(`/api/sessions/${session}/cover`),
+  startCover: (session: string, body: {prompt?: string | null; seed?: number | null; force?: boolean}) => request<CoverState>(`/api/sessions/${session}/cover`, json('POST', body)),
   gpu: () => request<GpuStatus>('/api/gpu'),
   setGpu: (on: boolean, minutes = 30) => request<GpuStatus>('/api/gpu', json('POST', {on, minutes})),
   create: () => request<{

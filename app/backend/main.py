@@ -25,6 +25,7 @@ from starlette.concurrency import run_in_threadpool
 
 from app.backend import logs
 from app.backend.chat import router as chat_router
+from app.backend.cover import router as cover_router
 from app.backend.datasets import router as datasets_router
 from app.backend.gpu import router as gpu_router
 from app.backend.insights import router as insights_router
@@ -69,6 +70,7 @@ app = FastAPI(title="LedgerLens", lifespan=lifespan)
 logs.install()
 app.include_router(logs.router)
 app.include_router(chat_router)
+app.include_router(cover_router)
 app.include_router(insights_router)
 app.include_router(datasets_router)
 app.include_router(training_router)
@@ -266,13 +268,21 @@ GPU_PRICE_PER_SEC = {
     "RTX 4090": 1.10 / 3600,
     "RTX 3090": 0.69 / 3600,
 }
+# 48 GB tiers for the FLUX cover endpoint; kept apart so the chat GPU switch's price range is unchanged.
+IMAGE_GPU_PRICE_PER_SEC = {
+    "L40": 1.75 / 3600,
+    "6000 Ada": 1.75 / 3600,
+    "A40": 1.22 / 3600,
+    "A6000": 1.22 / 3600,
+}
 
 
 def gpu_price(model, gpu):
     """Dollars per second: env override, else the reported GPU's tier, else 32 GB PRO."""
     if override := os.getenv("GPU_PRICE_PER_SEC_" + model.upper()):
         return float(override)
-    for name, price in GPU_PRICE_PER_SEC.items():
+    table = GPU_PRICE_PER_SEC | (IMAGE_GPU_PRICE_PER_SEC if model == "image" else {})
+    for name, price in table.items():
         if gpu and name in gpu:
             return price
     return GPU_PRICE_PER_SEC["RTX 5090"]
@@ -694,7 +704,7 @@ def status():
         if time.monotonic() - STATUS["time"] < 3:
             return STATUS["value"]
         value = {}
-        for model in ("8b", "ft", "4b", "agent"):
+        for model in ("8b", "ft", "4b", "agent", "image"):
             endpoint, key = config(model)
             if not endpoint:
                 value[model] = {"offline": True}

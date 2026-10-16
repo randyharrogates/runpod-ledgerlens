@@ -1,6 +1,7 @@
 import { ReactNode, useCallback, useEffect, useRef, useState } from 'react';
 import { Citation, MemoReportData } from '../api';
 import { MemoContent } from './Memo';
+import { CoverCard } from './CoverCard';
 const flagLabel = (flag: {type: string; label: string}) =>
   flag.type === 'balance_gap' ? 'Balance gap between pages' : flag.label;
 export const reportFooter =
@@ -113,12 +114,14 @@ export function ReportDialog({
 }
 export function MemoReport({
   report: r,
+  session,
   finished,
   problems,
   children,
   texts
 }: {
   report?: MemoReportData;
+  session?: string;
   finished: boolean;
   problems: number;
   children: ReactNode;
@@ -136,6 +139,10 @@ export function MemoReport({
     year: 'numeric'
   });
   const paper = <div className="report-paper">
+    {session && r && <CoverCard session={session} autoStart={true} title={r.borrower} subtitle={`${date(r.period.start)} – ${date(r.period.end)}`} facts={[
+      ['Money in', money(r.totals.inflow)], ['Net', money(r.totals.net)], ['Red flags', String(r.findings.length)],
+      ['Evidence', `${r.evidence.statements} statement pages, ${r.evidence.invoices} invoices`],
+    ]} />}
     <header className="report-header">
       <h2>Credit memo · Cash-flow review</h2>
       <span className={`report-status ${problems ? 'report-orange' : 'report-good'}`}>

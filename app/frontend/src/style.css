@@ -1110,3 +1110,41 @@ button.secondary {background:transparent;color:var(--text);border:1px solid var(
 .gpu-close {float:right;padding:2px 8px}
 .gpu-actions {display:flex;gap:8px;flex-wrap:wrap}
 @media(max-width:700px) {.gpu-popover {left:12px;bottom:90px;width:calc(100vw - 24px)}}
+
+.cover-card { background: var(--tile); border: 1px solid var(--hairline); border-radius: 12px; overflow: hidden; margin-bottom: 24px; break-inside: avoid; }
+.cover-art { position: relative; min-height: 320px; background: #263b42; color: white; display: flex; flex-direction: column; justify-content: flex-end; }
+.cover-art img { display: block; width: 100%; aspect-ratio: 16 / 9; object-fit: cover; }
+.cover-overlay { padding: 24px; background: linear-gradient(transparent, rgba(0,0,0,.88)); }
+.cover-with-image .cover-overlay { position: absolute; bottom: 0; left: 0; right: 0; }
+.cover-overlay h2 { margin: 0; color: white; }
+.cover-overlay p { margin: 8px 0; }
+.cover-overlay dl { display: flex; flex-wrap: wrap; gap: 12px 28px; margin: 16px 0 0; }
+.cover-overlay dt { font-size: 12px; opacity: .85; }
+.cover-overlay dd { margin: 4px 0 0; font-weight: 700; }
+.cover-progress { padding: 20px; }
+.cover-progress small { display: block; margin-top: 8px; }
+.cover-caption { padding: 12px 16px; font-size: 12px; }
+.cover-caption p { margin: 4px 0 8px; }
+.cover-caption textarea { display: block; width: 100%; min-height: 100px; margin: 12px 0; box-sizing: border-box; }
+@media (max-width: 500px) {
+  .cover-overlay { padding: 16px; }
+  .cover-with-image { min-height: 0; }
+  .cover-overlay h2 { font-size: 18px; line-height: 1.2; }
+  .cover-overlay p { margin: 4px 0; font-size: 12px; }
+  .cover-overlay dt { font-size: 10px; }
+  .cover-overlay dd { font-size: 12px; margin-top: 2px; }
+  .cover-overlay dl { gap: 8px 18px; margin-top: 8px; }
+}
+@media print {
+  .print-control { display: none !important; }
+  .cover-card { print-color-adjust: exact; -webkit-print-color-adjust: exact; }
+  .cover-art img { display: block !important; }
+}
+@media print {
+  main > *:not(:has(.memo)):has(.cover-card),
+  main > .cover-card,
+  main > div:has(.memo) > *:not(.memo):has(.cover-card),
+  main > div:has(.memo) > .cover-card { display: block !important; }
+  .report-paper, .report-paper *, .cover-card, .cover-card * { visibility: visible; }
+  .cover-progress { display: none; }
+}
