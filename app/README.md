@@ -32,6 +32,8 @@ Environment variables:
 
 Phone and laptop need the same Wi-Fi and port 8090 reachable. iOS Safari converts camera photos to JPEG for file inputs. The server rejects HEIC files that arrive without conversion. Sessions are bearer capabilities in URLs, held only in memory; restarting clears them. This is a demo with no persistent storage or login. Do not use real confidential documents on an unprotected public connection.
 
+**GPU switch** (left rail, this computer only): keep one worker on the Assistant endpoint, or on every configured endpoint (readers, Assistant, FLUX), for 30 min to 2 hours; it turns itself off when the timer ends, also after an app restart. Every view uses one meaning per endpoint: *ready* only after a real `health` job answered "ready" (re-checked every 15 s), *starting* while minimum workers are on but not yet proven (a slow model load is not a fault until 10 min), *busy* when serving, *stopping* when a worker is still billed after minimum workers went to 0 (Runpod took 2–5 min), *waking*, *asleep*, or *problem*. The switch and the header refresh every 3 s and share one Runpod reading.
+
 Extraction failures fall back only for bundled sample pages. Cached ground truth is explicitly marked and carries no fabricated GPU cost. Uploaded pages remain retryable. Memo streaming polls Runpod /run and /stream incrementally, forwards worker deltas, and closes with usage/timing. The browser retains the session across refreshes, polls for phone uploads, and allows retry after connection failures. Memo retries start a fresh memo.
 
 ## Workspace pages and exports

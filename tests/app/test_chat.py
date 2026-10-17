@@ -10,7 +10,7 @@ import pytest
 from fastapi.testclient import TestClient
 from PIL import Image
 
-from app.backend import chat, main
+from app.backend import chat, gpu, main
 
 
 @pytest.fixture
@@ -257,7 +257,13 @@ def test_status_and_suggestions(client, monkeypatch):
     monkeypatch.setattr(
         main, "fetch_health", lambda endpoint, key: {"workers": {"idle": 1}}
     )
-    assert client.get("/api/status").json()["agent"] == {"workers": {"idle": 1}}
+    monkeypatch.setattr(gpu, "CACHE", {})
+    monkeypatch.setattr(gpu, "remote", lambda endpoint, key: {"workersMin": 0})
+    # Idle alone is not warm: Runpod counts scaled-down workers as idle.
+    assert client.get("/api/status").json()["agent"] == {
+        "workers": {"idle": 1},
+        "gpu_state": "asleep",
+    }
     prompts = client.get("/api/chat/suggestions").json()
     assert prompts[-1]["needs_documents"] is False
     assert prompts[3]["needs_memo"] is True

@@ -15,7 +15,11 @@ from app.backend import gpu, main
 def control(monkeypatch, tmp_path):
     monkeypatch.setenv("LEDGERLENS_GPU_STATE", str(tmp_path / "warm.json"))
     monkeypatch.setenv("DEMO_MODE", "0")
-    monkeypatch.setattr(main, "config", lambda model: ("assistant", "private-test-key"))
+    monkeypatch.setattr(
+        main,
+        "config",
+        lambda model: ("assistant" if model == "agent" else None, "private-test-key"),
+    )
     state = {"minimum": 0, "patches": [], "apply": True, "status": 200}
 
     def respond(request):
@@ -78,7 +82,7 @@ def test_invalid_and_unapplied(control, minutes):
         control["apply"] = False
         response = client.post("/api/gpu", json={"on": True})
         assert response.status_code == 502
-        assert response.json()["detail"] == "Runpod did not apply the change"
+        assert "Runpod did not apply the change" in response.json()["detail"]
 
 
 def test_error_redaction(control, caplog):
@@ -214,11 +218,16 @@ def test_probe_queue_timeout(monkeypatch):
 
         async with httpx.AsyncClient(transport=httpx.MockTransport(respond)) as client:
             await gpu.probe_cycle("timeout", "secret", client)
-        assert "/v2/timeout/cancel/queued" in calls
-        assert not gpu.readiness("timeout")["ready"]
-        assert (
-            gpu.ready_fields("timeout")["ready_error"] == "Worker not taking jobs yet"
-        )
+            assert "/v2/timeout/cancel/queued" in calls
+            assert not gpu.readiness("timeout")["ready"]
+            # Still loading inside the grace period: starting, not a problem.
+            assert gpu.ready_fields("timeout")["ready_error"] is None
+            gpu.readiness("timeout")["unready_since"] = time.time() - gpu.STARTUP_GRACE
+            await gpu.probe_cycle("timeout", "secret", client)
+            assert (
+                gpu.ready_fields("timeout")["ready_error"]
+                == "Worker not taking jobs yet"
+            )
 
     asyncio.run(run())
 
@@ -244,3 +253,194 @@ def test_one_prober_and_stop(monkeypatch):
         assert not gpu.readiness("single")["ready"]
 
     asyncio.run(run())
+
+
+@pytest.fixture
+def fleet(control, monkeypatch):
+    ids = {
+        "agent": "assistant",
+        "4b": "assistant",
+        "ft": "trained",
+        "8b": "big",
+        "image": "image",
+    }
+    monkeypatch.setattr(main, "config", lambda model: (ids[model], "private-test-key"))
+    values = {item: 0 for item in ids.values()}
+    calls = []
+    failures = set()
+
+    def respond(request):
+        endpoint = request.url.path.split("/")[-1]
+        if request.url.host == "api.runpod.ai":
+            return httpx.Response(200, json={"workers": {"idle": 1}})
+        if endpoint in failures:
+            return httpx.Response(503, text="private-test-key unavailable")
+        if request.method == "PATCH":
+            minimum = json.loads(request.content)["workersMin"]
+            calls.append((endpoint, minimum))
+            values[endpoint] = minimum
+        return httpx.Response(
+            200, json={"workersMin": values[endpoint], "workersMax": 2}
+        )
+
+    client = httpx.Client(transport=httpx.MockTransport(respond))
+    monkeypatch.setattr(gpu.httpx, "get", client.get)
+    monkeypatch.setattr(gpu.httpx, "patch", client.patch)
+    yield values, calls, failures
+    client.close()
+
+
+def test_arm_all_dedup_and_off_external(fleet):
+    values, calls, _ = fleet
+    with TestClient(main.app) as client:
+        result = client.post("/api/gpu", json={"on": True, "scope": "all"})
+        assert result.status_code == 200
+        assert calls == [(item, 1) for item in ("assistant", "trained", "big", "image")]
+        assert result.json()["endpoints"][0]["keys"] == ["agent", "4b"]
+        assert result.json()["scope"] == "all"
+        client.post("/api/gpu", json={"on": False})
+        client.post("/api/gpu", json={"on": True})
+        values["image"] = 1
+        assert client.post("/api/gpu", json={"on": False}).status_code == 200
+        assert not any(values.values())
+
+
+def test_fleet_partial_failure(fleet):
+    _, _, failures = fleet
+    failures.add("image")
+    with TestClient(main.app) as client:
+        result = client.get("/api/gpu")
+        assert result.status_code == 200
+        assert result.json()["endpoints"][-1]["state"] == "problem"
+        result = client.post("/api/gpu", json={"on": True, "scope": "all"})
+        assert result.status_code == 502
+        assert "image" in result.text
+        assert "private-test-key" not in result.text
+        assert "image" in json.loads(gpu.state_path().read_text())["endpoint_ids"]
+
+
+@pytest.mark.parametrize("scope", ["bad", None, 3, [], {}])
+def test_scope_validation(control, scope):
+    with TestClient(main.app) as client:
+        assert (
+            client.post("/api/gpu", json={"on": True, "scope": scope}).status_code
+            == 400
+        )
+
+
+@pytest.mark.parametrize(
+    ("value", "expected"),
+    [
+        ({"ready_error": "failed", "ready": True}, "problem"),
+        ({"ready": True}, "ready"),
+        ({"workers_min": 1}, "starting"),
+        ({"workers": {"running": 1}, "jobs": {"inProgress": 1}}, "busy"),
+        ({"workers": {"running": 1}}, "stopping"),
+        ({"workers": {"initializing": 1}}, "waking"),
+        ({"jobs": {"inQueue": 1}}, "waking"),
+        ({"workers": {"idle": 4}}, "asleep"),
+        ({}, "asleep"),
+    ],
+)
+def test_state_mapping(value, expected):
+    assert gpu.endpoint_state(value) == expected
+
+
+def test_ready_disappears(control):
+    gpu.CACHE = {"gone": (time.monotonic(), {"workers_min": 1})}
+    gpu.readiness("gone")["ready"] = True
+    assert gpu.cached_endpoint("gone", "secret", {"workers": {}})["state"] == "starting"
+
+
+def test_status_gpu_state(fleet):
+    main.STATUS["time"] = 0
+    with TestClient(main.app) as client:
+        value = client.get("/api/status").json()
+        assert value["agent"]["gpu_state"] == "asleep"
+        assert value["4b"]["gpu_state"] == value["agent"]["gpu_state"]
+
+
+def test_auto_off_retries(fleet, monkeypatch):
+    values, calls, failures = fleet
+    values.update({item: 1 for item in values})
+    failures.add("image")
+    sleeps = []
+
+    async def sleep(seconds):
+        sleeps.append(seconds)
+        if seconds == 30:
+            failures.clear()
+
+    monkeypatch.setattr(gpu.asyncio, "sleep", sleep)
+    gpu.STATE = {"endpoint_ids": list(values), "scope": "all", "warm_until": 0}
+    asyncio.run(gpu.auto_off(list(values), 0))
+    assert not any(values.values())
+    assert sleeps == [0, 30]
+    assert len(calls) == 4
+
+
+def test_flux_health():
+    async def run():
+        def respond(request):
+            if request.url.path.endswith("/health"):
+                return httpx.Response(200, json={"workers": {"ready": 1}})
+            if request.url.path.endswith("/run"):
+                return httpx.Response(200, json={"id": "flux-check"})
+            return httpx.Response(
+                200,
+                json={
+                    "status": "COMPLETED",
+                    "output": {
+                        "status": "ready",
+                        "load_seconds": 42,
+                        "gpu": "Fictional GPU",
+                    },
+                },
+            )
+
+        async with httpx.AsyncClient(transport=httpx.MockTransport(respond)) as client:
+            await gpu.probe_cycle("flux", "secret", client)
+        assert gpu.ready_fields("flux")["last_probe"]["engine_load_s"] == 42
+        assert gpu.ready_fields("flux")["last_probe"]["gpu"] == "Fictional GPU"
+
+    asyncio.run(run())
+
+
+def test_status_and_gpu_share_settings_cache(fleet):
+    with TestClient(main.app) as client:
+        main.STATUS["time"] = 0
+        assert client.get("/api/status").status_code == 200
+        assert client.get("/api/gpu").status_code == 200
+        assert set(gpu.CACHE) == {"assistant", "big", "trained", "image"}
+
+
+def test_rearm_widens_scope_and_resets_deadline(fleet):
+    with TestClient(main.app) as client:
+        first = client.post("/api/gpu", json={"on": True, "minutes": 15}).json()
+        second = client.post(
+            "/api/gpu", json={"on": True, "minutes": 60, "scope": "all"}
+        ).json()
+        assert second["warm_until"] > first["warm_until"]
+        third = client.post("/api/gpu", json={"on": True}).json()
+        assert third["scope"] == "all"
+        assert len(json.loads(gpu.state_path().read_text())["endpoint_ids"]) == 4
+
+
+def test_status_reuses_fresh_gpu_health(fleet, monkeypatch):
+    calls = []
+    monkeypatch.setattr(
+        main, "fetch_health", lambda endpoint, key: calls.append(endpoint) or {}
+    )
+    monkeypatch.setitem(main.STATUS, "time", -1e9)
+    with TestClient(main.app) as client:
+        now = time.monotonic()
+        for item in ("assistant", "trained", "big", "image"):
+            gpu.CACHE[item] = (
+                now,
+                {"workers_min": 0, "workers": {"running": 1}, "jobs": {}},
+            )
+        value = client.get("/api/status").json()
+    assert not calls
+    assert value["agent"]["gpu_state"] == "stopping"
+    gpu.CACHE["big"] = (time.monotonic() - 5, gpu.CACHE["big"][1])
+    assert gpu.fresh_health("big") is None

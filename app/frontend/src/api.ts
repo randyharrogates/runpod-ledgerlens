@@ -57,11 +57,13 @@ const json = (method: string, body: unknown) => ({
 });
 
 export type GpuStatus = {
+  scope?: 'agent' | 'all' | null; endpoints?: (Omit<GpuStatus, 'available' | 'endpoints'> & { keys: string[]; label: string; state: 'problem' | 'ready' | 'starting' | 'busy' | 'stopping' | 'waking' | 'asleep' })[];
+  all_cost_per_hour_low?: number; all_cost_per_hour_high?: number;
   available: boolean; reason?: string; endpoint_id?: string; name?: string;
   workers_min?: number; workers_max?: number; workers?: Record<string, number>;
   ready?: boolean; checked_at?: number | null; probe?: 'idle' | 'waiting' | 'running';
   ready_error?: string | null;
-  last_probe?: { delay_ms: number | null; execution_ms: number | null; worker_id: string | null; engine_load_s: number | null; cold_start: boolean | null } | null;
+  last_probe?: { delay_ms: number | null; execution_ms: number | null; worker_id: string | null; engine_load_s: number | null; cold_start: boolean | null; gpu?: string } | null;
   warm_until?: number | null; cost_per_hour_low?: number; cost_per_hour_high?: number;
 };
 
@@ -76,7 +78,7 @@ export const api = {
   cover: (session: string) => request<CoverState>(`/api/sessions/${session}/cover`),
   startCover: (session: string, body: {prompt?: string | null; seed?: number | null; force?: boolean}) => request<CoverState>(`/api/sessions/${session}/cover`, json('POST', body)),
   gpu: () => request<GpuStatus>('/api/gpu'),
-  setGpu: (on: boolean, minutes = 30) => request<GpuStatus>('/api/gpu', json('POST', {on, minutes})),
+  setGpu: (on: boolean, minutes = 30, scope: 'agent' | 'all' = 'agent') => request<GpuStatus>('/api/gpu', json('POST', {on, minutes, scope})),
   create: () => request<{
     session: string;
     upload_url_for_phone: string;

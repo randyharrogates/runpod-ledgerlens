@@ -6,11 +6,12 @@ export const models = [
 export function modelState(status: Record<string, unknown>, key: string): string {
   const endpoint = status[key] as Record<string, unknown> | undefined;
   if (!endpoint) return 'unavailable';
+  if (typeof endpoint.gpu_state === 'string') return ({ready:'ready', starting:'starting', busy:'busy', stopping:'stopping', waking:'waking up', asleep:'asleep', problem:'problem'} as Record<string, string>)[endpoint.gpu_state] ?? 'unavailable';
   if (endpoint.offline || endpoint.configured === false) return 'offline';
   if (endpoint.unavailable || endpoint.error) return 'unavailable';
   const workers = endpoint.workers as Record<string, number> | undefined;
   const jobs = endpoint.jobs as Record<string, number> | undefined;
-  if ((workers?.running || 0) > 0) return 'ready';
+  if ((workers?.running || 0) > 0) return 'busy';
   // Runpod also counts scaled-down workers as idle, so idle alone does not mean a warm GPU.
   if ((workers?.idle || 0) > 0) return 'on standby';
   if ((workers?.initializing || 0) > 0 || (jobs?.inQueue || 0) > 0) return 'waking up';
@@ -25,6 +26,8 @@ export function statusSummary(status: Record<string, unknown>): string | null {
   if (states.every(s => s === 'asleep')) return 'Live models asleep · first read wakes them (can take minutes)';
   if (states.every(s => s === 'ready')) return 'All 3 models ready';
   if (states.every(s => s === 'ready' || s === 'on standby')) return 'Live models on standby · the first read can take a few minutes';
+  if (states.every(s => s === 'busy')) return 'Live models busy';
+  if (states.every(s => s === 'starting')) return 'Live models starting';
   if (states.every(s => s === 'waking up')) return 'Live models waking up';
   return null;
 }
