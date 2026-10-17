@@ -29,7 +29,10 @@ Compare `result.output` (or the aggregated stream) with `<page>.json` using
 build log. The first job after idle includes vLLM loading the model — that is the cold start to show.
 
 ## Releasing a worker change
-`scripts/release-worker.sh` (tests → image-affecting diff → confirm → push `main:deploy`). The
+`scripts/release-worker.sh` (tests → image-affecting diff → confirm → push `main:deploy`).
+Before evaluating a release, the template tag is not enough: set workers max 0, wait until health
+shows no worker at all, set max back, then prove the new behaviour with one request (on 17 Oct an
+E6 run served the old image although the template showed the new tag). The
 endpoint must track the `deploy` branch (console: endpoint → Manage → Edit). A rebuild + image pull
 takes ~10 min.
 
