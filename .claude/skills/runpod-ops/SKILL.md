@@ -34,8 +34,10 @@ endpoint must track the `deploy` branch (console: endpoint → Manage → Edit).
 takes ~10 min.
 
 ## Scaling rules
-Min workers 0 (nothing bills idle); max 2. For the demo hour only: `runpodctl serverless update
-szucrtrufff80a --workers-min 1`, and set it back to 0 straight after. Model cache:
+Min workers 0 (nothing bills idle); max 2. For the demo hour only: the app's GPU switch (left rail,
+"All endpoints", 30 min–2 h timer; it turns itself off), or by hand `runpodctl serverless update
+<id> --workers-min 1` and back to 0 straight after. After min goes to 0, Runpod keeps the worker
+running and billed for 2–5 min: check `runpodctl user` shows ~$0.01/h before leaving. Model cache:
 `--model-reference https://huggingface.co/<org>/<model>:main`.
 
 ## Training Pod

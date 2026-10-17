@@ -141,6 +141,23 @@ we gave up. The full timeline, with times and costs, is in `BUILD_LOG.md`.
   built from GitHub (we tried; workers failed with a registry error and did not bill).
 - **No Japan endpoint.** Decided 10 Oct: the data-residency answer is explained, not demonstrated.
 
+### Arming endpoints for a demo: "ready" means a health job answered
+
+- **Choice:** the app's GPU switch sets one minimum worker on the Assistant endpoint or on every
+  endpoint, with one shutoff timer saved to disk before any change. Each armed endpoint is checked
+  with a real `health` job (every 15 s once ready). The switch, the header and every model chip use
+  the same states: ready, starting, busy, stopping, waking, asleep, problem.
+- **Why:** Runpod's `/health` counts are not enough. It counts scaled-down workers as idle, so
+  "idle" does not mean warm, and the header used to call any running worker "ready" while the switch
+  required a health job. In a live test, after minimum workers went to 0, Runpod kept a worker
+  running and billed for 2–5 min; the app now shows that as "stopping · still billed".
+- **Alternatives:** setting `--workers-min 1` by hand with `runpodctl` (works, but nothing shows when
+  a worker is actually loaded or still billing); trusting `/health` counts alone (wrong after
+  scale-down); a single health check at arm time (a worker can be replaced later).
+- **Trade-off:** a health job every 15 s per armed endpoint. It runs on a worker that is billed
+  anyway and takes under half a second. A model that is still loading is "starting" for up to
+  10 min before it counts as a problem, so a truly stuck worker takes that long to show.
+
 ### Global volume for the agent endpoint
 
 - **Choice:** `cuvgn5z2av09my` uses the base 4B model cache and reader adapter on the beta global

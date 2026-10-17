@@ -46,7 +46,12 @@ why). Only measured numbers appear here; estimates say so.
 - **GitHub build from a `deploy` branch.** Runpod rebuilds on every push to the tracked branch, so
   ordinary commits go to `main` and `scripts/release-worker.sh` ships to `deploy` after the tests.
 - **Scaling for cost.** 0 Active workers when idle, max 2, idle timeout 60 s, FlashBoot on. One
-  Active worker only for the demo hour.
+  Active worker only for the demo hour, set from the app's GPU switch: Assistant only or every
+  endpoint (8B, fine-tuned 4B, Assistant, FLUX), with a shutoff timer that survives an app restart.
+  An endpoint counts as ready only after a real `health` job answers, re-checked every 15 s.
+  Measured 17 Oct: all four proven ready 343 s after arming from cold (the 8B last, 310 s engine
+  load) and 14 s when FlashBoot resumed paused workers. After turning off, Runpod kept each worker
+  running and billed for 2–5 min, so the app shows "stopping · still billed" until it ends.
 - **GPU Pods for training and evaluation.** RTX PRO 4500 (32 GB, $0.72/h) in EU-RO-1 next to the
   volume. Pods are deleted after use, not stopped: a stopped Pod could not restart because its host
   had no free GPU.
@@ -313,6 +318,9 @@ Most serious bugs passed every test and were caught only by looking at the outpu
 | The memo's citations pointed one row early | Clicking a memo citation in the live dry run | The model is given 1-based `[p1:r4]` references to copy |
 | The memo model did its own arithmetic and got it wrong (total outflow 54,987.85; true 55,041.59), and invented a date for a cash deposit | Checking the live memo's numbers and dates against the data | Period totals and finding dates are computed in code and given to the model; every number in a live memo is checked against the analysis and any mismatch is highlighted |
 | Small sample scan read 0/18 rows exactly after app JPEG conversion | Live browser test, then the same 595×841 page: PNG 15/18, JPEG q90 0/18, upscaled PNG 13/18 | App keeps original bytes / PNG, JPEG only above the 9 MB request budget; removed the worker’s half-size JPEG decode below the pixel cap. Worker half still needs release |
+| The GPU switch flashed "problem" every ~94 s while the 8B loaded | Watching the switch during a live arm-all test | A health job that waits in queue while the model loads is "starting"; only after 10 min is it a problem |
+| The app said "GPU off" while Runpod still billed $5.13/h for ~5 min | Comparing `runpodctl user` spend with the UI after "Turn off now" | New "stopping · still billed" state: min 0, a running worker, no jobs |
+| The header said "ready" for any running worker, the switch only after a health job | Reading the two status paths side by side | One state per endpoint, one shared Runpod reading for both |
 | Chat crashed on a checker note | Live memo left a `{kind, detail}` object; the page tried to render it as text | Render checker objects as text; covered by a test |
 
 Lesson: test the image path through the app; stored-page tests missed the damage before the model.
@@ -333,6 +341,9 @@ Lesson: test the image path through the app; stored-page tests missed the damage
 | Agent evaluations E2–E5, three runs, 15 Oct | ≈ $0.6 (balance $196.38 → $195.78, incl. cold starts) |
 | App sessions, E2/E5 reruns and live replays, 15 Oct afternoon | ≈ $2.0 (balance $195.78 → $193.78, incl. cold starts and warm GPU time) |
 | Total spent, whole project (to 15 Oct 18:20) | ≈ **$20.9** (balance $214.64 → $193.78) |
+| FLUX cover image, warm A40 / cold RTX PRO 6000 MIG 2g.48gb, 17 Oct | ≈ $0.006 per image (17 s) / 137 s end to end; FLUX work and live app test ≈ $0.90 |
+| All four endpoints armed (one worker each), 17 Oct | $3.70–6.49/h list price; $5.13/h seen in `runpodctl user`; two live tests ≈ $0.64 |
+| Total spent, whole project (to 17 Oct 09:40) | ≈ **$23.3** (balance $214.64 → $191.36) |
 
 Batching is the biggest lever: the same 8B costs ~$6 per 1,000 pages one page at a time on
 Serverless and ~$0.52 batched on a Pod. A lender processing month-end files in bulk should batch.

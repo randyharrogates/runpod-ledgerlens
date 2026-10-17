@@ -991,3 +991,4 @@ Randy released 782e297. Image live 10:40; workers cycled; E2, E4, E5 re-run 10:4
 - Live test 2 (after fixes): FlashBoot resumed all four, proven ready in 14 s; off → "GPUs stopping · still billed" → all asleep at 127 s; spend back to $0.01/h. Screenshots looked at (ready list, scope, price, rail label). 784 tests pass; frontend builds.
 - Spend for both tests: balance $192.00 → $191.36, ≈ $0.64. All four endpoints at min 0.
 
+- Docs updated to match: README scaling row, REPORT (§3 scaling with the measured arm times, §5 three problems found by watching, §6 FLUX and arm-all cost rows, whole-project total ≈ $23.3 to 17 Oct 09:40, balance $214.64 → $191.36), DECISIONS ("ready" means a health job answered), `runpod-ops` skill (switch, and the 2–5 min billed wind-down after min 0).
