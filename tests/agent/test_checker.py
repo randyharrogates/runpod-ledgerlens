@@ -141,3 +141,20 @@ def test_wrong_language_in_english_section():
     # A Chinese name from the analysis is allowed; Chinese memos are not checked.
     assert check_text("Largest payer 星林峰服务.", payload, {}, language="en") == []
     assert check_text("可疑交易。", payload, {}, language="zh") == []
+
+
+def test_indonesian_number_format_is_read_both_ways():
+    # Seen live: a correct Indonesian translation was flagged on every amount.
+    payload = {
+        "period_totals": {"inflow": 391862237, "outflow": 220304021, "net": 171558216},
+        "top_payer_concentration": {"share": "0.7316", "amount": 286670519},
+    }
+    text = (
+        "Posisi kas: IDR 220.304.021 keluar, IDR 391.862.237 masuk, bersih "
+        "IDR 171.558.216. Pelangi mencakup 73,16% arus masuk, sebesar IDR 286.670.519."
+    )
+    assert unverified_memo_numbers(text, payload) == []
+    assert unverified_memo_numbers("IDR 999.999.999 dan 12,50%", payload) == [
+        "999.999.999",
+        "12,50%",
+    ]

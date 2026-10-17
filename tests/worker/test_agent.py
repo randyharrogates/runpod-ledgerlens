@@ -1524,3 +1524,12 @@ def test_expand_too_short_retries_once():
             in system
         )
         assert "not filler" in system
+
+
+def test_bullets_merged_into_a_paragraph_count_as_applied():
+    # Seen live: same words, bullets joined into one paragraph, falsely "not applied".
+    bullets = "## Red flags\n- Returned cheque [p1:r4].\n- Round trip [p3:r17]."
+    paragraph = "## Red flags\nReturned cheque [p1:r4]. Round trip [p3:r17]."
+    request = "Rewrite the red flags as one paragraph without bullet points."
+    assert not agent.edit_not_applied(bullets, paragraph, request)
+    assert agent.edit_not_applied(bullets, bullets + " ", request)

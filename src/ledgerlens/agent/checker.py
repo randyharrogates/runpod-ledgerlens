@@ -8,6 +8,11 @@ MEMO_NUMBER = re.compile(
     r"\d+(?:\.\d+)?%|\d{1,3}(?:,\d{3})+(?:\.\d+)?|\d+\.\d+|(?<![\d:r])\d{4,}(?![\d,]|\.\d)"
 )
 MEMO_CITATION = re.compile(r"\[p\d+:r\d+[^\]]*\]")
+# Indonesian/Malay style: dots group thousands, a comma marks decimals ("171.558.216",
+# "73,16%"). Seen live in a translated memo; read both ways, verified if either matches.
+LOCAL_NUMBER = re.compile(
+    r"(?<![\d.,])(?:\d{1,3}(?:\.\d{3})+(?:,\d+)?|\d+,\d{1,2})%?(?![\d.,]*\d)"
+)
 SCALES = {
     "k": Decimal(10) ** 3,
     "thousand": Decimal(10) ** 3,
@@ -73,6 +78,24 @@ def unverified_memo_numbers(text, payload):
         if not any(abs(number * scale - value) <= tolerance for value in allowed):
             unverified.append(match.group().strip())
     plain = SCALED.sub(" ", plain)
+
+    def verified(number, exact):
+        tolerance = Decimal("0.005") if exact else Decimal("0.995")
+        return any(abs(number - value) <= tolerance for value in allowed)
+
+    for match in LOCAL_NUMBER.finditer(plain):
+        token = match.group()
+        body = token.rstrip("%")
+        local = Decimal(body.replace(".", "").replace(",", "."))
+        readings = [(local, "," in body)]
+        if "," not in body and body.count(".") == 1:
+            # "286.670" may also be an English decimal.
+            readings.append((Decimal(body), True))
+        if "," in body and "." not in body and len(body.split(",")[1]) == 3:
+            readings.append((Decimal(body.replace(",", "")), False))
+        if not any(verified(n, exact) for n, exact in readings):
+            unverified.append(token)
+    plain = LOCAL_NUMBER.sub(" ", plain)
     for match in MEMO_NUMBER.finditer(plain):
         token = match.group()
         number = Decimal(token.replace(",", "").rstrip("%"))

@@ -595,13 +595,22 @@ def edit_not_applied(previous, text, request):
     def normal(value):
         return " ".join(value.split())
 
+    def layout(value):
+        # Bullets merged into a paragraph keep the words but change the layout.
+        return [
+            bool(re.match(r"\s*(?:[-*•]|\d+\.)\s", line))
+            for line in value.splitlines()[:200]
+            if line.strip()
+        ]
+
     # Section texts are bounded (4000 chars in, 1500 tokens out); the quick ratios are
     # upper bounds that skip the quadratic comparison for clearly different texts.
     matcher = SequenceMatcher(
         None, normal(previous)[:8000], normal(text)[:8000], autojunk=False
     )
     if (
-        matcher.real_quick_ratio() >= 0.97
+        layout(previous) == layout(text)
+        and matcher.real_quick_ratio() >= 0.97
         and matcher.quick_ratio() >= 0.97
         and matcher.ratio() >= 0.97
     ):

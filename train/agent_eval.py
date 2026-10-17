@@ -372,6 +372,14 @@ def e6_check(template, text, previous, month=None):
                     "tidak",
                     "bulan",
                     "kas",
+                    "sebesar",
+                    "arus",
+                    "masuk",
+                    "keluar",
+                    "bersih",
+                    "dalam",
+                    "utama",
+                    "halaman",
                 }
             )
             >= 3
