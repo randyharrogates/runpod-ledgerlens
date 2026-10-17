@@ -19,6 +19,7 @@ import httpx
 from PIL import Image, ImageDraw, ImageFilter
 
 from ledgerlens.agent.checker import bad_citations
+from ledgerlens.agent.edits import split_sentences
 from ledgerlens.agent.prompts import REPLIES, SECTIONS
 from ledgerlens.agent.tools import (
     ToolContext,
@@ -301,7 +302,7 @@ def memo_body(text):
 
 
 def sentence_count(text):
-    return len([s for s in re.split(r"[.!?]+", memo_body(text)) if s.strip()])
+    return len(split_sentences(memo_body(text)))
 
 
 def numbered_count(text):
@@ -336,7 +337,10 @@ def e6_check(template, text, previous, month=None):
         return (
             bool(body.strip())
             and not re.search(r"^\s*(?:[-*•]|\d+\.)", body, re.M)
-            and bool(re.search(r"\[p\d+:r\d+\]", body))
+            and (
+                not re.search(r"\[p\d+:r\d+\]", previous)
+                or bool(re.search(r"\[p\d+:r\d+\]", body))
+            )
         )
     if template == "drop-question":
         return numbered_count(text) == numbered_count(previous) - 1
@@ -397,6 +401,19 @@ def e6_metrics(case, result, parent):
                 result.get("month") or memo_month(before),
             )
         )
+    followed = (
+        followed
+        and not any(
+            p.get("kind") == "wrong_language" and p.get("section") in (target, None)
+            for p in f.get("problems", [])
+        )
+        and not any(
+            p.get("kind") == "wrong_language"
+            for e in result.get("events", [])
+            if e.get("type") == "section" and e.get("section") == target
+            for p in e.get("problems", [])
+        )
+    )
     problems = dict(Counter(p["kind"] for p in f.get("problems", [])))
     return dict(
         id=case["id"],
@@ -411,6 +428,10 @@ def e6_metrics(case, result, parent):
             if s["id"] != target
         ),
         problems=problems,
+        applied_by_code=sum(
+            e.get("type") == "section" and e.get("applied_by") == "code"
+            for e in result.get("events", [])
+        ),
         edit_not_applied=problems.get("edit_not_applied", 0),
         latency_s=result.get("wall_s", 0),
     )
@@ -779,6 +800,20 @@ def score(suite, out):
     directory = Path(out) / suite
     cases = load_jsonl(directory / "cases.jsonl")
     results = {r["id"]: r for r in load_jsonl(directory / "results.jsonl")}
+    if suite == "e6" and not cases:
+        # Existing E6 result ids encode their parent and template; no dataset or network needed.
+        for result_id in results:
+            case = {"id": result_id}
+            for template, _, target in E6_TEMPLATES:
+                suffix = "-" + template
+                if result_id.endswith(suffix):
+                    case.update(
+                        template=template,
+                        target=target,
+                        depends_on=result_id[: -len(suffix)] + "-memo",
+                    )
+                    break
+            cases.append(case)
     rows = [(c, results.get(c["id"], {"id": c["id"], "events": []})) for c in cases]
     usage = Counter()
     for r in results.values():
@@ -924,6 +959,7 @@ def score(suite, out):
             others_unchanged_rate=ratio([m["others_unchanged"] for m in changed]),
             problems=dict(sum((Counter(m["problems"]) for m in metrics), Counter())),
             edit_not_applied=sum(m["edit_not_applied"] for m in metrics),
+            applied_by_code=sum(m["applied_by_code"] for m in metrics),
             median_latency_s=median([m["latency_s"] for m in applicable])
             if applicable
             else 0,

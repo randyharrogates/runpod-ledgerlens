@@ -13,6 +13,7 @@ import httpx
 from pydantic import ValidationError
 
 from ledgerlens.agent.checker import canonical_heading, check_text, word_count
+from ledgerlens.agent.edits import apply_structural_edit
 from ledgerlens.agent.findings import describe_finding
 from ledgerlens.agent.limits import (
     MAX_BODY_BYTES,
@@ -828,6 +829,15 @@ async def run_agent(data, engine):
             if not selected:
                 selected = {s["id"] for s in SECTIONS}
 
+            structural = (
+                apply_structural_edit(clean["message"], memo)
+                if intent == "edit_memo" and edit_target == "text"
+                else None
+            )
+            if structural:
+                selected = set(structural)
+                await emit_log(emit, "info", "edit applied in code: remove prose unit")
+
             async def write(section):
                 section_id = section["id"]
                 if section_id in removed:
@@ -854,11 +864,33 @@ async def run_agent(data, engine):
                         **{key: analysis[key] for key in section["analysis_keys"]},
                     }
                 )
+                if structural:
+                    text = structural[section_id]
+                    problems = await check(
+                        text,
+                        subset,
+                        section_id,
+                        required_heading=section["heading"],
+                        language=plan["language"],
+                    )
+                    memo[section_id] = text
+                    await emit(
+                        {
+                            "type": "section",
+                            "section": section_id,
+                            "text": text,
+                            "problems": problems,
+                            "rewritten": False,
+                            "applied_by": "code",
+                        }
+                    )
+                    return problems
                 previous = memo.get(section_id) if intent == "edit_memo" else None
                 # An explicitly selected empty section is restored with fresh instructions.
                 previous = previous or None
                 edit_request = clean["message"] if previous is not None else None
                 problems = None
+                min_words = None
                 max_words = check_max_words = WORD_LIMITS[plan["length"]]
                 if previous and re.search(
                     r"\b(shorter|shorten|concise|brief|trim|cut|singkat|pendek|ringkas)\b|简短|缩短|精简|短一些|更短",
@@ -873,7 +905,11 @@ async def run_agent(data, engine):
                         clean["message"],
                         re.I,
                     ):
-                        max_words = min(400, max(word_count(previous) * 2, max_words))
+                        min_words = (word_count(previous) * 13 + 9) // 10
+                        max_words = max(
+                            min_words,
+                            min(400, max(word_count(previous) * 2, max_words)),
+                        )
                     else:
                         max_words = max(max_words, word_count(previous) + 40)
                     check_max_words = max_words
@@ -887,6 +923,7 @@ async def run_agent(data, engine):
                         subset,
                         previous,
                         problems,
+                        min_words=min_words,
                         max_words=max_words,
                         edit_request=edit_request,
                     ),
@@ -918,6 +955,7 @@ async def run_agent(data, engine):
                         subset,
                         text,
                         problems,
+                        min_words=min_words,
                         max_words=max_words,
                         edit_request=edit_request,
                         edit_applied=True,
@@ -927,8 +965,20 @@ async def run_agent(data, engine):
                     )
                     problems = await check(text, subset, section_id, **kwargs)
                 text = canonical_heading(text, section["heading"])
-                if previous is not None and edit_not_applied(
-                    previous, text, clean["message"]
+
+                def too_short(text):
+                    return (
+                        min_words is not None
+                        and word_count(text) < word_count(previous) * 1.2
+                    )
+
+                if (
+                    previous is not None
+                    and not rewritten
+                    and (
+                        too_short(text)
+                        or edit_not_applied(previous, text, clean["message"])
+                    )
                 ):
                     rewritten = True
                     await emit({"type": "section_reset", "section": section_id})
@@ -944,6 +994,7 @@ async def run_agent(data, engine):
                                 "detail": "The previous attempt did not apply the request. You must change the text as asked.",
                             }
                         ],
+                        min_words=min_words,
                         max_words=max_words,
                         edit_request=edit_request,
                     )
@@ -960,6 +1011,14 @@ async def run_agent(data, engine):
                             "kind": "edit_not_applied",
                             "section": section_id,
                             "detail": "The requested change was not made to this section.",
+                        }
+                    )
+                if too_short(text):
+                    problems.append(
+                        {
+                            "kind": "too_short",
+                            "section": section_id,
+                            "detail": f"{word_count(text)} words is below {word_count(previous) * 1.2:g} (1.2 times the previous length).",
                         }
                     )
                 memo[section_id] = text
