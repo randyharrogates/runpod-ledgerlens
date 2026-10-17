@@ -12,7 +12,7 @@ from difflib import SequenceMatcher
 import httpx
 from pydantic import ValidationError
 
-from ledgerlens.agent.checker import canonical_heading, check_text, word_count
+from ledgerlens.agent.checker import CJK, canonical_heading, check_text, word_count
 from ledgerlens.agent.edits import apply_structural_edit
 from ledgerlens.agent.findings import describe_finding
 from ledgerlens.agent.limits import (
@@ -589,6 +589,33 @@ def writer_subset(value, key=""):
     return value
 
 
+CITATION_RE = re.compile(r"\[p\d+:r\d+\]")
+
+
+def cjk_share(value):
+    value = value[:8000]
+    letters = sum(ch.isalpha() for ch in value)
+    return sum(len(run) for run in CJK.findall(value)) / max(1, letters)
+
+
+def script_switched(previous, text):
+    """An edit that turns a mostly Latin-script section into mostly CJK (or back)."""
+    return abs(cjk_share(text) - cjk_share(previous)) > 0.3
+
+
+def citations_dropped(previous, text, section_id):
+    """A rewrite that loses every row citation the section had."""
+    if previous and CITATION_RE.search(previous) and not CITATION_RE.search(text):
+        return [
+            {
+                "kind": "citations_dropped",
+                "section": section_id,
+                "detail": "Keep the row citations from previous_text, like [p3:r16].",
+            }
+        ]
+    return []
+
+
 def edit_not_applied(previous, text, request):
     """Catch unchanged rewrites and explicitly named text left behind."""
 
@@ -949,6 +976,7 @@ async def run_agent(data, engine):
                     else plan["language"],
                 }
                 problems = await check(text, subset, section_id, **kwargs)
+                problems.extend(citations_dropped(previous, text, section_id))
                 rewritten = bool(problems)
                 if problems:
                     await emit_log(
@@ -1030,6 +1058,20 @@ async def run_agent(data, engine):
                             "detail": f"{word_count(text)} words is below {word_count(previous) * 1.2:g} (1.2 times the previous length).",
                         }
                     )
+                if (
+                    edit_request
+                    and kwargs["language"] is not None
+                    and script_switched(previous, text)
+                ):
+                    # Seen live: "more formal" turned an English section into Chinese.
+                    text = previous
+                    problems = [
+                        {
+                            "kind": "edit_not_applied",
+                            "section": section_id,
+                            "detail": "The rewrite changed the language, so the previous text was kept.",
+                        }
+                    ]
                 memo[section_id] = text
                 await emit(
                     {
