@@ -184,3 +184,55 @@ def test_run_substitutes_month_from_parent(tmp_path, monkeypatch):
     assert all(
         "February" in p["message"] and "{month}" not in p["message"] for p in seen[1:]
     )
+
+
+def test_paragraph_without_parent_citation_and_decimal_sentences():
+    assert ev.e6_check("paragraph", "Risk remains.", "- Risk remains.")
+    assert not ev.e6_check("paragraph", "Risk remains.", "- Risk remains [p1:r1]")
+    assert (
+        ev.sentence_count(
+            "## Summary\nSGD 39,948.92 remains. Cedar Inc. reported growth."
+        )
+        == 2
+    )
+
+
+@pytest.mark.parametrize(
+    "template,text,target",
+    [
+        ("formal", "Formal assessment of concentration.", "concentration"),
+        ("add-sentence", "Site visit.", "summary"),
+    ],
+)
+def test_wrong_language_never_followed(template, text, target):
+    case = {"id": "x", "template": template, "target": target}
+    metric = ev.e6_metrics(
+        case,
+        result(
+            {target: text},
+            intent="edit_memo",
+            problems=[{"kind": "wrong_language", "section": target}],
+        ),
+        result({target: "Old."}),
+    )
+    assert not metric["followed"]
+
+
+def test_score_results_only_offline(tmp_path, monkeypatch):
+    def forbidden(*args, **kwargs):
+        raise AssertionError("Offline scoring must not access credentials or datasets")
+
+    monkeypatch.setattr(ev.client, "runpodctl_key", forbidden)
+    monkeypatch.setattr(ev, "businesses", forbidden)
+    parent = {"summary": "## Summary\nOne. Two."}
+    edited = result({"summary": "## Summary\nOne."}, intent="edit_memo", problems=[])
+    edited["events"].insert(
+        0,
+        {"type": "section", "section": "summary", "applied_by": "code", "problems": []},
+    )
+    ev.write_jsonl(
+        tmp_path / "e6/results.jsonl",
+        [{"id": "biz-memo", **result(parent)}, {"id": "biz-drop-sentence", **edited}],
+    )
+    score = ev.score("e6", tmp_path)
+    assert score["followed"] == score["applied_by_code"] == 1

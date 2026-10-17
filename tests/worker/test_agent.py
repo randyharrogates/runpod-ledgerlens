@@ -1457,3 +1457,70 @@ def test_edit_length_budget(message, words, expected):
         if "Write this memo section" in r["messages"][0]["content"]
     )
     assert f"at most {expected} words" in writer["messages"][0]["content"]
+
+
+def test_structural_edit_skips_all_writers():
+    engine = FakeEngine("edit_memo", edits=["cash_flow"])
+    previous = {
+        "summary": "## Summary\nObserved evidence. Further evidence.",
+        "cash_flow": "Keep this.",
+    }
+    events = collect(
+        agent.run_agent,
+        {
+            "message": "Remove the last sentence of the summary",
+            "documents": [document()],
+            "last_memo": previous,
+        },
+        engine,
+    )
+    assert not engine.streams
+    assert events[-1]["memo"] == {
+        **previous,
+        "summary": "## Summary\nObserved evidence.",
+    }
+    section = next(e for e in events if e["type"] == "section")
+    assert section["applied_by"] == "code"
+    assert "problems" in section
+    assert any("edit applied in code:" in str(e) for e in events)
+
+
+def test_expand_too_short_retries_once():
+    class Engine(FakeEngine):
+        async def stream(self, request):
+            self.record(request)
+            self.streams["summary"] += 1
+            yield "## Summary\n" + "Additional evidence warrants review. " * 8
+
+    engine = Engine("edit_memo", edits=["summary"])
+    previous = "## Summary\n" + "Original evidence requires consideration. " * 8
+    events = collect(
+        agent.run_agent,
+        {
+            "message": "Expand the summary with more detail",
+            "documents": [document()],
+            "last_memo": {"summary": previous},
+        },
+        engine,
+    )
+    assert engine.streams["summary"] == 2
+    assert any(
+        p["kind"] == "too_short" and "1.2 times" in p["detail"]
+        for p in events[-1]["problems"]
+    )
+    writers = [
+        r
+        for r in engine.calls
+        if "Write this memo section" in r["messages"][0]["content"]
+    ]
+    for request in writers:
+        system = request["messages"][0]["content"]
+        assert (
+            "Keep the language of previous_text unless the request asks for another language."
+            in system
+        )
+        assert (
+            f"Write at least {(agent.word_count(previous) * 13 + 9) // 10} words"
+            in system
+        )
+        assert "not filler" in system
