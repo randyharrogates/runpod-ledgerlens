@@ -213,6 +213,11 @@ curl -s -X POST "https://api.runpod.ai/v2/$EP/run" \
 curl -s "https://api.runpod.ai/v2/$EP/status/<job id>" -H "Authorization: Bearer $RUNPOD_API_KEY"
 ```
 
+On this sample page (layout `stmt_e`, never seen in training) the two endpoints differ, which is the
+point of the fine-tune. Checked 17 Oct, cold workers: the fine-tuned 4B (`5078uudfkeaw2v`) returned
+all 18 rows exactly right; the untrained 8B returned 18 rows with every date right but every debit,
+credit and balance empty.
+
 For chat, use the agent endpoint. A bare `prompt` also becomes the agent's message here.
 
 ```sh
@@ -246,7 +251,8 @@ The memo task streams: send `{"input":{"task":"memo","analysis":{...}}}` to `/ru
   with ~50 labelled real statements and a shadow period next to analysts.
 - The fine-tune sees real CORD train receipts; the 8B baseline sees none. CORD test receipts are
   never trained on.
-- Zero-shot, the 8B reads digits well but not the accounting convention (debit vs credit); the
+- Zero-shot, the 8B often gets the accounting convention wrong (debit vs credit), and on some
+  layouts it leaves the amounts empty (the README sample page above; `stmt_f` in the test set). The
   balance check fixes direction only where the printed balance proves it, and reports raw model
   row F1 separately.
 
