@@ -175,8 +175,9 @@ export function TurnView({turn, jump, session}: {session?: string; turn: TurnSta
     {queued && waited >= 20 && <small className="assistant-cold-note">No warm worker yet, so one is starting. That takes about 3–4 minutes; later turns take seconds. The GPU switch on the left keeps one ready.</small>}
     {intent && <div className="assistant-route"><strong className="assistant-intent-pill">{labels[intent] || 'General answer'}</strong>{turn.route?.reason && <small><MemoContent text={turn.route.reason} jump={jump} /></small>}</div>}
     {turn.notices.map((text, i) => <div key={i}><MemoContent text={text} jump={jump} /></div>)}
-    {memo ? <MemoReport session={session} report={turn.report} finished={finished} problems={turn.final?.problems?.length || Object.values(turn.cards).reduce((n,c)=>n+c.problems.length,0)} texts={sections.map(([id])=>turn.cards[id].text)}>{sections.map(([id, heading], index) => {
+    {memo ? <><MemoReport session={session} report={turn.report} finished={finished} problems={turn.final?.problems?.length || Object.values(turn.cards).reduce((n,c)=>n+c.problems.length,0)} texts={sections.map(([id])=>turn.cards[id].text)}>{sections.map(([id, heading], index) => {
       const card = turn.cards[id];
+      if (finished && card.text === '' && typeof turn.final?.memo?.[id] === 'string') return null;
       const unchanged = intent === 'edit_memo' && !card.changed;
       return <section key={id} className={unchanged ? 'report-section unchanged' : 'report-section'}>
         <span className="report-number">{index+1}</span><h3>{heading}</h3>{card.text && <CopyButton text={sectionBody(card.text, heading)} label={`Copy ${heading}`} />}{unchanged && <small>unchanged</small>}
@@ -184,7 +185,9 @@ export function TurnView({turn, jump, session}: {session?: string; turn: TurnSta
         <ReportSectionData id={id} report={turn.report} jump={jump}/><div className="memo"><MemoContent text={sectionBody(card.text, heading)} jump={jump} /></div>
         {card.problems.map((problem, i) => <div className="assistant-warning" key={i}><MemoContent text={problem} jump={jump} /></div>)}
       </section>;
-    })}</MemoReport> : <div className="memo"><MemoContent text={turn.answer} jump={jump} /></div>}
+    })}</MemoReport>
+      {finished && sections.some(([id]) => turn.final?.memo?.[id] === '') && <small className="assistant-removed">Removed at your request: {sections.filter(([id]) => turn.final?.memo?.[id] === '').map(([, heading]) => heading).join(', ')}</small>}
+    </> : <div className="memo"><MemoContent text={turn.answer} jump={jump} /></div>}
     {finished && !memo && turn.answer && <CopyButton text={turn.answer} label="Copy answer" />}
     {turn.error && <p role="alert">{turn.error === 'Stopped' ? 'You stopped this answer. Your pages are saved.' : `The agent stopped: ${turn.error}. Your pages are saved; try again.`}</p>}
     {(finished || measured || turn.turnId) && <footer className="assistant-metrics">{measured && [

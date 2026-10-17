@@ -543,3 +543,26 @@ def test_fact_refusal_preserves_cached_memo(client, monkeypatch):
     )
     client.post(f"/api/sessions/{s}/chat", json={"message": "Rename the borrower"})
     assert session["chat"]["last_memo"] == previous
+
+
+def test_removed_sections_survive_cache_and_next_request(client, monkeypatch):
+    s, session = setup(client)
+    session["pages"]["p1"]["document"] = document()
+    memo = {"summary": "Original summary", "questions": ""}
+    fake(
+        monkeypatch,
+        [{"type": "final", "intent": "edit_memo", "memo": memo, "problems": []}],
+    )
+    client.post(
+        f"/api/sessions/{s}/chat", json={"message": "Remove the questions section"}
+    )
+    assert session["chat"]["last_memo"] == memo
+    inputs = []
+    fake(
+        monkeypatch,
+        [{"type": "final", "intent": "edit_memo", "memo": memo, "problems": []}],
+        inputs,
+    )
+    client.post(f"/api/sessions/{s}/chat", json={"message": "Make summary formal"})
+    assert inputs[0]["last_memo"] == memo
+    assert session["chat"]["last_memo"]["questions"] == ""

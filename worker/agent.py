@@ -34,7 +34,14 @@ from ledgerlens.agent.prompts import (
     section_messages,
 )
 from ledgerlens.agent.report import build_report
-from ledgerlens.agent.rules import is_capability_question, is_document_fact_edit
+from ledgerlens.agent.rules import (
+    is_capability_question,
+    is_document_fact_edit,
+    is_prose_edit,
+    named_sections,
+    removed_sections,
+    restored_sections,
+)
 from ledgerlens.agent.tools import TOOL_SPECS, ToolContext, run_tool
 from ledgerlens.analytics import analyze
 from ledgerlens.direction import check_direction
@@ -716,6 +723,14 @@ async def run_agent(data, engine):
             if intent != "edit_memo" or edit_target != "document_facts":
                 rule = "document_facts"
             intent, edit_target = "edit_memo", "document_facts"
+        elif clean.get("last_memo") and (
+            removed_sections(clean["message"]) or restored_sections(clean["message"])
+        ):
+            if intent != "edit_memo" or edit_target != "text":
+                rule = "prose_edit"
+            intent, edit_target = "edit_memo", "text"
+        elif edit_target == "document_facts" and is_prose_edit(clean["message"]):
+            intent, edit_target, rule = "edit_memo", "text", "prose_edit"
         if (
             intent in ("memo", "ask_data", "edit_memo")
             and not statements
@@ -798,13 +813,41 @@ async def run_agent(data, engine):
             )
             await emit(report)
             final["report"] = report
-            selected = (
-                route.get("edit_sections") if intent == "edit_memo" else None
-            ) or [s["id"] for s in SECTIONS]
             memo = dict(clean.get("last_memo", {})) if intent == "edit_memo" else {}
+            removed = (
+                removed_sections(clean["message"]) if intent == "edit_memo" else []
+            )
+            selected = (
+                set(route.get("edit_sections") or [])
+                if intent == "edit_memo"
+                else set()
+            )
+            if intent == "edit_memo":
+                selected.update(named_sections(clean["message"], memo))
+                selected.update(removed)
+            if not selected:
+                selected = {s["id"] for s in SECTIONS}
 
             async def write(section):
                 section_id = section["id"]
+                if section_id in removed:
+                    memo[section_id] = ""
+                    await emit(
+                        {
+                            "type": "section",
+                            "section": section_id,
+                            "text": "",
+                            "removed": True,
+                            "problems": [],
+                            "rewritten": False,
+                        }
+                    )
+                    return []
+                # Removed sections stay removed until explicitly restored.
+                if memo.get(section_id) == "" and section_id not in restored_sections(
+                    clean["message"]
+                ):
+                    return []
                 subset = writer_subset(
                     {
                         "currency": statements[0].currency,
@@ -812,7 +855,10 @@ async def run_agent(data, engine):
                     }
                 )
                 previous = memo.get(section_id) if intent == "edit_memo" else None
-                problems = [clean["message"]] if intent == "edit_memo" else None
+                # An explicitly selected empty section is restored with fresh instructions.
+                previous = previous or None
+                edit_request = clean["message"] if previous is not None else None
+                problems = None
                 max_words = check_max_words = WORD_LIMITS[plan["length"]]
                 if previous and re.search(
                     r"\b(shorter|shorten|concise|brief|trim|cut|singkat|pendek|ringkas)\b|简短|缩短|精简|短一些|更短",
@@ -821,12 +867,28 @@ async def run_agent(data, engine):
                 ):
                     max_words = max(25, word_count(previous) * 3 // 5)
                     check_max_words = max(25, (word_count(previous) * 4 + 4) // 5)
+                elif previous:
+                    if re.search(
+                        r"\b(?:longer|expand|more detail|elaborate|add|panjang|tambah|perinci)\b|详细|扩展|加",
+                        clean["message"],
+                        re.I,
+                    ):
+                        max_words = min(400, max(word_count(previous) * 2, max_words))
+                    else:
+                        max_words = max(max_words, word_count(previous) + 40)
+                    check_max_words = max_words
                 request = {
                     "model": MEMO_MODEL,
                     "temperature": 0,
                     "max_tokens": 1500,
                     "messages": section_messages(
-                        section, plan, subset, previous, problems, max_words=max_words
+                        section,
+                        plan,
+                        subset,
+                        previous,
+                        problems,
+                        max_words=max_words,
+                        edit_request=edit_request,
                     ),
                 }
                 text = await step(
@@ -835,7 +897,10 @@ async def run_agent(data, engine):
                 kwargs = {
                     "max_words": check_max_words,
                     "required_heading": section["heading"],
-                    "language": plan["language"],
+                    "language": None
+                    if edit_request
+                    and re.search(r"translate|terjemah|翻译", edit_request, re.I)
+                    else plan["language"],
                 }
                 problems = await check(text, subset, section_id, **kwargs)
                 rewritten = bool(problems)
@@ -848,13 +913,45 @@ async def run_agent(data, engine):
                     )
                     await emit({"type": "section_reset", "section": section_id})
                     request["messages"] = section_messages(
-                        section, plan, subset, text, problems, max_words=max_words
+                        section,
+                        plan,
+                        subset,
+                        text,
+                        problems,
+                        max_words=max_words,
+                        edit_request=edit_request,
+                        edit_applied=True,
                     )
                     text = await step(
                         "writer", lambda: stream(request, section_id), section_id
                     )
                     problems = await check(text, subset, section_id, **kwargs)
                 text = canonical_heading(text, section["heading"])
+                if previous is not None and edit_not_applied(
+                    previous, text, clean["message"]
+                ):
+                    rewritten = True
+                    await emit({"type": "section_reset", "section": section_id})
+                    request["messages"] = section_messages(
+                        section,
+                        plan,
+                        subset,
+                        previous,
+                        problems
+                        + [
+                            {
+                                "kind": "edit_not_applied",
+                                "detail": "The previous attempt did not apply the request. You must change the text as asked.",
+                            }
+                        ],
+                        max_words=max_words,
+                        edit_request=edit_request,
+                    )
+                    text = await step(
+                        "writer", lambda: stream(request, section_id), section_id
+                    )
+                    problems = await check(text, subset, section_id, **kwargs)
+                    text = canonical_heading(text, section["heading"])
                 if previous is not None and edit_not_applied(
                     previous, text, clean["message"]
                 ):
