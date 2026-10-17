@@ -912,13 +912,22 @@ def test_knowledge_document_prompt(loaded):
     ],
 )
 @pytest.mark.parametrize("answer_words", [78, 90])
-def test_shorter_edit_rewrites_to_target(message, previous, answer_words):
+def test_shorter_edit_rewrites_to_target(message, previous, answer_words, monkeypatch):
+    # A Chinese section edited from a Chinese request is planned in Chinese.
+    monkeypatch.setitem(PLAN, "language", "zh" if "中" in previous else "en")
+
     class LongEngine(FakeEngine):
         async def stream(self, request):
             if self.streams["summary"] == 0:
                 self.record(request)
                 self.streams["summary"] += 1
-                yield "## Summary\n" + "word " * answer_words
+                # Answer in the section's own script (a switch is reverted by design).
+                unit = "字词" if "中" in previous else "word "
+                yield "## Summary\n" + unit * answer_words
+            elif "中" in previous:
+                self.record(request)
+                self.streams["summary"] += 1
+                yield "## Summary\n" + "字词" * 30
             else:
                 async for chunk in super().stream(request):
                     yield chunk
@@ -1533,3 +1542,18 @@ def test_bullets_merged_into_a_paragraph_count_as_applied():
     request = "Rewrite the red flags as one paragraph without bullet points."
     assert not agent.edit_not_applied(bullets, paragraph, request)
     assert agent.edit_not_applied(bullets, bullets + " ", request)
+
+
+def test_language_switch_and_dropped_citations_are_caught():
+    english = "## Concentration\nThe largest payer, 云叶月供应, contributed IDR 158,474,228 [p3:r1]."
+    chinese = "## Concentration\n云叶月供应贡献 IDR 158,474,228，占总流入的 36.44%。此集中度构成显著信用风险。"
+    # Seen live: "more formal" turned this English section into Chinese.
+    assert agent.script_switched(english, chinese)
+    assert not agent.script_switched(
+        english, english.replace("contributed", "provided")
+    )
+    assert agent.citations_dropped(
+        english, "## Concentration\nNo cites.", "concentration"
+    )
+    assert not agent.citations_dropped(english, english, "concentration")
+    assert not agent.citations_dropped("## X\nNo cites.", "## X\nStill none.", "x")

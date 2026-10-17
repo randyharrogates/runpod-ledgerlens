@@ -182,7 +182,7 @@ def section_messages(
             )
             + "The request overrides the usual guidance on length, sentence count, format "
             "(bullets, paragraph or list), tone, emphasis and language. Keep everything it does "
-            "not ask to change. Keep the heading. Keep the language of previous_text unless the request asks for another language. "
+            "not ask to change. Keep the heading. Keep the language of previous_text unless the request asks for another language. Keep every row citation such as [p3:r16] for the content you keep. "
             if edit_request is not None
             else f"{section['instruction']} Write in {language}. "
         )
