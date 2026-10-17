@@ -141,6 +141,28 @@ we gave up. The full timeline, with times and costs, is in `BUILD_LOG.md`.
   built from GitHub (we tried; workers failed with a registry error and did not bill).
 - **No Japan endpoint.** Decided 10 Oct: the data-residency answer is explained, not demonstrated.
 
+### Memo edits: exact edits in code, the rest to the writer
+
+- **Choice:** an edit request goes, in order, to (1) a fixed refusal only when it changes something
+  the code builds from the documents (a name, a figure, a table row or month line); (2) code, when it
+  is a mechanical removal with one clear target: the Nth or last sentence, question or bullet, the
+  sentence about a month or name, or a whole commentary section; (3) the writer, in an edit mode
+  where the user's request overrides length, format, tone and language but not the evidence rules
+  (supplied figures only, citations) or the section's content rules ("do not suggest fraud").
+- **Why:** the 4B cannot be trusted to delete one sentence (E6: 0/8 "remove the last sentence",
+  even with a retry), while code does it exactly in milliseconds. The old refusal rule matched any
+  request with a month in it, so "remove the sentence about March" was refused. Both were invisible
+  until E6 measured more than "make it shorter".
+- **Guards:** an unchanged rewrite is retried once, then flagged; a rewrite that drops every row
+  citation is sent back once; an edit that switches script keeps the previous text and says so.
+  Every miss is shown to the user; none is hidden.
+- **Alternatives:** a bigger writer model (more GPU per memo on the same endpoint); a memo adapter
+  trained on edits (planned only if the remaining 3% matters); letting the user edit the text by hand
+  in the UI (simple, but the checker would then not see the change).
+- **Trade-off:** code-applied edits only cover shapes we wrote; anything ambiguous (two sentences
+  mention the same month) falls back to the writer, which can reword and change meaning without
+  changing a figure. The checker verifies figures and citations, not meaning.
+
 ### Arming endpoints for a demo: "ready" means a health job answered
 
 - **Choice:** the app's GPU switch sets one minimum worker on the Assistant endpoint or on every
