@@ -198,7 +198,8 @@ def test_edit_only_named_section():
     )
     content = json.loads(writer["messages"][1]["content"])
     assert content["previous_text"] == previous["cash_flow"]
-    assert content["problems"] == ["Change cash flow"]
+    assert content["edit_request"] == "Change cash flow"
+    assert "problems" not in content
 
 
 def test_tool_rounds_two_calls_and_final_none():
@@ -1328,3 +1329,131 @@ def test_rules_override_router_without_writer(message, key, routed):
         assert events[-1]["edit_target"] == "document_facts"
     assert len(engine.calls) == 1
     assert not engine.streams
+
+
+@pytest.mark.parametrize(
+    "message",
+    [
+        "Remove the questions section.",
+        "hapus bagian pertanyaan",
+        "删除问题部分",
+    ],
+)
+def test_remove_section_without_writer(message):
+    engine = FakeEngine("edit_memo")
+    previous = {s["id"]: f"## {s['heading']}\nOriginal." for s in agent.SECTIONS}
+    events = collect(
+        agent.run_agent,
+        {
+            "message": message,
+            "documents": [document()],
+            "last_memo": previous,
+        },
+        engine,
+    )
+    assert not engine.streams
+    assert events[-1]["memo"] == {**previous, "questions": ""}
+    assert next(e for e in events if e["type"] == "section")["removed"] is True
+
+
+def test_restore_removed_section_and_preserve_it_in_other_edits():
+    previous = {s["id"]: f"## {s['heading']}\nOriginal." for s in agent.SECTIONS}
+    previous["questions"] = ""
+    for message, restored in [
+        ("add the questions section back", True),
+        ("Make summary formal", False),
+    ]:
+        engine = FakeEngine(
+            "edit_memo", edits=["questions"] if restored else ["summary"]
+        )
+        events = collect(
+            agent.run_agent,
+            {
+                "message": message,
+                "documents": [document()],
+                "last_memo": previous,
+            },
+            engine,
+        )
+        assert bool(events[-1]["memo"]["questions"]) is restored
+        if restored:
+            content = json.loads(engine.calls[-1]["messages"][1]["content"])
+            assert "previous_text" not in content and "edit_request" not in content
+
+
+def test_reverse_router_override_and_section_union():
+    class Misrouter(FakeEngine):
+        async def complete(self, request):
+            if request["messages"][0]["content"] == agent.ROUTER_SYSTEM:
+                self.record(request)
+                return response(
+                    {
+                        "intent": "edit_memo",
+                        "edit_target": "document_facts",
+                        "reason": "Requested",
+                        "plan": PLAN,
+                        "edit_sections": ["summary"],
+                    }
+                )
+            return await super().complete(request)
+
+    engine = Misrouter()
+    previous = {s["id"]: f"## {s['heading']}\nOriginal." for s in agent.SECTIONS}
+    events = collect(
+        agent.run_agent,
+        {
+            "message": "Remove the sentence about March from the cash flow section",
+            "documents": [document()],
+            "last_memo": previous,
+        },
+        engine,
+    )
+    route = next(e for e in events if e["type"] == "route")
+    assert route["rule"] == "prose_edit" and route["edit_target"] == "text"
+    assert set(engine.streams) == {"summary", "cash_flow"}
+
+
+def test_unchanged_edit_retries_exactly_once():
+    engine = FakeEngine("edit_memo", edits=["summary"])
+    events = collect(
+        agent.run_agent,
+        {
+            "message": "Rewrite summary",
+            "documents": [document()],
+            "last_memo": {"summary": "## Summary\nObserved evidence."},
+        },
+        engine,
+    )
+    assert engine.streams == {"summary": 2}
+    assert events[-1]["problems"][0]["kind"] == "edit_not_applied"
+    assert next(e for e in events if e["type"] == "section")["rewritten"]
+    content = json.loads(engine.calls[-1]["messages"][1]["content"])
+    assert content["edit_request"] == "Rewrite summary"
+    assert "must change" in content["problems"][-1]["detail"]
+
+
+@pytest.mark.parametrize(
+    "message,words,expected",
+    [
+        ("Expand the summary", 150, 304),
+        ("Tambah ringkasan", 250, 400),
+        ("Make the summary formal", 150, 192),
+    ],
+)
+def test_edit_length_budget(message, words, expected):
+    engine = FakeEngine("edit_memo", edits=["summary"])
+    collect(
+        agent.run_agent,
+        {
+            "message": message,
+            "documents": [document()],
+            "last_memo": {"summary": "## Summary\n" + "word " * words},
+        },
+        engine,
+    )
+    writer = next(
+        r
+        for r in engine.calls
+        if "Write this memo section" in r["messages"][0]["content"]
+    )
+    assert f"at most {expected} words" in writer["messages"][0]["content"]

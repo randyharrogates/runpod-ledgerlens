@@ -27,21 +27,21 @@ export function reportMarkdown(r: MemoReportData | undefined, texts: string[]) {
     '# Credit memo · Cash-flow review',
     metadata,
     texts[0],
-    r && table(['Month', 'Money in', 'Money out', 'Net'], [
+    texts[1] !== '' && r && table(['Month', 'Money in', 'Money out', 'Net'], [
       ...r.monthly.map(m => [
         m.month + (m.partial ? ' (partial)' : ''), m.inflow, m.outflow, m.net,
       ]),
       ['Total', r.totals.inflow, r.totals.outflow, r.totals.net],
     ]),
     texts[1],
-    payer && [
+    texts[2] !== '' && payer && [
       `${payer.payer}: ${r?.currency} ${payer.amount} of ${r?.currency} ${payer.total_inflow}`,
       `(${payer.share_percent}%) ${payer.cites.join(' ')}`,
     ].join(' '),
     texts[2],
-    r && table(['Flag', 'Amount', 'Evidence', 'Detail'],
+    texts[3] !== '' && r && table(['Flag', 'Amount', 'Evidence', 'Detail'],
       r.findings.map(f => [flagLabel(f), f.amount, f.cites.join(' '), f.description])),
-    r && table(['Page', 'Printed', 'Expected', 'Difference'],
+    texts[3] !== '' && r && table(['Page', 'Printed', 'Expected', 'Difference'],
       r.reconciliation.filter(p => !p.ok)
         .map(p => [p.page_id, p.printed, p.expected, p.difference])),
     texts[3],

@@ -125,3 +125,40 @@ def test_round_two_prompt_rules():
         0
     ]["content"]
     assert "Cite real page ids like [p3:r18]; never write pN or a range" in prompt
+
+
+def test_edit_request_overrides_section_style():
+    messages = section_messages(
+        "red_flags",
+        {"length": "standard", "language": "en"},
+        {},
+        "## Red flags\n- Existing [p1:r1]",
+        edit_request="Use one paragraph in Indonesian",
+        max_words=200,
+    )
+    system = messages[0]["content"]
+    content = json.loads(messages[1]["content"])
+    assert "overrides" in system and "no arithmetic" in system
+    # The usual guidance stays as context: it carries "do not suggest fraud".
+    assert "Usual guidance:" in system and "suggest fraud" in system
+    assert "Apply the user's edit_request" in system
+    assert content["edit_request"] == "Use one paragraph in Indonesian"
+    assert content["previous_text"].startswith("## Red flags")
+    assert "problems" not in content
+
+
+def test_checker_rewrite_of_an_edit_keeps_it_applied():
+    messages = section_messages(
+        "summary",
+        {"length": "standard", "language": "en"},
+        {},
+        "## Summary\nOne sentence.",
+        [{"kind": "too_long", "detail": "3 words over"}],
+        edit_request="Remove the last sentence of the summary.",
+        edit_applied=True,
+    )
+    system = messages[0]["content"]
+    # Re-applying "remove the last sentence" would remove a second one.
+    assert "already applies the user's edit_request" in system
+    assert "Apply the user's edit_request" not in system
+    assert "fixes exactly the listed problems" in system

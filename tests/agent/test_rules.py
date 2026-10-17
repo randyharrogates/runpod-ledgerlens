@@ -156,3 +156,75 @@ def test_review_text_edits_are_not_document_facts(message):
 )
 def test_review_month_and_row_removals_are_document_facts(message):
     assert is_document_fact_edit(message)
+
+
+@pytest.mark.parametrize(
+    "message",
+    [
+        "Remove the sentence about the March dip",
+        "Delete the point about the last three months",
+        "Drop the mention of June from the summary",
+        "Remove the bullet about the large entry on 12 Feb",
+        "Hide the red flag about month-end cash deposits",
+        "Delete the entries about round-tripping",
+        "Remove the line about the April payroll",
+        "Hapus kalimat tentang bulan Januari",
+        "Buang ayat tentang aliran tunai Mac",
+        "删除关于三月的句子",
+        "Remove the phrase about SGD 50,000",
+        "Delete the paragraph about the February row",
+        "Hapus poin tentang entri besar",
+    ],
+)
+def test_prose_topics_are_not_values(message):
+    assert not is_document_fact_edit(message)
+
+
+@pytest.mark.parametrize(
+    "message",
+    [
+        "remove the Jan 2026 row from the cash flow table",
+        "delete the March row",
+        "change the total inflow to 50,000",
+        "rename the borrower to ABC Trading",
+        "set the balance to 1,000",
+        "Change the amount in the sentence to 500",
+        "Ganti nama dalam kalimat menjadi Sinar Niaga",
+        "把摘要的银行名称改成山林银行",
+        "Ubah saldo menjadi 1000",
+        "Buang baris Februari dari jadual",
+    ],
+)
+def test_values_still_protected(message):
+    assert is_document_fact_edit(message)
+
+
+@pytest.mark.parametrize(
+    "message,expected",
+    [
+        ("Remove the questions section.", ["questions"]),
+        ("drop the cash flow section", ["cash_flow"]),
+        ("hapus bagian pertanyaan", ["questions"]),
+        ("buang bahagian ringkasan", ["summary"]),
+        ("删除问题部分", ["questions"]),
+        ("移除摘要章节", ["summary"]),
+        ("Remove the sentence about March from the summary", []),
+        ("Remove the March row", []),
+    ],
+)
+def test_removed_sections(message, expected):
+    from ledgerlens.agent.rules import removed_sections
+
+    assert removed_sections(message) == expected
+
+
+def test_section_hints_and_restore():
+    from ledgerlens.agent.rules import named_sections, restored_sections
+
+    assert named_sections(
+        'Remove "visit the site" and shorten 摘要',
+        {"questions": "Please visit the site."},
+    ) == ["summary", "questions"]
+    assert restored_sections("add the questions section back") == ["questions"]
+    assert restored_sections("bring back the summary") == ["summary"]
+    assert restored_sections("Make questions shorter") == []

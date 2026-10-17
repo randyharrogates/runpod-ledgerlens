@@ -1,4 +1,4 @@
-"""Deterministic offline builders and Runpod agent evaluations E2–E5."""
+"""Deterministic offline builders and Runpod agent evaluations E2–E6."""
 
 import argparse
 import base64
@@ -10,14 +10,16 @@ import time
 from collections import Counter, defaultdict
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime
+from difflib import SequenceMatcher
 from itertools import combinations
 from pathlib import Path
+from statistics import median
 
 import httpx
 from PIL import Image, ImageDraw, ImageFilter
 
 from ledgerlens.agent.checker import bad_citations
-from ledgerlens.agent.prompts import SECTIONS
+from ledgerlens.agent.prompts import REPLIES, SECTIONS
 from ledgerlens.agent.tools import (
     ToolContext,
     balance_on,
@@ -245,6 +247,175 @@ def build_e3(directory):
     ]
 
 
+E6_TEMPLATES = [
+    ("drop-sentence", "Remove the last sentence of the summary.", "summary"),
+    (
+        "drop-month",
+        "Remove the sentence about {month} from the cash flow section.",
+        "cash_flow",
+    ),
+    (
+        "add-sentence",
+        "Add a sentence to the summary recommending a site visit before approval.",
+        "summary",
+    ),
+    (
+        "paragraph",
+        "Rewrite the red flags as one paragraph without bullet points.",
+        "red_flags",
+    ),
+    ("drop-question", "Remove the second question.", "questions"),
+    ("formal", "Make the concentration section more formal.", "concentration"),
+    ("expand", "Expand the cash flow section with more detail.", "cash_flow"),
+    ("shorter", "Make the red flags section shorter.", "red_flags"),
+    ("translate", "Translate the summary into Bahasa Indonesia.", "summary"),
+    ("remove-section", "Remove the questions section.", "questions"),
+    ("refuse-name", "Change the borrower name to ABC Trading.", None),
+    ("refuse-row", "Remove the {month} row from the cash flow table.", None),
+    ("refuse-figure", "Change the total inflow to 50,000.", None),
+]
+MONTH_NAMES = (
+    "January February March April May June July August September October November December"
+).split()
+
+
+def memo_month(memo):
+    # Both month templates name the cash flow section, so the month must come from it.
+    text = memo.get("cash_flow", "")
+    match = re.search(
+        r"\b(?:"
+        + "|".join(m for name in MONTH_NAMES for m in (name, name[:3]))
+        + r")\b",
+        text,
+        re.I,
+    )
+    return match[0] if match else None
+
+
+def memo_body(text):
+    lines = text.strip().splitlines()
+    headings = {s["heading"].casefold() for s in SECTIONS}
+    if lines and lines[0].lstrip("# ").strip().casefold() in headings:
+        lines = lines[1:]
+    return "\n".join(lines)
+
+
+def sentence_count(text):
+    return len([s for s in re.split(r"[.!?]+", memo_body(text)) if s.strip()])
+
+
+def numbered_count(text):
+    return len(re.findall(r"^\s*\d+\.\s+", memo_body(text), re.M))
+
+
+def e6_check(template, text, previous, month=None):
+    """Offline, template-specific follow checks; headings do not count as prose."""
+    body = memo_body(text)
+    if template == "drop-sentence":
+        return (
+            sentence_count(text) == sentence_count(previous) - 1
+            and sentence_count(text) >= 1
+        )
+    if template == "drop-month":
+        month = next(
+            (
+                name
+                for name in MONTH_NAMES
+                if month and name[:3].casefold() == month[:3].casefold()
+            ),
+            month,
+        )
+        return bool(month) and not re.search(
+            r"\b(?:" + re.escape(month) + "|" + re.escape(month[:3]) + r")\b",
+            text,
+            re.I,
+        )
+    if template == "add-sentence":
+        return "site visit" in body.casefold()
+    if template == "paragraph":
+        return (
+            bool(body.strip())
+            and not re.search(r"^\s*(?:[-*•]|\d+\.)", body, re.M)
+            and bool(re.search(r"\[p\d+:r\d+\]", body))
+        )
+    if template == "drop-question":
+        return numbered_count(text) == numbered_count(previous) - 1
+    if template == "formal":
+        return (
+            bool(body)
+            and SequenceMatcher(
+                None, text[:8000], previous[:8000], autojunk=False
+            ).ratio()
+            < 0.97
+        )
+    if template == "expand":
+        return bool(body) and len(text.split()) >= 1.2 * len(previous.split())
+    if template == "shorter":
+        return bool(body) and len(text.split()) <= 0.8 * len(previous.split())
+    if template == "translate":
+        words = set(re.findall(r"\b\w+\b", body.casefold()))
+        return (
+            len(
+                words
+                & {
+                    "yang",
+                    "dan",
+                    "dengan",
+                    "untuk",
+                    "dari",
+                    "pada",
+                    "ini",
+                    "tidak",
+                    "bulan",
+                    "kas",
+                }
+            )
+            >= 3
+        )
+    if template == "remove-section":
+        return text == ""
+    raise ValueError(template)
+
+
+def e6_metrics(case, result, parent):
+    f, before = final(result), final(parent).get("memo", {})
+    memo = f.get("memo", {})
+    target = case["target"]
+    refused = f.get("answer") == REPLIES["document_facts"]
+    applicable = result.get("status") != "SKIPPED"
+    if target is None:
+        followed = refused and ("memo" not in f or memo == before)
+    else:
+        followed = (
+            target in memo
+            and f.get("intent") == "edit_memo"
+            and not refused
+            and e6_check(
+                case["template"],
+                memo[target],
+                before.get(target, ""),
+                result.get("month") or memo_month(before),
+            )
+        )
+    problems = dict(Counter(p["kind"] for p in f.get("problems", [])))
+    return dict(
+        id=case["id"],
+        template=case["template"],
+        applicable=applicable,
+        followed=bool(followed) and applicable,
+        refused_wrongly=refused and target is not None and applicable,
+        correct_refusal=bool(followed) and target is None and applicable,
+        others_unchanged=all(
+            memo.get(s["id"]) == before.get(s["id"])
+            for s in SECTIONS
+            if s["id"] != target
+        ),
+        problems=problems,
+        edit_not_applied=problems.get("edit_not_applied", 0),
+        latency_s=result.get("wall_s", 0),
+    )
+
+
 def build(suite, out, limit=None):
     directory = Path(out) / suite
     directory.mkdir(parents=True, exist_ok=True)
@@ -290,6 +461,35 @@ def build(suite, out, limit=None):
                     ),
                 )
             )
+    elif suite == "e6":
+        cases = []
+        for name, docs in businesses()[40:48]:
+            parent = f"{name}-memo"
+            cases.append(
+                dict(
+                    id=parent,
+                    payload=dict(
+                        task="agent",
+                        message="Write a credit memo for the committee.",
+                        documents=docs,
+                    ),
+                )
+            )
+            for template, message, target in E6_TEMPLATES:
+                cases.append(
+                    dict(
+                        id=f"{name}-{template}",
+                        depends_on=parent,
+                        template=template,
+                        target=target,
+                        expected="refused"
+                        if target is None
+                        else "removed"
+                        if template == "remove-section"
+                        else "edit",
+                        payload=dict(task="agent", message=message, documents=docs),
+                    )
+                )
     else:
         cases = []
         for name, docs in businesses()[10:40]:
@@ -315,7 +515,9 @@ def build(suite, out, limit=None):
                 ]
             )
     if limit is not None:
-        cases = cases[: limit * 2 if suite == "e5" else limit]
+        cases = cases[
+            : limit * (14 if suite == "e6" else 2) if suite in ("e5", "e6") else limit
+        ]
     write_jsonl(directory / "cases.jsonl", cases)
     return cases
 
@@ -347,7 +549,9 @@ def run(suite, out, endpoint, concurrency=8, limit=None):
     directory = Path(out) / suite
     cases = load_jsonl(directory / "cases.jsonl")
     if limit is not None:
-        cases = cases[: limit * 2 if suite == "e5" else limit]
+        cases = cases[
+            : limit * (14 if suite == "e6" else 2) if suite in ("e5", "e6") else limit
+        ]
     path = directory / "results.jsonl"
     done = {r["id"]: r for r in load_jsonl(path)}
     key = client.runpodctl_key()
@@ -373,6 +577,13 @@ def run(suite, out, endpoint, concurrency=8, limit=None):
                 if not memo:
                     raise ValueError("Parent memo unavailable")
                 payload["last_memo"] = memo
+                if "{month}" in payload["message"]:
+                    month = memo_month(memo)
+                    if month is None:
+                        return dict(
+                            id=case["id"], events=[], status="SKIPPED", wall_s=0
+                        )
+                    payload["message"] = payload["message"].replace("{month}", month)
             for attempt in range(3):
                 try:
                     response = client.call_endpoint(
@@ -417,7 +628,9 @@ def run(suite, out, endpoint, concurrency=8, limit=None):
 
     with ThreadPoolExecutor(max_workers=concurrency) as pool, path.open("a") as handle:
         # Retry earlier failures; keep only completed cases.
-        done = {i: r for i, r in done.items() if r.get("status") == "COMPLETED"}
+        done = {
+            i: r for i, r in done.items() if r.get("status") in ("COMPLETED", "SKIPPED")
+        }
         pending = {c["id"]: c for c in cases if c["id"] not in done}
         while pending:
             ready = [
@@ -576,7 +789,7 @@ def score(suite, out):
         cases=len(cases),
         completed=len(results),
         errors=sum(
-            bool(r.get("error")) or r.get("status") != "COMPLETED"
+            bool(r.get("error")) or r.get("status") not in ("COMPLETED", "SKIPPED")
             for r in results.values()
         ),
         execution_s=execution,
@@ -686,6 +899,35 @@ def score(suite, out):
             tool_call_rate=ratio(tools),
             misses=misses,
         )
+    elif suite == "e6":
+        metrics = [
+            e6_metrics(c, r, results.get(c["depends_on"], {}))
+            for c, r in rows
+            if c.get("depends_on")
+        ]
+        applicable = [m for m in metrics if m["applicable"]]
+        groups = defaultdict(list)
+        for m in applicable:
+            groups[m["template"]].append(m["followed"])
+        changed = [m for m in applicable if not m["template"].startswith("refuse-")]
+        report.update(
+            edits=metrics,
+            skipped=sum(not m["applicable"] for m in metrics),
+            applicable=len(applicable),
+            followed=sum(m["followed"] for m in applicable),
+            overall_follow_rate=ratio([m["followed"] for m in applicable]),
+            per_template={
+                k: dict(follow_rate=ratio(v), n=len(v)) for k, v in groups.items()
+            },
+            wrongful_refusals=sum(m["refused_wrongly"] for m in applicable),
+            correct_refusals=sum(m["correct_refusal"] for m in applicable),
+            others_unchanged_rate=ratio([m["others_unchanged"] for m in changed]),
+            problems=dict(sum((Counter(m["problems"]) for m in metrics), Counter())),
+            edit_not_applied=sum(m["edit_not_applied"] for m in metrics),
+            median_latency_s=median([m["latency_s"] for m in applicable])
+            if applicable
+            else 0,
+        )
     else:
         metrics = [
             memo_metrics(
@@ -715,7 +957,7 @@ def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("command", choices=("build", "run", "score"))
     parser.add_argument(
-        "--suite", choices=("e2", "e3", "e4", "e5", "all"), required=True
+        "--suite", choices=("e2", "e3", "e4", "e5", "e6", "all"), required=True
     )
     parser.add_argument("--out", type=Path, required=True)
     parser.add_argument("--endpoint")
@@ -726,7 +968,9 @@ def main(argv=None):
         parser.error("concurrency and limit must be positive")
     if args.command == "run" and not args.endpoint:
         parser.error("run requires --endpoint")
-    for suite in ("e2", "e3", "e4", "e5") if args.suite == "all" else [args.suite]:
+    for suite in (
+        ("e2", "e3", "e4", "e5", "e6") if args.suite == "all" else [args.suite]
+    ):
         if args.command == "build":
             build(suite, args.out, args.limit)
         elif args.command == "run":
