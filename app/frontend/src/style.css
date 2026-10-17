@@ -1148,3 +1148,13 @@ button.secondary {background:transparent;color:var(--text);border:1px solid var(
   .report-paper, .report-paper *, .cover-card, .cover-card * { visibility: visible; }
   .cover-progress { display: none; }
 }
+
+.gpu-dot.busy,.gpu-dot.waking {background:var(--sky)}
+.gpu-dot.stopping {background:var(--orange)}
+.gpu-scope label {display:block;margin:8px 0}
+.gpu-endpoints {padding:0;margin:0 0 12px;list-style:none;display:grid;gap:8px}
+.gpu-endpoints li {display:grid;grid-template-columns:8px 1fr;column-gap:8px;align-items:baseline}
+.gpu-endpoints li > small {grid-column:2}
+.gpu-endpoints .gpu-dot {display:inline-block}
+.gpu-endpoints small {display:block}
+.gpu-popover {max-height:80vh;overflow:auto}

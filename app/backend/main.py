@@ -27,6 +27,7 @@ from app.backend import logs
 from app.backend.chat import router as chat_router
 from app.backend.cover import router as cover_router
 from app.backend.datasets import router as datasets_router
+from app.backend.gpu import cached_endpoint, fresh_health
 from app.backend.gpu import router as gpu_router
 from app.backend.insights import router as insights_router
 from app.backend.training import router as training_router
@@ -705,19 +706,23 @@ def status():
         if time.monotonic() - STATUS["time"] < 3:
             return STATUS["value"]
         value = {}
+        endpoints = {}
         for model in ("8b", "ft", "4b", "agent", "image"):
             endpoint, key = config(model)
-            if not endpoint:
+            if not endpoint or not key or os.getenv("DEMO_MODE") == "1":
                 value[model] = {"offline": True}
-            else:
+                continue
+            if endpoint not in endpoints:
                 try:
-                    value[model] = (
-                        fetch_health(endpoint, key)
-                        if key and os.getenv("DEMO_MODE") != "1"
-                        else {"offline": True}
-                    )
+                    health = fresh_health(endpoint) or fetch_health(endpoint, key)
+                    try:
+                        gpu_state = cached_endpoint(endpoint, key, health)["state"]
+                    except Exception:
+                        gpu_state = "problem"
+                    endpoints[endpoint] = {**health, "gpu_state": gpu_state}
                 except Exception:
-                    value[model] = {"unavailable": True}
+                    endpoints[endpoint] = {"unavailable": True, "gpu_state": "problem"}
+            value[model] = endpoints[endpoint]
         STATUS.update(time=time.monotonic(), value=clean(value))
         return STATUS["value"]
 

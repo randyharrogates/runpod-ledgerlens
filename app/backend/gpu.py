@@ -1,8 +1,9 @@
-"""Timed minimum-worker control for the Assistant endpoint."""
+"""Timed minimum-worker control and proven readiness for configured endpoints."""
 
 import asyncio
 import json
 import os
+import threading
 import time
 from contextlib import asynccontextmanager
 from pathlib import Path
@@ -17,11 +18,15 @@ from app.backend import logs
 LOCAL_HOSTS = {"127.0.0.1", "::1", "testclient"}
 TASK = None
 STATE = None
-CACHE = None
+CACHE = {}
 LOCK = asyncio.Lock()
+SETTINGS_LOCK = threading.Lock()
+SETTINGS_LOCKS = {}
 PROBERS = {}
 READINESS = {}
 PROBE_TIMEOUT = 90
+# A fresh 8B worker measured ~5 min to pull and load; only a longer wait is a problem.
+STARTUP_GRACE = 600
 
 
 def readiness(endpoint):
@@ -33,6 +38,7 @@ def readiness(endpoint):
             "probe": "idle",
             "last_probe": None,
             "error": None,
+            "unready_since": None,
         },
     )
 
@@ -85,6 +91,7 @@ async def probe_cycle(endpoint, key, client):
                 if status == "COMPLETED" and output.get("status") == "ready":
                     state.update(
                         ready=True,
+                        unready_since=None,
                         checked_at=time.time(),
                         last_probe={
                             "delay_ms": value.get("delayTime"),
@@ -94,17 +101,27 @@ async def probe_cycle(endpoint, key, client):
                             )
                             if value.get("workerId") is not None
                             else None,
-                            "engine_load_s": output.get("engine_load_seconds"),
+                            "engine_load_s": output.get(
+                                "engine_load_seconds", output.get("load_seconds")
+                            ),
                             "cold_start": output.get("cold_start"),
                         },
                     )
+                    if output.get("gpu") is not None:
+                        state["last_probe"]["gpu"] = str(output["gpu"]).replace(
+                            key, "[REDACTED]"
+                        )
                 else:
                     state["ready"] = False
                     if status != "COMPLETED" or output.get("status") != "starting":
                         state["error"] = "Worker health check failed"
                 return
             if time.monotonic() >= deadline:
-                state.update(ready=False, error="Worker not taking jobs yet")
+                # A queued health job while the model loads is normal, not a fault.
+                since = state["unready_since"] or time.time()
+                state.update(ready=False, unready_since=since)
+                if time.time() - since >= STARTUP_GRACE:
+                    state["error"] = "Worker not taking jobs yet"
                 return
             await asyncio.sleep(2)
     finally:
@@ -124,7 +141,7 @@ async def prober(endpoint, key):
                 readiness(endpoint).update(
                     ready=False, probe="idle", error="Could not check the worker"
                 )
-            await asyncio.sleep(120 if readiness(endpoint)["ready"] else 5)
+            await asyncio.sleep(15 if readiness(endpoint)["ready"] else 5)
 
 
 def state_path():
@@ -191,53 +208,112 @@ def cancel():
     TASK = None
 
 
-def schedule(endpoint, until):
+def targets():
+    from app.backend.main import config
+
+    result = {}
+    for model, label in (
+        ("agent", "Assistant"),
+        ("ft", "Trained small model"),
+        ("8b", "Big model"),
+        ("4b", "Small model"),
+        ("image", "Cover image (FLUX)"),
+    ):
+        endpoint, _ = config(model)
+        if not endpoint:
+            continue
+        if endpoint in result:
+            result[endpoint]["keys"].append(model)
+            result[endpoint]["label"] += " + " + label
+        else:
+            result[endpoint] = {
+                "keys": [model],
+                "endpoint_id": endpoint,
+                "label": label,
+            }
+    return list(result.values())
+
+
+def endpoint_state(value):
+    if value.get("ready_error"):
+        return "problem"
+    if value.get("ready"):
+        return "ready"
+    if value.get("workers_min", 0) >= 1:
+        return "starting"
+    jobs = value.get("jobs", {})
+    if value.get("workers", {}).get("running", 0):
+        # A running worker with no jobs is winding down after min went to 0
+        # (measured ~5 min on Runpod) and is still billed.
+        if jobs.get("inProgress", 0) or jobs.get("inQueue", 0):
+            return "busy"
+        return "stopping"
+    if value.get("workers", {}).get("initializing", 0) or value.get("jobs", {}).get(
+        "inQueue", 0
+    ):
+        return "waking"
+    return "asleep"
+
+
+def schedule(endpoints, until):
     global TASK
     cancel()
-    TASK = asyncio.create_task(auto_off(endpoint, until))
+    TASK = asyncio.create_task(auto_off(endpoints, until))
 
 
-async def auto_off(endpoint, until):
+async def auto_off(endpoints, until):
     global STATE, CACHE
+    pending = set([endpoints] if isinstance(endpoints, str) else endpoints)
     await asyncio.sleep(max(0, until - time.time()))
-    while True:
+    while pending:
         async with LOCK:
-            current, key, reason = credentials()
-            if reason or current != endpoint:
+            _, key, reason = credentials()
+            if reason:
                 return
-            try:
-                await run_in_threadpool(remote, endpoint, key, 0)
-                persist(None)
-                STATE = CACHE = None
-                task = stop_prober(endpoint)
-                if task:
-                    await asyncio.gather(task, return_exceptions=True)
-                logs.LOG.info("GPU auto-off completed")
-                return
-            except (HTTPException, OSError):
-                logs.LOG.info("GPU auto-off failed; retrying in 30 seconds")
+            for endpoint in list(pending):
+                try:
+                    await run_in_threadpool(remote, endpoint, key, 0)
+                    pending.remove(endpoint)
+                    stop_prober(endpoint)
+                    CACHE.pop(endpoint, None)
+                except HTTPException:
+                    logs.LOG.info("GPU auto-off failed; retrying in 30 seconds")
+            if not pending:
+                try:
+                    persist(None)
+                except OSError:
+                    pending.update(STATE["endpoint_ids"] if STATE else [])
+                else:
+                    STATE = None
+                    return
         await asyncio.sleep(30)
 
 
 @asynccontextmanager
 async def lifespan(app):
     global STATE, CACHE
-    STATE = CACHE = None
+    STATE = None
+    CACHE = {}
     READINESS.clear()
     endpoint, key, reason = credentials()
     if not reason:
         try:
             saved = json.loads(state_path().read_text())
-            if saved["endpoint_id"] == endpoint and isinstance(
-                saved["warm_until"], (int, float)
+            ids = saved.get("endpoint_ids", [saved.get("endpoint_id")])
+            if (
+                ids
+                and all(isinstance(item, str) and item for item in ids)
+                and isinstance(saved["warm_until"], (int, float))
             ):
-                STATE = saved
-                schedule(endpoint, saved["warm_until"])
-                if saved["warm_until"] > time.time():
-                    start_prober(endpoint, key)
-                if saved["warm_until"] <= time.time():
-                    # Give the recovery task a chance to turn off before serving requests.
-                    await asyncio.sleep(0)
+                STATE = {
+                    "endpoint_ids": list(dict.fromkeys(ids)),
+                    "warm_until": saved["warm_until"],
+                    "scope": saved.get("scope", "agent"),
+                }
+                schedule(STATE["endpoint_ids"], saved["warm_until"])
+                for item in STATE["endpoint_ids"]:
+                    start_prober(item, key)
+                await asyncio.sleep(0)
         except (OSError, ValueError, KeyError, TypeError):
             pass
     try:
@@ -256,63 +332,147 @@ async def lifespan(app):
 router = APIRouter(lifespan=lifespan)
 
 
-async def snapshot(endpoint, key, fresh=False):
-    global CACHE
-    from app.backend.main import GPU_PRICE_PER_SEC, fetch_health
+def settings_snapshot(endpoint, key):
+    with SETTINGS_LOCK:
+        lock = SETTINGS_LOCKS.setdefault(endpoint, threading.Lock())
+    with lock:
+        cached = CACHE.get(endpoint)
+        if cached and time.monotonic() - cached[0] < 3:
+            if cached[1].get("settings_error"):
+                raise HTTPException(502, "Could not check this endpoint")
+            return dict(cached[1])
+        try:
+            settings = remote(endpoint, key)
+        except (HTTPException, httpx.HTTPError, ValueError):
+            CACHE[endpoint] = (
+                time.monotonic(),
+                {**(cached[1] if cached else {}), "settings_error": True},
+            )
+            raise
+        value = {
+            "workers_min": settings.get("workersMin", 0),
+            "workers_max": settings.get("workersMax"),
+            "settings": settings,
+        }
+        CACHE[endpoint] = (time.monotonic(), value)
+        return dict(value)
 
-    if not fresh and CACHE and CACHE[0] == endpoint and time.monotonic() - CACHE[1] < 3:
-        return {**CACHE[2], **ready_fields(endpoint)}
-    settings = await run_in_threadpool(remote, endpoint, key)
-    if settings["workersMin"] >= 1:
-        start_prober(endpoint, key)
-    else:
-        task = stop_prober(endpoint)
-        if task:
-            await asyncio.gather(task, return_exceptions=True)
-    try:
-        health = await run_in_threadpool(fetch_health, endpoint, key)
-    except Exception:
-        health = {}
-    prices = []
-    for gpu in settings.get("gpuTypeIds", []):
-        matches = [
-            price * 3600 for name, price in GPU_PRICE_PER_SEC.items() if name in gpu
-        ]
-        prices.extend(
-            matches
-            or [
-                min(GPU_PRICE_PER_SEC.values()) * 3600,
-                max(GPU_PRICE_PER_SEC.values()) * 3600,
-            ]
+
+def fresh_health(endpoint):
+    """The last /health seen within three seconds, so every view shows the same reading."""
+    cached = CACHE.get(endpoint)
+    if cached and time.monotonic() - cached[0] < 3 and "workers" in cached[1]:
+        return {"workers": cached[1]["workers"], "jobs": cached[1].get("jobs", {})}
+    return None
+
+
+def cached_endpoint(endpoint, key, health=None):
+    """Shared three-second settings cache, also used by /api/status."""
+    value = settings_snapshot(endpoint, key)
+    if health is not None:
+        value = {
+            **value,
+            "workers": health.get("workers", {}),
+            "jobs": health.get("jobs", {}),
+        }
+        CACHE[endpoint] = (CACHE[endpoint][0], value)
+    if readiness(endpoint)["error"] == "Could not check this endpoint":
+        readiness(endpoint)["error"] = None
+    workers = value.get("workers", {})
+    if "workers" in value and not any(
+        workers.get(name, 0) for name in ("idle", "ready", "running")
+    ):
+        readiness(endpoint)["ready"] = False
+    value = {**value, **ready_fields(endpoint)}
+    value["state"] = endpoint_state(value)
+    return value
+
+
+async def snapshot(endpoint, key, fresh=False):
+    from app.backend.main import (
+        GPU_PRICE_PER_SEC,
+        IMAGE_GPU_PRICE_PER_SEC,
+        fetch_health,
+    )
+
+    async def one(target):
+        item = target["endpoint_id"]
+        try:
+            cached = CACHE.get(item)
+            if (
+                not fresh
+                and cached
+                and time.monotonic() - cached[0] < 3
+                and "workers" in cached[1]
+            ):
+                value = cached_endpoint(item, key)
+            else:
+                _, health = await asyncio.gather(
+                    run_in_threadpool(settings_snapshot, item, key),
+                    run_in_threadpool(fetch_health, item, key),
+                )
+                value = cached_endpoint(item, key, health)
+            if value["workers_min"] >= 1:
+                start_prober(item, key)
+            else:
+                stop_prober(item)
+                value.update(ready_fields(item))
+                value["state"] = endpoint_state(value)
+        except (HTTPException, httpx.HTTPError, ValueError, TypeError, KeyError):
+            readiness(item).update(ready=False, error="Could not check this endpoint")
+            value = {
+                **(CACHE.get(item, (0, {}))[1]),
+                "workers_min": CACHE.get(item, (0, {}))[1].get("workers_min", 0),
+                "workers_max": CACHE.get(item, (0, {}))[1].get("workers_max"),
+                **ready_fields(item),
+                "state": "problem",
+            }
+        settings = value.pop("settings", {})
+        table = (
+            IMAGE_GPU_PRICE_PER_SEC if "image" in target["keys"] else GPU_PRICE_PER_SEC
         )
-    prices = prices or [
-        min(GPU_PRICE_PER_SEC.values()) * 3600,
-        max(GPU_PRICE_PER_SEC.values()) * 3600,
-    ]
-    value = {
+        prices = [
+            price * 3600
+            for gpu in settings.get("gpuTypeIds", [])
+            for name, price in table.items()
+            if name in gpu
+        ]
+        prices = prices or [min(table.values()) * 3600, max(table.values()) * 3600]
+        return {
+            **target,
+            **value,
+            "name": str(settings.get("name", "")).replace(key, "[REDACTED]"),
+            "workers": {
+                name: value.get("workers", {}).get(name, 0)
+                for name in ("idle", "ready", "running", "initializing", "throttled")
+            },
+            "jobs": {
+                name: value.get("jobs", {}).get(name, 0)
+                for name in ("inQueue", "inProgress")
+            },
+            "cost_per_hour_low": round(min(prices), 2),
+            "cost_per_hour_high": round(max(prices), 2),
+        }
+
+    values = await asyncio.gather(*(one(target) for target in targets()))
+    agent = next(value for value in values if value["endpoint_id"] == endpoint)
+    return {
+        **agent,
         "available": True,
-        "endpoint_id": endpoint,
-        "name": str(settings.get("name", "")).replace(key, "[REDACTED]"),
-        "workers_min": settings["workersMin"],
-        "workers_max": settings.get("workersMax"),
-        "workers": {
-            name: health.get("workers", {}).get(name, 0)
-            for name in ("idle", "ready", "running", "initializing", "throttled")
-        },
-        "warm_until": STATE["warm_until"]
-        if STATE and STATE["endpoint_id"] == endpoint
-        else None,
-        "cost_per_hour_low": round(min(prices), 2),
-        "cost_per_hour_high": round(max(prices), 2),
+        "warm_until": STATE["warm_until"] if STATE else None,
+        "scope": STATE["scope"] if STATE else None,
+        "endpoints": values,
+        "all_cost_per_hour_low": round(sum(v["cost_per_hour_low"] for v in values), 2),
+        "all_cost_per_hour_high": round(
+            sum(v["cost_per_hour_high"] for v in values), 2
+        ),
     }
-    CACHE = endpoint, time.monotonic(), value
-    return {**value, **ready_fields(endpoint)}
 
 
 def ready_fields(endpoint):
     state = readiness(endpoint)
     return {
-        **{k: v for k, v in state.items() if k != "error"},
+        **{k: v for k, v in state.items() if k not in ("error", "unready_since")},
         "ready_error": state["error"],
     }
 
@@ -329,6 +489,7 @@ async def get_gpu():
 class Change(BaseModel):
     on: StrictBool
     minutes: object = 30
+    scope: object = "agent"
 
 
 @router.post("/api/gpu")
@@ -339,17 +500,26 @@ async def change_gpu(change: Change, request: Request):
         raise HTTPException(403, "The GPU can only be switched from this computer")
     if type(change.minutes) is not int or change.minutes not in (15, 30, 60, 120):
         raise HTTPException(400, "Minutes must be 15, 30, 60 or 120")
+    if change.scope not in ("agent", "all"):
+        raise HTTPException(400, "Scope must be agent or all")
     endpoint, key, reason = credentials()
     if reason:
         raise HTTPException(409, reason)
     async with LOCK:
-        saved = (
-            {"endpoint_id": endpoint, "warm_until": time.time() + change.minutes * 60}
-            if change.on
-            else None
-        )
-        # Persist before enabling so a crash cannot lose the shutoff deadline.
-        if saved:
+        if change.on:
+            ids = (
+                [target["endpoint_id"] for target in targets()]
+                if change.scope == "all"
+                else [endpoint]
+            )
+            ids = list(dict.fromkeys((STATE["endpoint_ids"] if STATE else []) + ids))
+            saved = {
+                "endpoint_ids": ids,
+                "warm_until": time.time() + change.minutes * 60,
+                "scope": "all"
+                if change.scope == "all" or (STATE and STATE["scope"] == "all")
+                else "agent",
+            }
             try:
                 persist(saved)
             except OSError:
@@ -357,22 +527,45 @@ async def change_gpu(change: Change, request: Request):
                     500, "Could not save the GPU shutoff timer"
                 ) from None
             STATE = saved
-            schedule(endpoint, saved["warm_until"])
-        await run_in_threadpool(remote, endpoint, key, int(change.on))
-        if change.on:
-            start_prober(endpoint, key)
-        if not change.on:
-            task = stop_prober(endpoint)
-            if task:
-                await asyncio.gather(task, return_exceptions=True)
-            cancel()
+            schedule(ids, saved["warm_until"])
+        else:
+            ids = list(
+                dict.fromkeys(
+                    [t["endpoint_id"] for t in targets()]
+                    + (STATE["endpoint_ids"] if STATE else [])
+                )
+            )
+
+        async def apply(item):
+            # Endpoints are changed in parallel so the switch answers in one round trip.
             try:
-                persist(None)
-            except OSError:
-                raise HTTPException(
-                    500, "GPU is off, but the saved timer could not be cleared"
-                ) from None
+                if (
+                    change.on
+                    or (await run_in_threadpool(remote, item, key)).get("workersMin", 0)
+                    >= 1
+                ):
+                    await run_in_threadpool(remote, item, key, int(change.on))
+                if change.on:
+                    start_prober(item, key)
+                else:
+                    stop_prober(item)
+            except HTTPException as exc:
+                return f"{item}: {exc.detail}"
+
+        failures = [f for f in await asyncio.gather(*map(apply, ids)) if f]
+        CACHE = {}
+        if not change.on:
+            for item in list(PROBERS):
+                stop_prober(item)
+        if failures and not change.on:
+            saved = {"endpoint_ids": ids, "warm_until": time.time(), "scope": "all"}
+            persist(saved)
+            STATE = saved
+            schedule(ids, saved["warm_until"])
+        if failures:
+            raise HTTPException(502, "; ".join(failures))
+        if not change.on:
+            cancel()
+            persist(None)
             STATE = None
-        CACHE = None
-        logs.LOG.info("GPU %s", "on with shutoff timer" if change.on else "off")
         return await snapshot(endpoint, key, fresh=True)
