@@ -109,7 +109,7 @@ Code: `train/agent_eval.py`.
 The memo then changed format (tables from code, commentary from the model), so E5 ran twice more
 on the same 30 businesses:
 
-| E5, report format | Run 4 (9f64648) | Run 5 (b4bbb62) |
+| E5, report format | Run 4 (2bb1492) | Run 5 (0ca3cde) |
 |---|---|---|
 | All sections, valid citations | 30/30, 30/30 | 30/30, 30/30 |
 | Memos with a flagged figure left | 6/30 | **0/30** |
@@ -130,17 +130,17 @@ checked". Fixes: up to 100 read pages per turn; a cross-page check (a page must 
 page's closing balance); a fixed answer for questions about what the assistant can do; a fixed
 refusal for edits to names, figures or table rows (they come from the documents); and an "Edit not
 applied" warning when an edited section comes back unchanged. The 4B router got the two new kinds of
-message wrong too often, so small code rules back it up; they can only move a turn to the fixed answer
-or the refusal.
+message wrong too often, so small code rules back it up (the full list is in
+[`CREDIT_ASSISTANT.md`](CREDIT_ASSISTANT.md#router-what-does-the-user-want)).
 
-| E2 router (198 cases: the 180 above + 18 new) | Run 4 (cb4347f) | Run 5 (7f61b5b, rules) |
+| E2 router (198 cases: the 180 above + 18 new) | Run 4 (39b5ccb) | Run 5 (429d9ea, rules) |
 |---|---|---|
 | Intent right, all cases | 91.4% | **97.5%** |
 | "What can you do?" questions (10, en/id/ms/zh) | 3/10 | **10/10** |
 | Edits to names, figures or rows refused (8) | 4/8 | **8/8** |
 | Injections followed (both to a safe reply) | 2 | 1 |
 
-E5 run 6 (cb4347f): 30/30 all sections and citations, 2/30 memos with a flagged figure, "shorter"
+E5 run 6 (39b5ccb): 30/30 all sections and citations, 2/30 memos with a flagged figure, "shorter"
 edits 25/30, other sections unchanged 30/30, median memo 16.3 s. Replaying the same 11-page session
 on the fixed worker: all 11 pages in the memo, the planted fault caught as a balance gap between p3
 and p4, the right fixed answer and refusals. The reader errors stay (5 of 9 pages exact on this
@@ -155,7 +155,7 @@ still be refused (rename the borrower, remove a table row, change a total). Each
 same memo and is checked by code (sentence and item counts, the month gone, words added, layout,
 language words, other sections byte-identical).
 
-| E6 (104 edits) | Before (dc7d3be) | 27eb810 | f7b7bec | 50d884e | **4f0375d** |
+| E6 (104 edits) | Before (6d2d6e4) | 7b2a98b | 0a31b64 | 8677ee8 | **24cd714** |
 |---|---|---|---|---|---|
 | Edits followed | 62.5% | 84.6% | 95.2% | 93.3% | **97.1%** |
 | Prose edits wrongly refused | 8 | 0 | 0 | 0 | 0 |
@@ -164,7 +164,7 @@ language words, other sections byte-identical).
 | Edits applied exactly in code | — | — | 23 | 23 | 23 |
 | Median turn | 6.9 s | 11.0 s | 11.3 s | 11.0 s | 10.2 s |
 
-(27eb810 is re-scored with the fixed scorer; the f7b7bec → 50d884e dip moved between edit types and
+(7b2a98b is re-scored with the fixed scorer; the 0a31b64 → 8677ee8 dip moved between edit types and
 is GPU run-to-run variation.) What changed: the document-fact rule and the router no longer refuse a
 prose edit that only mentions a month or an entry; the writer gets an edit mode where the request
 overrides length, format, tone and language but not the evidence rules or the section's content rules;
@@ -178,8 +178,8 @@ which reworded and introduced an error); one "shorter" edit over the length limi
 run cost about $0.08–0.12.
 
 Scores for E4 are all on the final scorer (run 1 and 2 answers were rescored). Each run of
-E2, E4 and E5 cost about $0.08–0.10 per suite in GPU time; the whole evaluation, three runs plus
-E3, cost about $0.6.
+E2, E4 and E5 cost about $0.08–0.10 per suite in GPU time (estimated from GPU seconds at the 24 GB
+list price); the account balance fell $0.60 over the whole evaluation, three runs plus E3.
 
 What the runs found and what fixed it (all code and prompts, no training):
 - **Missing tools.** The data agent couldn't list red flags or find the single largest payment,
@@ -222,7 +222,9 @@ and 15/18 exact rows. Stop cancels the Runpod job (`CANCELLED`), but the worker 
   one epoch of LoRA (rank 16, language layers only, bf16, learning rate 2e-4, batch 8).
 - **Training data:** 2,396 synthetic pages + 771 real CORD receipts (24% real). Validation 289 + 99.
 - **Test sets, scored separately:**
-  - A. 1,499 synthetic pages in two statement layouts the model never saw in training;
+  - A. 1,499 synthetic pages from the businesses that use the two statement layouts held back from
+    training: 1,231 statement pages in those unseen layouts plus their 268 invoices (the invoice
+    layouts are seen in training);
   - A′. 291 synthetic pages in the six training layouts, from businesses not in training;
   - B. 98 real CORD receipts (CORD's own test split);
   - C. phone photos of 18 printed test pages, against clean copies of the same 18 pages.
@@ -259,7 +261,9 @@ wrote, how many were right; recall = of the real rows, how many it got. F1 combi
 | **Speed, batched on one RTX PRO 4500** (A): seconds per page | 2.58 | 1.72 | **1.28** |
 | cost per 1,000 pages at $0.72/h | $0.52 | $0.34 | **$0.26** |
 
-Where the differences come from (row F1 on A, by layout and by damage; script over `results.json`):
+Where the differences come from (row F1 on A, by layout and by damage). These are row-level (micro)
+scores from the per-row results kept on the training volume, not in the repo;
+`eval/breakdown.json` has the same splits as per-page averages (macro), which run a little higher:
 
 | | 8B | 4B | 4B fine-tuned |
 |---|---:|---:|---:|
@@ -348,11 +352,11 @@ Most serious bugs passed every test and were caught only by looking at the outpu
 | Runaway zeros ("17500.0000…") until the token limit | Reading invalid answers during the run | Amounts are bounded decimal strings in the schema |
 | The memo's citations pointed one row early | Clicking a memo citation in the live dry run | The model is given 1-based `[p1:r4]` references to copy |
 | The memo model did its own arithmetic and got it wrong (total outflow 54,987.85; true 55,041.59), and invented a date for a cash deposit | Checking the live memo's numbers and dates against the data | Period totals and finding dates are computed in code and given to the model; every number in a live memo is checked against the analysis and any mismatch is highlighted |
-| Small sample scan read 0/18 rows exactly after app JPEG conversion | Live browser test, then the same 595×841 page: PNG 15/18, JPEG q90 0/18, upscaled PNG 13/18 | App keeps original bytes / PNG, JPEG only above the 9 MB request budget; removed the worker’s half-size JPEG decode below the pixel cap. Worker half still needs release |
+| Small sample scan read 0/18 rows exactly after app JPEG conversion | Live browser test, then the same 595×841 page: PNG 15/18, JPEG q90 0/18, upscaled PNG 13/18 | App keeps original bytes / PNG, JPEG only above the 9 MB request budget; removed the worker’s half-size JPEG decode below the pixel cap (released 15 Oct) |
 | The GPU switch flashed "problem" every ~94 s while the 8B loaded | Watching the switch during a live arm-all test | A health job that waits in queue while the model loads is "starting"; only after 10 min is it a problem |
 | The app said "GPU off" while Runpod still billed $5.13/h for ~5 min | Comparing `runpodctl user` spend with the UI after "Turn off now" | New "stopping · still billed" state: min 0, a running worker, no jobs |
 | The header said "ready" for any running worker, the switch only after a health job | Reading the two status paths side by side | One state per endpoint, one shared Runpod reading for both |
-| Memo edits refused or returned unchanged ("remove the sentence about March" refused; "remove the last sentence" ignored) | Randy's live test; then E6 (62.5% followed) | Narrowed refusal rule and router wording, edit mode for the writer, exact edits in code, retry, section removal; E6 97.1% |
+| Memo edits refused or returned unchanged ("remove the sentence about March" refused; "remove the last sentence" ignored) | A live user test; then E6 (62.5% followed) | Narrowed refusal rule and router wording, edit mode for the writer, exact edits in code, retry, section removal; E6 97.1% |
 | A correct paragraph rewrite shown as "Edit not applied" | Browser check of the edit flow | The unchanged-text check also compares the line layout |
 | A correct Indonesian translation flagged on every amount | Reading E6 misses | The checker reads "171.558.216" and "73,16%" both ways |
 | "More formal" turned an English section into Chinese | Reading E6 misses | A script switch keeps the previous text and says why |

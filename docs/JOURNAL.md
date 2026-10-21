@@ -107,7 +107,7 @@ small team of agents does the work on one Runpod Serverless GPU, quickly.
   add a request per line. The server keeps the last 2,000 lines in memory, hides the API key, and
   never logs images, prompts, documents or answers.
 - **What was weighed:** Runpod has a public API for a worker's own console log; it is wired in
-  but off by default (`RUNPOD_WORKER_LOGS=1`), because worker logs are not tied to a single job
+  but off by default at first (switched on in Step 11), because worker logs are not tied to a single job
   and it adds polling. A security review then found that anyone on the network could read every
   session's logs; now each person sees only their own session's lines plus app-wide ones, and
   session ids are masked in messages.
@@ -205,8 +205,8 @@ small team of agents does the work on one Runpod Serverless GPU, quickly.
 - **A lesson about fixes:** the first router fix made memo requests work but broke two other
   kinds of request, so the total barely moved. Only running the full set again showed it.
 - **What is left:** 4 of 30 memos still contain an invented threshold such as "exceeds 70%". The
-  checker marks it on screen. Whether that is worth training a writer adapter (about $3–5) is
-  still open.
+  checker marks it on screen. (Later fixed without training: tables built by code and a stricter
+  writer brought this to 0 of 30, Step 16 and REPORT §3.)
 
 ## Step 16: The memo becomes a report, and every run can be traced
 - **What we did:** the memo used to arrive as five chat cards with the figures inside sentences.
@@ -240,7 +240,7 @@ small team of agents does the work on one Runpod Serverless GPU, quickly.
 - **Looking again:** replaying the same session on the fixed version caught the planted fault.
   It also found one more miss (the router called "remove the January row" off topic; fixed) and
   a display bug (every numbered question showed "1."; fixed).
-- **Waiting is now explained:** a cold GPU takes 3–4 minutes. The chat used to say "Thinking…"
+- **Waiting is now explained:** a cold GPU takes 3–8 minutes. The chat used to say "Thinking…"
   the whole time; now it says it is waiting for a GPU worker, with a timer, and points to the
   GPU switch.
 

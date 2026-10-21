@@ -33,7 +33,7 @@ we gave up. Measured results and costs are in `REPORT.md`; the story of the agen
   0.9872 for both, 0 invalid outputs and 187/200 outputs identical. A second engine would add
   memory and startup work without a measured accuracy gain.
 - **Trade-off:** LoRA was ~11% slower at concurrency 1 and ~8% at concurrency 8. The writer still
-  uses the base model; a memo adapter is planned, not trained.
+  uses the base model; a memo adapter would be trained only if the memo tests show a need (REPORT §8).
 
 ## 3. The data
 
@@ -64,7 +64,8 @@ we gave up. Measured results and costs are in `REPORT.md`; the story of the agen
 
 ### Phone photos of printed pages (test only)
 - **Why:** the most honest check that is possible without real customer data — a real camera and
-  real paper, with known answers. Randy prints 20 held-out pages and photographs them.
+  real paper, with known answers. We printed 20 held-out pages and photographed them on one phone;
+  18 were usable (REPORT §4).
 
 ## 4. The train / validation / test split
 
@@ -200,7 +201,7 @@ we gave up. Measured results and costs are in `REPORT.md`; the story of the agen
 
 - **Choice:** the app sends original bytes within the pixel cap, resized PNG otherwise, and JPEG
   only above the 9 MB request budget. The worker never decodes below the pixel cap; that worker
-  fix still needs release.
+  fix was released on 15 Oct.
 - **Why:** a live app test found JPEG q90 conversion plus half-size JPEG decoding turned a
   595×841 sample scan from 15/18 exact rows (PNG) into 0/18. Upscaling gave 13/18, so we skipped it.
 - **Lesson:** test the full upload path. Direct tests of stored pages missed the app's image damage.

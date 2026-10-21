@@ -2,7 +2,8 @@
 
 Run from the repository root with `bash train/run_pod.sh`. The repo must be at
 `/workspace/runpod-ledgerlens`, with persistent network storage at `/workspace`,
-`uv` installed, internet access, and an A100 80 GB or L40S 48 GB with bf16 support.
+`uv` installed, internet access, and a bf16 GPU with at least 32 GB (the recorded run used an
+RTX PRO 4500 32 GB at $0.72/h).
 Local tests require neither CUDA nor Unsloth/vLLM. No GPU API was verified offline.
 
 - `build_dataset.py`: validates synthetic targets, checks business/ID separation,
@@ -58,10 +59,9 @@ turn and the Qwen `<|im_start|>assistant\n` delimiter; verify in smoke output.
 
 ## Time, cost and resume
 
-The plan budgets 1–2 hours for the main run; rendering 400 six-month businesses
-and evaluating three models can add hours. These are planning estimates, not GPU
-measurements. At an assumed $2/hour Pod price, 3–6 hours costs $6–12 plus storage.
-Record actual console rates: report's `--price NAME=USD_PER_HOUR` numbers are
+Measured on 10 Oct (RTX PRO 4500 32 GB, $0.72/h): training took 86 min and cost about $1.0
+(`docs/REPORT.md` §6). Rendering 400 six-month businesses and evaluating three models take
+longer than training. Record actual console rates: report's `--price NAME=USD_PER_HOUR` numbers are
 comparison inputs, not current tariffs. Cost/1,000 = seconds/page × 1,000 × price/3,600.
 Batch seconds/page includes image preparation and disk writes, excludes model
 initialization (separately recorded as `load_seconds`), and includes the first batch's
@@ -74,7 +74,8 @@ A failed data-generation retry archives its incomplete directory. Rendering alon
 can resume with `python -m train.render_pod --data /workspace/ledgerlens/synth`.
 To regenerate predictions or reports after changing settings, remove their markers
 and affected output directories first. Logs are overwritten on a stage retry;
-archive them if needed. Stop the Pod yourself after reviewing results.
+archive them if needed. Delete the Pod yourself after reviewing results; everything that
+matters is on the network volume, and a stopped Pod may not restart if its machine is busy.
 
 ## GPU API checks (rehearsal, 9 Oct, RTX PRO 4500 32 GB)
 
@@ -108,7 +109,7 @@ uv run python -m train.phone_set prepare --synth /path/to/synth --out phone --n 
 # Print phone/print.pdf at A4, then photograph each page in printed order in normal room light.
 uv run python -m train.phone_set ingest --phone phone --photos /path/to/exported/photos --out phone-data
 # Open phone-data/pairs.html and confirm every photo matches the adjacent clean page.
-# Supply RUNPOD_API_KEY through your environment; this tool never reads runpodctl's config.
+# The key comes from RUNPOD_API_KEY, or else runpodctl's config; it is never printed.
 uv run python -m train.phone_set score --data phone-data \
   --endpoint baseline=ENDPOINT_ID --price baseline=1.58 --out phone-results
 ```
@@ -167,12 +168,13 @@ includes preparation, requests and prediction writes, including any server warm-
 failed requests count in both `invalid` and `errors`. This client measures a running
 server, not model initialization. Use separate output directories for each model.
 
-## Agent evaluations (E2–E5)
+## Agent evaluations (E2–E6)
 
 Build deterministic cases offline, run them against an endpoint, then score saved
 results. E2 measures routing in four languages (including injections and empty
 contexts); E3 measures triage on originals, degraded pages and non-documents; E4
-checks data answers and refusals; E5 chains memo creation and shortening edits.
+checks data answers and refusals; E5 chains memo creation and shortening edits; E6
+checks 104 memo edits of every kind, including edits that must be refused.
 
 ```bash
 PYTHONPATH=src:. uv run python -m train.agent_eval build --suite all --out evals/agent
@@ -180,7 +182,7 @@ PYTHONPATH=src:. uv run python -m train.agent_eval run --suite all --out evals/a
 PYTHONPATH=src:. uv run python -m train.agent_eval score --suite all --out evals/agent
 ```
 
-Use `--suite e2|e3|e4|e5` for one suite and `--limit N` for a smoke test (E3 limits
+Use `--suite e2|e3|e4|e5|e6` for one suite and `--limit N` for a smoke test (E3 limits
 batches of eight, E5 limits business pairs). Results append and resume by case ID;
 failed calls are recorded and also skipped on resume. Credentials are loaded only
 when running, through the worker client. Scores and an appended summary include

@@ -17,7 +17,7 @@ cheaper GPU? Three held-out test sets: unseen synthetic layouts, real CORD v2 re
 and phone photos of printed pages.
 
 Read these, in order: `README.md` → `docs/REPORT.md` (results) → `docs/DECISIONS.md` (what we chose
-and why) → `docs/JOURNAL.md` (how the agent work went). Local-only notes, when present:
+and why) → `docs/CREDIT_ASSISTANT.md` (how the agents work) → `docs/JOURNAL.md` (how the agent work went). Local-only notes, when present:
 `docs/HANDOFF.md` (current state), `docs/PLAN.md` (the original spec) and `docs/BUILD_LOG.md` (every step).
 
 ## 2. Repo map
@@ -27,7 +27,7 @@ worker/           Runpod Serverless handler (vLLM inside), Dockerfile, client, p
 train/            dataset builder (+CORD), Unsloth LoRA SFT, vLLM batch predict, report, run_pod.sh
 app/              FastAPI backend + React/Vite frontend (demo UI, phone QR upload, cost panel)
 scripts/          release-worker.sh (ships main → deploy branch → Runpod rebuild)
-docs/             REPORT, DECISIONS, JOURNAL
+docs/             REPORT, DECISIONS, CREDIT_ASSISTANT, JOURNAL
 tests/            pytest suites per area
 ```
 Run checks: `uv run ruff check . && uv run ruff format --check . && uv run pytest -q`.
@@ -39,9 +39,10 @@ App: `cd app/frontend && npm install && npm run build`, then
 |---|---|
 | Serverless endpoint (8B baseline) | `szucrtrufff80a` (`runpod-ledgerlens`), template `ej6398fg30` |
 | Serverless endpoint (fine-tuned 4B) | `5078uudfkeaw2v` (`ledgerlens-4b-ft`), template `avnw8y6zs7`, weights on the volume (`MODEL_PATH`) |
-| Serverless endpoint (base 4B, for live comparison) | `cuvgn5z2av09my` (`ledgerlens-4b-base`), template `nygdqtrllt`, model cache `Qwen/Qwen3-VL-4B-Instruct` |
+| Serverless endpoint (agent: base 4B + reader LoRA) | `cuvgn5z2av09my` (`ledgerlens-4b-base`), template `nygdqtrllt`, model cache `Qwen/Qwen3-VL-4B-Instruct`, adapter on global volume `ledgerlens-global` |
+| Serverless endpoint (FLUX.1-dev covers) | `qj707h1pdzzpez` (`ledgerlens-flux`), template `ja9p4lmx5i`, branch `deploy-image`, Dockerfile `image_worker/Dockerfile` |
 | Build | Runpod GitHub integration, Dockerfile `worker/Dockerfile`, branch **`deploy`** (push `main` freely) |
-| GPUs | RTX 5090 (32 GB), RTX 3090 (24 GB); CUDA 12.9+ only |
+| GPUs | Pools per endpoint are in README "Runpod setup"; CUDA 12.9+ only |
 | Scaling | workers min 0 / max 2, idle 60 s, FlashBoot on, queue delay 4 s, exec timeout 600 s |
 | Model cache | `Qwen/Qwen3-VL-8B-Instruct` pinned to commit `0c351dd` |
 | Network volume | `ledgerlens` / `0kelufi0wo`, 100 GB, EU-RO-1 (for training data and the fine-tuned model) |

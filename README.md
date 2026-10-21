@@ -7,7 +7,9 @@ Southeast Asian lender can keep confidential documents off US-hosted APIs and pa
 page.
 
 The ML question behind it: *can a 4B model, LoRA fine-tuned on our own synthetic documents, match
-an 8B model zero-shot on extraction quality (row F1), speed and cost per 1,000 pages?*
+an 8B model zero-shot on extraction quality (row F1), speed and cost per 1,000 pages?* (LoRA trains
+small add-on weights instead of the whole model; row F1 is the share of transaction rows read
+exactly right.)
 
 > Everything here is fictional: synthetic businesses and fictional banks. The only real documents
 > are the public CORD v2 receipts (CC BY 4.0).
@@ -19,9 +21,9 @@ an 8B model zero-shot on extraction quality (row F1), speed and cost per 1,000 p
 | A `handler.py` for serverless requests | [`worker/handler.py`](worker/handler.py): starts vLLM once per worker, then serves `generate` (plain prompt to text), `extract` (page image to checked JSON), `memo` (streamed text), `read` (page triage and reading), `agent` (chat) and `health`. [`image_worker/handler.py`](image_worker/handler.py): loads FLUX.1-dev once per worker, then serves `image` (text prompt to JPEG/PNG) and `health` |
 | A Docker image with the handler and the model | [`worker/Dockerfile`](worker/Dockerfile) loads weights from model cache / volume for the three LLM endpoints; [`worker/Dockerfile.baked`](worker/Dockerfile.baked) bakes weights into the image (not yet built); [`image_worker/Dockerfile`](image_worker/Dockerfile) for FLUX, weights from the model cache |
 | A deployed Serverless endpoint | 8B `szucrtrufff80a`, fine-tuned 4B `5078uudfkeaw2v`, base 4B `cuvgn5z2av09my` serves the credit assistant, FLUX.1-dev `qj707h1pdzzpez` draws memo covers |
-| Accept an input, return a generated output | `{"input":{"task":"generate","prompt":"..."}}` returns generated text; a bare `prompt` goes to the chat agent on the agent endpoint; `{"input":{"prompt":"..."}}` on the FLUX endpoint returns a generated image. Document tasks return validated JSON rows and a streamed credit memo. [Call it with curl](#call-the-endpoint-with-curl) |
+| Accept an input, return a generated output | `{"input":{"task":"generate","prompt":"..."}}` returns generated text; a bare `prompt` goes to the chat agent (on any LLM endpoint; the app uses the agent endpoint); `{"input":{"prompt":"..."}}` on the FLUX endpoint returns a generated image. Document tasks return validated JSON rows and a streamed credit memo. [Call it with curl](#call-the-endpoint-with-curl) |
 | Show it working | The demo app (`app/`) calls the live endpoints, or replays recorded endpoint answers when they are off. [Screenshots](#see-it-working) |
-| Code, configuration and clear docs | This README, [`worker/README.md`](worker/README.md), [`docs/REPORT.md`](docs/REPORT.md), [`docs/DECISIONS.md`](docs/DECISIONS.md), [`docs/JOURNAL.md`](docs/JOURNAL.md) |
+| Code, configuration and clear docs | This README, [`worker/README.md`](worker/README.md) (API), [`docs/CREDIT_ASSISTANT.md`](docs/CREDIT_ASSISTANT.md) (the agents), [`docs/REPORT.md`](docs/REPORT.md) (results), [`docs/DECISIONS.md`](docs/DECISIONS.md) (choices), [`docs/JOURNAL.md`](docs/JOURNAL.md) (the story) |
 
 ## See it working
 
@@ -44,8 +46,8 @@ running balance adds up; the returned cheque is flagged.
 
 ![Three models on the same page](docs/images/compare.png)
 
-**Results.** 1,499 test pages in layouts held back from training: 96.5% of lines right for the
-fine-tuned 4B, 57.8% for the 8B.
+**Results.** Test set A, 1,499 pages from businesses that use the two statement layouts held back
+from training: 96.5% of lines right for the fine-tuned 4B, 57.8% for the 8B.
 
 ![Scores on unseen layouts](docs/images/results.png)
 
@@ -72,7 +74,8 @@ One base Qwen3-VL-4B engine serves the router (a structured JSON plan), page tri
 The trained reader runs as a LoRA adapter; Python computes the analysis between model steps.
 The data agent uses read-only tools with tool calling for at most 3 rounds.
 The writer fills five memo sections in parallel; code checks figures, citations, headings and length,
-and each section can be rewritten at most once. See [Chat and page reading](worker/README.md#chat-and-page-reading).
+and each section can be rewritten at most once. How the agents, tools and checks fit together:
+[`docs/CREDIT_ASSISTANT.md`](docs/CREDIT_ASSISTANT.md).
 
 ## Architecture
 
@@ -185,7 +188,7 @@ of each other on every set, so the models rarely invent or drop rows. Full resul
 
 | | 8B, no training | 4B, no training | **4B fine-tuned** |
 |---|---:|---:|---:|
-| Unseen statement layouts (1,499 pages) | 0.578 | 0.614 | **0.965** |
+| A. Unseen statement layouts (1,499 pages: 1,231 statements + 268 invoices) | 0.578 | 0.614 | **0.965** |
 | Seen layouts, new businesses (291) | 0.823 | 0.745 | **0.960** |
 | Real CORD receipts (98) | 0.396 | 0.259 | **0.765** |
 | Red flags found (unseen layouts) | 0.66 | 0.63 | **0.96** |
@@ -194,6 +197,8 @@ of each other on every set, so the models rarely invent or drop rows. Full resul
 
 Served live on Serverless (warm, one page at a time): 8B ~14 s per page (≈ $6 per 1,000), fine-tuned
 4B 7–11 s depending on the GPU it gets (RTX 5090 / 4090; ≈ $3 per 1,000 either way). The fine-tune's weak spot is heavy photo damage (row F1 0.87).
+Set A's 268 invoices use the two invoice layouts seen in training; only its 1,231 statement pages
+are in unseen layouts (row F1 by layout is in the report).
 
 **Phone photos of printed pages** (18 pages, live on Serverless, RTX 5090; the photos came through a
 chat app at about 1.1 MP, so this measures camera plus compression):
@@ -229,7 +234,7 @@ January, a rupiah amount read as decimals, and an impossible date (details in th
 ## Run it
 
 ```sh
-uv sync && uv run ruff check . && uv run ruff format --check . && uv run pytest -q
+uv sync --all-extras && uv run ruff check . && uv run ruff format --check . && uv run pytest -q
 ```
 
 - **Demo app, offline** (cached sample results): see `app/README.md`; `DEMO_MODE=1`, port 8090.
@@ -280,7 +285,8 @@ point of the fine-tune. Checked 17 Oct, cold workers: the fine-tuned 4B (`5078uu
 all 18 rows exactly right; the untrained 8B returned 18 rows with every date right but every debit,
 credit and balance empty.
 
-For chat, use the agent endpoint. A bare `prompt` also becomes the agent's message here.
+For chat, use the agent endpoint. A bare `prompt` (no `task`) also becomes the agent's message.
+How the agents work together: [`docs/CREDIT_ASSISTANT.md`](docs/CREDIT_ASSISTANT.md).
 
 ```sh
 EP=cuvgn5z2av09my                  # agent: base 4B + reader LoRA
@@ -328,7 +334,8 @@ train/           dataset builder (+CORD), Unsloth LoRA SFT, vLLM batch predict, 
 app/             FastAPI backend + React/Vite frontend
 scripts/         release-worker.sh (ships main to the deploy branch), insight and GPU-stock helpers
 eval/            recorded scores and examples the app and report read
-docs/            REPORT (results), DECISIONS (what we chose and why), JOURNAL (how the agent work went)
+docs/            REPORT (results), DECISIONS (what we chose and why), CREDIT_ASSISTANT (how the
+                 agents work), JOURNAL (how the agent work went), images (screenshots)
 ```
 
 ## Licence and credits

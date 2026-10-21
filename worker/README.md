@@ -99,14 +99,17 @@ this Dockerfile; the download step will fail the build if it is unavailable.
 | ENGINE_START_TIMEOUT | 900 seconds |
 | RUNPOD_GPU_TYPE | GPU label; otherwise query nvidia-smi if present |
 | LEDGERLENS_NO_ENGINE | Set to 1 for offline tests only |
-| RUNPOD_API_KEY | REST CLI credential; environment only |
+| RUNPOD_API_KEY | REST client credential; otherwise read from `runpodctl`'s config |
 
 The cache is `/runpod-volume/huggingface-cache/hub/models--ORG--NAME/snapshots/`.
 The newest directory by modification time wins (name breaks ties). Cache hits
 set `HF_HUB_OFFLINE=1` in the engine subprocess. Cache misses log a warning and
 pass the HF identifier to vLLM for download. Baked weights use MODEL_PATH.
 
-## How it is deployed (verified 9 Oct 2026)
+## How the LLM endpoints were first deployed (9–11 Oct 2026)
+
+Current settings for all four endpoints, including the agent and FLUX endpoints, are in the main
+README's [Deploy it yourself](../README.md#deploy-it-yourself).
 
 - **Image:** Runpod's GitHub integration builds `worker/Dockerfile` from the **`deploy`** branch of
   this repo. Develop on `main`; `scripts/release-worker.sh` runs the tests, shows the

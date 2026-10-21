@@ -89,6 +89,10 @@ def test_month_and_counts():
     assert ev.numbered_count("## Questions for the applicant\n1. A\n2. B") == 2
 
 
+@pytest.mark.skipif(
+    not (ev.ROOT / "data/synth400").is_dir(),
+    reason="Requires local data/synth400 synthetic documents",
+)
 def test_build_e6(tmp_path):
     cases = ev.build("e6", tmp_path)
     assert len(cases) == 8 * 14
@@ -137,6 +141,10 @@ def test_metrics_wrongful_refusal_and_others():
     assert not metric["applicable"]
 
 
+@pytest.mark.skipif(
+    not (ev.ROOT / "data/synth400").is_dir(),
+    reason="Requires local data/synth400 synthetic documents",
+)
 def test_run_skip_and_score(tmp_path, monkeypatch):
     cases = ev.build("e6", tmp_path, 1)
     monkeypatch.setattr(ev.client, "runpodctl_key", lambda: "offline-test")
@@ -162,6 +170,10 @@ def test_run_skip_and_score(tmp_path, monkeypatch):
     assert len(cases) == 14
 
 
+@pytest.mark.skipif(
+    not (ev.ROOT / "data/synth400").is_dir(),
+    reason="Requires local data/synth400 synthetic documents",
+)
 def test_run_substitutes_month_from_parent(tmp_path, monkeypatch):
     cases = ev.build("e6", tmp_path, 1)
     selected = [

@@ -5,7 +5,8 @@ description: Project-specific Runpod operations for LedgerLens — endpoint heal
 
 # Runpod operations (LedgerLens)
 
-IDs: endpoint `szucrtrufff80a`, template `ej6398fg30`, network volume `0kelufi0wo` (EU-RO-1).
+IDs: endpoints 8B `szucrtrufff80a`, fine-tuned 4B `5078uudfkeaw2v`, agent `cuvgn5z2av09my`, FLUX
+`qj707h1pdzzpez`; network volume `0kelufi0wo` (EU-RO-1). The examples use the 8B.
 The key lives in `~/.runpod/config.toml`; never print it. Run `runpodctl <cmd> --help` before using an
 unfamiliar flag — live help wins over any doc.
 
@@ -22,11 +23,10 @@ handler runs (crash loop). "Pulling/Extracting" = image still downloading to a n
 ## Test requests
 ```bash
 uv run python worker/client.py extract --endpoint-id szucrtrufff80a \
-  --image data/synth-r/<page>.png --doc-type statement > /tmp/r.json
+  --image app/sample/biz_0000_p001.png --doc-type statement > /tmp/r.json
 ```
-Compare `result.output` (or the aggregated stream) with `<page>.json` using
-`ledgerlens.eval.score`. Record delayTime (queue + cold start), executionTime, GPU and cost in the
-build log. The first job after idle includes vLLM loading the model — that is the cold start to show.
+Compare `result.output` (or the aggregated stream) with `app/sample/biz_0000_p001.json` using
+`ledgerlens.eval.score`. Record delayTime (queue + cold start), executionTime, GPU and cost. The first job after idle includes vLLM loading the model — that is the cold start to show.
 
 ## Releasing a worker change
 `scripts/release-worker.sh` (tests → image-affecting diff → confirm → push `main:deploy`).
@@ -48,8 +48,8 @@ Create in EU-RO-1 with the network volume mounted at `/workspace`, Secure Cloud,
 deadline, SSH. Check flags with `runpodctl pod create --help` (e.g. `--network-volume-id 0kelufi0wo
 --volume-mount-path /workspace --data-center-ids EU-RO-1 --terminate-after <iso time>`). Clone the
 repo onto the volume, run `train/run_pod.sh` (resumable by stage markers), copy `eval/` results back
-(`runpodctl send`/`receive` or git), then **stop the Pod** and log the cost.
+(`runpodctl send`/`receive` or git), then **delete the Pod** and log the cost.
 
 ## Spend
 `runpodctl user` (balance, current spend per hour) and `runpodctl billing`. Check at the end of every
-session; anything running unexpectedly → stop it and tell Randy.
+session; anything running unexpectedly → stop it and tell the user.

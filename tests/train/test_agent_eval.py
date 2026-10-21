@@ -18,6 +18,10 @@ def result(case_id, final, events=()):
 
 @pytest.mark.parametrize("suite", ["e2", "e3", "e4", "e5"])
 def test_build(tmp_path, suite):
+    if suite == "e3" and not (ev.ROOT / "data/phone/manifest.json").is_file():
+        pytest.skip("Requires local data/phone/manifest.json")
+    if suite in ("e4", "e5") and not (ev.ROOT / "data/synth400").is_dir():
+        pytest.skip("Requires local data/synth400 synthetic documents")
     cases = ev.build(suite, tmp_path, 1)
     assert cases == ev.load_jsonl(tmp_path / suite / "cases.jsonl")
     assert cases and cases[0]["payload"]["task"] in ("read", "agent")
@@ -138,6 +142,10 @@ def test_data_score(tmp_path):
     assert not ev.answer_matches("Not available, perhaps 700.", {"refusal": True})
 
 
+@pytest.mark.skipif(
+    not (ev.ROOT / "data/synth400").is_dir(),
+    reason="Requires local data/synth400 synthetic documents",
+)
 def test_writer_score(tmp_path):
     cases = ev.build("e5", tmp_path, 1)
     memo = {
