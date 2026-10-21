@@ -13,7 +13,7 @@ which endpoint the app sends it to. Send with `/run`, then poll `/status` (one r
 
 | `task` | Input (inside `input`) | Output | Poll | Used on |
 |---|---|---|---|---|
-| `health` | nothing else | engine status, model, `model_source` (`cache`, `volume`, `baked`, `download`), `engine_load_seconds`, `cold_start` | `/status` | every endpoint |
+| `health` | nothing else | engine status, model, `model_source` (`cache`, `volume`, `baked`, `download`), `engine_load_seconds`, `cold_start`, `runpod_version` | `/status` | every endpoint |
 | `generate` | `prompt`, optional `system`, `image_base64`, `max_tokens`, `temperature`, `stream` | `text`, `usage`, `timing`, `gpu`, `model` | `/status`, or `/stream` with `stream: true` | any |
 | `extract` | `doc_type` (`statement`, `invoice`, `receipt`), `image_base64` | validated `document` (rows and header), `valid`, `usage`, `timing` | `/status` | 8B, fine-tuned 4B, base 4B (Read and Compare pages) |
 | `memo` | `analysis` (computed figures with page/row citations) | `delta` text chunks, then `done` with `usage`, `timing` | `/stream` | the model picked on the Read page (8B by default) |

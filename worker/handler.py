@@ -4,6 +4,7 @@ import asyncio
 import base64
 import binascii
 import codecs
+import importlib.metadata
 import io
 import json
 import logging
@@ -389,7 +390,11 @@ def sync_handler(job):
     if problem:
         retire_worker(problem)
     if data["task"] == "health":
-        yield {"task": "health", **ENGINE, "cold_start": cold}
+        try:
+            sdk = importlib.metadata.version("runpod")
+        except importlib.metadata.PackageNotFoundError:
+            sdk = None
+        yield {"task": "health", **ENGINE, "cold_start": cold, "runpod_version": sdk}
         return
     if problem:
         yield {"error": problem}
