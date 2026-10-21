@@ -62,7 +62,7 @@ export function Cashflow({ data, jump }: {
           <span>{finding.description || finding.type.replaceAll('_', ' ')}</span>
           <span className="citations">
             {finding.citations.map((citation, j) => (
-              <button data-tour="flag" key={j} onClick={() => jump(citation)}>
+              <button key={j} onClick={() => jump(citation)}>
                 {citation.page_id} · line {citation.row_index + 1}
               </button>
             ))}

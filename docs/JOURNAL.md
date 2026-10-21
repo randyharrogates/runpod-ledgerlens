@@ -1,8 +1,8 @@
 # Journal: building the chat agent
 
 Plain-English story of the chat-agent work, step by step: what we did, why, and what we weighed.
-Exact numbers, IDs and commands are in `docs/BUILD_LOG.md`; this file explains the thinking.
-It is updated as each step finishes, until the work is done.
+Measured results are in `docs/REPORT.md` and the choices in `docs/DECISIONS.md`; this file explains
+the thinking.
 
 ## Where we started
 LedgerLens already read photos of bank statements and invoices into rows (a fine-tuned Qwen3-VL-4B),
@@ -206,7 +206,7 @@ small team of agents does the work on one Runpod Serverless GPU, quickly.
   kinds of request, so the total barely moved. Only running the full set again showed it.
 - **What is left:** 4 of 30 memos still contain an invented threshold such as "exceeds 70%". The
   checker marks it on screen. Whether that is worth training a writer adapter (about $3–5) is
-  Randy's call.
+  still open.
 
 ## Step 16: The memo becomes a report, and every run can be traced
 - **What we did:** the memo used to arrive as five chat cards with the figures inside sentences.
@@ -225,7 +225,7 @@ small team of agents does the work on one Runpod Serverless GPU, quickly.
   fed it raw numbers. Only running it on the real data showed it.
 
 ## Step 17: A real session finds what the tests missed
-- **What happened:** Randy used the app like a credit officer: 11 pages of one business, a memo,
+- **What happened:** we used the app like a credit officer: 11 pages of one business, a memo,
   a question, then three edit requests. Four things went wrong. Only 8 pages went into the memo.
   A page the reader got wrong hid a planted fault. "Are you able to edit the memo?" was treated as
   an edit. And "change the borrower's name" or "remove the January row" did nothing, while the

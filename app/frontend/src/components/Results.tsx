@@ -81,7 +81,7 @@ export function ScoreBars({values}: {values: Record<string, number | undefined>}
 export function ResultsHeadline({summary}: {summary: Summary}) {
   const entries = summary.splits?.test_unseen_layout;
   const pages = modelChoices.map(m => entries?.[scoreKey(m.key)]?.pages).find(v => v != null);
-  return <article className="headline" data-tour="results"><h2>Unseen layouts · <Term name="row F1" label="Lines read right (row F1)" /></h2><p>{pages == null ? 'No test data available' : `${Number(pages).toLocaleString('en-US')} pages tested`} · New statement and invoice layouts held back from training.</p><ScoreBars values={Object.fromEntries(modelChoices.map(m => [scoreKey(m.key),entries?.[scoreKey(m.key)]?.row_f1 as number | undefined]))} /><p>Statements match date, money out and money in; invoice items match description, quantity, unit price and amount.</p></article>;
+  return <article className="headline"><h2>Unseen layouts · <Term name="row F1" label="Lines read right (row F1)" /></h2><p>{pages == null ? 'No test data available' : `${Number(pages).toLocaleString('en-US')} pages tested`} · New statement and invoice layouts held back from training.</p><ScoreBars values={Object.fromEntries(modelChoices.map(m => [scoreKey(m.key),entries?.[scoreKey(m.key)]?.row_f1 as number | undefined]))} /><p>Statements match date, money out and money in; invoice items match description, quantity, unit price and amount.</p></article>;
 }
 function GroupChart({breakdown, field, title}: {breakdown: Breakdown; field: 'by_strength' | 'by_layout_id'; title: string}) {
   const outputs = breakdown.splits.test_unseen_layout?.models || {};

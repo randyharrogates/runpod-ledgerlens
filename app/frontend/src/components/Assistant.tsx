@@ -318,7 +318,7 @@ export function Assistant({session, pages, refresh, status, jump}: {
     })}</div>;
   }
   return <div className="assistant-layout">
-    <div className="assistant-thread" data-tour="assistant">
+    <div className="assistant-thread">
       <div className="assistant-messages" ref={thread} onScroll={e => {
         const node = e.currentTarget;
         follow.current = node.scrollHeight - node.scrollTop - node.clientHeight < 80;

@@ -615,11 +615,6 @@ progress {
   min-height:350px
 }
 
-.tour {
-  margin-bottom:14px;
-  font-size:13px
-}
-
 .term {
   position:relative;
   display:inline-block
@@ -865,16 +860,9 @@ dd { margin: 0; }
 .table-scroll table {min-width:560px}
 .run-logs,dl {overflow-wrap:anywhere}
 dl>div {flex-wrap:wrap}
-.presenting main {padding-bottom:350px}
-.presenter-panel {position:fixed;bottom:0;left:84px;right:0;z-index:40;background:var(--tile);border-top:2px solid var(--sky);padding:18px 28px;max-height:42vh;overflow:auto;box-shadow:0 -8px 30px #0008}
-.presenter-meta {display:flex;align-items:center;flex-wrap:wrap;gap:12px}
-.presenter-meta button {padding:6px 10px}
-.presenter-words {font-size:clamp(17px,1.4vw,22px);color:var(--text);line-height:1.5;margin:12px 0}
-.presenter-panel:focus-visible,summary:focus-visible {outline:2px solid var(--sky);outline-offset:2px}
-.tour-highlight {outline:3px solid var(--sky);outline-offset:4px}
+summary:focus-visible {outline:2px solid var(--sky);outline-offset:2px}
 @media(max-width:760px) {
  .rail {width:100%;gap:2px}.rail nav {flex:1;min-width:0;justify-content:space-between}.rail nav a,.presenter {width:auto;min-width:0;padding:6px 3px;font-size:9px}.presenter {flex-shrink:1}
- .presenter-panel {left:0;padding:12px;max-height:42vh}.presenter-meta {gap:8px;font-size:12px}
  .two-inputs {grid-template-columns:1fr}.cost-row>div {gap:8px;flex-wrap:wrap}.cost-row .bar-track {min-width:80px}
  .kpis {grid-template-columns:1fr}.score-bar {grid-template-columns:100px minmax(20px,1fr) 50px;gap:6px}
  article,.chart {padding:14px}.definition {width:min(250px,65vw)}
@@ -884,19 +872,12 @@ dl>div {flex-wrap:wrap}
  body * {visibility:hidden}
  .memo,.memo * {visibility:visible;color:#111!important;background:white!important}
  .memo {position:absolute;top:0;left:0;width:100%;border:0;padding:20px;margin:0;font-size:12pt;line-height:1.6}
- .memo>button,.rail,.presenter-panel,.print-control {display:none!important}
+ .memo>button,.rail,.print-control {display:none!important}
  .memo button {border:0;padding:0;margin:0;font:inherit;cursor:default}
  .memo .raw-citation {display:inline}.memo .raw-citation+span {display:none}
  .memo p,.memo li {break-inside:avoid}.memo h3 {break-after:avoid}
 }
 
-[data-tour-active="rows"] [data-tour="rows"],
-[data-tour-active="flag"] [data-tour="flag"],
-[data-tour-active="flag"] [data-tour="memo"],
-[data-tour-active="compare"] [data-tour="compare"],
-[data-tour-active="results"] [data-tour="results"],
-[data-tour-active="cost"] [data-tour="cost"],
-[data-tour-active="training"] [data-tour="training"] {outline:3px solid var(--sky);outline-offset:3px}
 @media print {
  .shell {display:block;min-height:0}.shell main {padding:0;max-width:none}
  main>*:not(:has(.memo)),main>div:has(.memo)>*:not(.memo) {display:none!important}
@@ -940,7 +921,7 @@ button.secondary {background:transparent;color:var(--text);border:1px solid var(
 }
 .gallery + button {margin-top:var(--gap)}
 
-/* Short windows (a laptop at 125% zoom): tighten the rail so Presenter stays on screen. */
+/* Short windows (a laptop at 125% zoom): keep the rail controls on screen. */
 @media(min-width:761px) and (max-height:720px) {
   .rail {gap:6px;padding:10px 8px}
   .brand {padding:6px 8px}
@@ -969,7 +950,6 @@ button.secondary {background:transparent;color:var(--text);border:1px solid var(
 .assistant-spinner {display:inline-block;animation:assistant-spin 1s linear infinite}
 @keyframes assistant-spin {to {transform:rotate(360deg)}}
 @media(prefers-reduced-motion:reduce) {.assistant-spinner {animation:none}}
-[data-tour-active="assistant"] [data-tour="assistant"] {outline:3px solid var(--sky);outline-offset:3px}
 @media(max-width:700px) {.assistant-layout {grid-template-columns:minmax(0,1fr)}.assistant-evidence {grid-row:auto}.assistant-evidence .drop {padding:16px}.assistant-card {padding:12px}}
 
 .logs-toggle {margin-top:0}

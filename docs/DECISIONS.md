@@ -1,7 +1,8 @@
 # Decisions — what we chose and why
 
 Plain-English record of the main choices in LedgerLens. Each one says what we did, why, and what
-we gave up. The full timeline, with times and costs, is in `BUILD_LOG.md`.
+we gave up. Measured results and costs are in `REPORT.md`; the story of the agent work is in
+`JOURNAL.md`.
 
 ## 1. The project
 

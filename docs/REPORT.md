@@ -1,7 +1,6 @@
 # LedgerLens — final report
 
-Written from `BUILD_LOG.md` (every step, with times and costs) and `DECISIONS.md` (every choice and
-why). Only measured numbers appear here; estimates say so.
+Written from the measurements taken at each step and `DECISIONS.md` (every choice and why). Only measured numbers appear here; estimates say so.
 
 ## 1. Summary
 

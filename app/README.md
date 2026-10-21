@@ -60,4 +60,3 @@ Compare models: run a page on three models explicitly, or inspect recorded test 
 Choose a validated dataset, quick check or full run, and a spending limit (at most $25). Review checks supported GPU stock in Romania, price and shared-volume availability. The confirmation token expires after ten minutes. Only the explicit Start action can launch a run. Real training requires TRAINING_ENABLED=1 and server credentials. Cancellation and spending limits trigger Pod deletion; if deletion cannot be verified, the app shows a persistent Pod warning with instructions to delete it in the Runpod console.
 
 “Simulated” means no GPU is rented and no new training or measurements take place. Stages, logs and spending progress are simulated; full-run scores replay the recorded evaluation and are labeled accordingly. Quick checks prove the flow and produce no scores. The reported run is historical evidence, so it has no live progress, log or deletion status.
-

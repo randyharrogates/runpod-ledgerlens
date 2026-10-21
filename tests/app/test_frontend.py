@@ -29,7 +29,7 @@ const gpuHtml=gpuRender(React.createElement(GpuPopover,{status:{available:true,w
 for(const text of ['role="dialog"','$0.69–$1.58 per hour','flex list price','Reset the timer to:','30 min','1 hour','2 hours','Turn off now']) assert(gpuHtml.includes(text),text);
 const mainSource=fs.readFileSync('./src/main.tsx','utf8');
 assert(mainSource.indexOf('<GpuSwitch />')>mainSource.indexOf('<aside className="rail">'));
-assert(mainSource.indexOf('<GpuSwitch />')<mainSource.indexOf('aria-pressed={presenter}'));
+assert(mainSource.indexOf('<GpuSwitch />')<mainSource.indexOf('aria-pressed={logsOpen}'));
 assert.equal(gpuLabel({available:true,workers_min:1,warm_until:3520,workers:{idle:1},ready:true},1000),'GPU ready · 42 min');
 assert(gpuHtml.includes('Waiting for the model to load.'));
 assert.equal(gpuLabel({available:true,workers_min:1,warm_until:3520,workers:{idle:2},ready:false},1000),'GPU starting');
@@ -248,12 +248,10 @@ assert.equal(statusSummary(uniform({gpu_state:'ready'})),'All 3 models ready');
 assert.equal(statusSummary(uniform(waking)),'Live models waking up');
 assert.equal(statusSummary({...uniform(ready),ft:asleep}),null);
 const {defaultCompareMode} = require('./src/components/Compare.tsx');
-for(const endpoint of [ready,asleep,waking]) assert.equal(defaultCompareMode(null,[{id:'p'}],uniform(endpoint)),'live');
-assert.equal(defaultCompareMode(null,[{id:'p'}],uniform({offline:true})),'recorded');
-assert.equal(defaultCompareMode(null,[],uniform(ready)),'recorded');
-assert.equal(defaultCompareMode('p',[{id:'p'}],uniform(ready)),'recorded');
-assert.equal(defaultCompareMode('',[{id:'p'}],uniform(ready)),'recorded');
-assert.equal(defaultCompareMode(null,[{id:'p'}],{}),'recorded');
+for(const endpoint of [ready,asleep,waking]) assert.equal(defaultCompareMode([{id:'p'}],uniform(endpoint)),'live');
+assert.equal(defaultCompareMode([{id:'p'}],uniform({offline:true})),'recorded');
+assert.equal(defaultCompareMode([],uniform(ready)),'recorded');
+assert.equal(defaultCompareMode([{id:'p'}],{}),'recorded');
 const offlineWithPages = render(React.createElement(Compare,{session:'',pages:[{id:'p'}],status:uniform({offline:true})}));
 assert(offlineWithPages.includes('aria-current="page">Recorded test examples'));
 assert(!offlineWithPages.includes('Model state right now'));
@@ -374,25 +372,13 @@ assert(cost.includes('value="50,000"'));assert.equal((cost.match(/warm on RTX 50
     assert result.returncode == 0, result.stderr
 
 
-def test_final_cycle_presenter_exports_and_reported_run():
+def test_final_cycle_exports_and_reported_run():
     if not shutil.which("node") or not (FRONTEND / "node_modules/typescript").exists():
         pytest.skip("Frontend node_modules and Node are required")
     script = r"""
 const fs=require('fs'), assert=require('assert'), ts=require('typescript');
 require.extensions['.tsx']=require.extensions['.ts']=(module,filename)=>module._compile(ts.transpileModule(fs.readFileSync(filename,'utf8'),{compilerOptions:{target:ts.ScriptTarget.ES2022,esModuleInterop:true,module:ts.ModuleKind.CommonJS,jsx:ts.JsxEmit.ReactJSX}}).outputText,filename);
 const React=require('react'), {renderToStaticMarkup:render}=require('react-dom/server');
-const {tour}=require('./src/tour.ts');
-assert.equal(tour.length,8);assert(tour.every(s=>s.route.startsWith('/') && s.words && s.title && s.end>s.start));assert(tour[7].end<=210);assert.equal(tour.reduce((sum,s)=>sum+s.end-s.start,0),210);
-const source=fs.readFileSync('../../docs/ui-mockups/tour-script.md','utf8');
-const words=[...source.matchAll(/\n"(.*?)"/g)].map(m=>m[1]);assert.deepEqual(tour.slice(1).map(s=>s.words),words);
-assert.equal(tour[4].query,'?example=biz_0007_p006');assert.deepEqual(tour.map(s=>s.route),['/assistant','/','/','/','/compare','/results','/cost','/training']);assert.deepEqual(tour.slice(1,4).map(s=>s.readStep),[2,2,3]);assert.deepEqual(tour[3].readSteps,[3,4]);
-const {clockText}=require('./src/components/Presenter.tsx');
-const {Presenter}=require('./src/components/Presenter.tsx');
-const panel=render(React.createElement(Presenter,{index:0,go:()=>{},exit:()=>{},readMemo:()=>{}}));
-for(const text of ['Step 1 of 8','Back','Next','Exit','Collapse','3:30','0:00–0:30','Presenter tour'])assert(panel.includes(text),text);
-assert(panel.includes(tour[0].words.replaceAll("'",'&#x27;')));
-assert.equal(clockText(180),'3:00');assert.equal(clockText(9),'0:09');
-assert(render(React.createElement(Presenter,{index:3,go:()=>{},exit:()=>{},readMemo:()=>{}})).includes('Open credit memo (Read step 4)'));
 const f=require('./src/components/format.ts');assert.equal(f.dollars(2.7),'$2.70');assert.equal(f.number(50000),'50,000');assert.equal(f.printedDate('2026-04-06'),'6 Apr 2026');
 const {RunView,StageTimeline,stageWidth,TrainingPlanView}=require('./src/components/Training.tsx');
 const summary=JSON.parse(fs.readFileSync('../../eval/summary.json','utf8'));

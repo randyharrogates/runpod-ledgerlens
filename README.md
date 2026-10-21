@@ -20,7 +20,7 @@ an 8B model zero-shot on extraction quality (row F1), speed and cost per 1,000 p
 | A deployed Serverless endpoint | 8B `szucrtrufff80a`, fine-tuned 4B `5078uudfkeaw2v`, base 4B `cuvgn5z2av09my` serves the credit assistant, FLUX.1-dev `qj707h1pdzzpez` draws memo covers |
 | Accept an input, return a generated output | `{"input":{"task":"generate","prompt":"..."}}` returns generated text; a bare `prompt` goes to the chat agent on the agent endpoint; `{"input":{"prompt":"..."}}` on the FLUX endpoint returns a generated image. Document tasks return validated JSON rows and a streamed credit memo. [Call it with curl](#call-the-endpoint-with-curl) |
 | Show it working | The demo app (`app/`, with a 3-minute Presenter tour) calls the live endpoints |
-| Code, configuration and clear docs | This README, [`worker/README.md`](worker/README.md), [`docs/REPORT.md`](docs/REPORT.md), [`docs/BUILD_LOG.md`](docs/BUILD_LOG.md), [`docs/DECISIONS.md`](docs/DECISIONS.md) |
+| Code, configuration and clear docs | This README, [`worker/README.md`](worker/README.md), [`docs/REPORT.md`](docs/REPORT.md), [`docs/DECISIONS.md`](docs/DECISIONS.md), [`docs/JOURNAL.md`](docs/JOURNAL.md) |
 
 **Two ways to ship the model.** The three LLM endpoints use `worker/Dockerfile` and load
 weights from Runpod storage:
@@ -34,7 +34,7 @@ weights from Runpod storage:
   the compile cache stays on container disk because global storage has no locking or atomic rename.
 - **FLUX.1-dev (image endpoint):** Runpod's **model cache** (gated model, so the endpoint carries
   a Hugging Face token). The image is built by GitHub Actions and pulled from GHCR, because
-  Runpod's GitHub builder failed to start on 17 Oct (see the build log).
+  Runpod's GitHub builder failed to start on 17 Oct (see `docs/DECISIONS.md`).
 
 `worker/Dockerfile.baked` downloads the pinned 8B weights during the build and sets
 `MODEL_PATH=/models/model` and `HF_HUB_OFFLINE=1`. It includes both the handler and model,
@@ -103,7 +103,7 @@ flowchart LR
 | Image endpoint | `qj707h1pdzzpez`: `image_worker/Dockerfile` (PyTorch 2.8 + diffusers), image from GHCR, FLUX.1-dev from model cache; 48 GB GPUs first (A40 / A6000), then 32 GB PRO with CPU offload; max 1 worker | FLUX.1-dev is ~34 GB in bf16, so 48 GB runs it fully on GPU |
 | Scaling | Active 0, max 2, idle 60 s, FlashBoot on, queue-delay scaling 4 s, timeout 600 s | Nothing bills while idle. For a demo, the app's GPU switch keeps one worker on the Assistant or on every endpoint, on a shutoff timer, and calls an endpoint ready only after a `health` job answers |
 | GPUs | 32 GB class (RTX 5090 / RTX PRO 4500), CUDA ≥ 12.9; the 4B agent endpoint also allows 24 GB pools (it has run on RTX PRO 6000 Blackwell MIG 1g.24gb) | The 8B in bf16 fits 32 GB at 8,192 tokens; older drivers can't start the image |
-| Safety | Image size checked before decoding (decompression bombs); engine start failures fail jobs fast with the error instead of crash-looping paid workers | Both found or hardened during the build (see `docs/BUILD_LOG.md`) |
+| Safety | Image size checked before decoding (decompression bombs); engine start failures fail jobs fast with the error instead of crash-looping paid workers | Both found or hardened during the build (see `docs/REPORT.md`) |
 
 ### Measured (8B, RTX 5090, 9 Oct)
 
@@ -263,7 +263,7 @@ src/ledgerlens/  schema, datagen, analytics, direction (balance check), eval/sco
 worker/          Serverless handler, Dockerfile, prompts, REST client
 train/           dataset builder (+CORD), Unsloth LoRA SFT, vLLM batch predict, report, run_pod.sh
 app/             FastAPI backend + React/Vite frontend
-docs/            DECISIONS (what we chose and why), BUILD_LOG (every step and dollar), REPORT (results)
+docs/            DECISIONS (what we chose and why), JOURNAL (how the agent work went, step by step), REPORT (results)
 ```
 
 ## Licence and credits

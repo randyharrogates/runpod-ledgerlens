@@ -67,7 +67,7 @@ export function Memo({ session, model, jump, status = {} }: {
         ['Net cash flow', `${analysis.currency} ${Object.values(analysis.monthly).reduce((sum, month) => sum + Number(month.net), 0).toLocaleString('en', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`],
         ['Red flags', String(analysis.findings.length)],
       ]} />}
-      <article className="memo" data-tour="memo">
+      <article className="memo">
         {!text && <p className="memo-info">Generate a credit memo from the checked rows, cash flow and cited red flags.</p>}
       <button disabled={busy || !session} onClick={generate}>
         {busy ? 'Writing memo…' : 'Generate memo'}

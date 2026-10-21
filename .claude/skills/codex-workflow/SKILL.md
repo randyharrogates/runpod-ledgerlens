@@ -21,4 +21,4 @@ description: How to hand an implementation step to Codex and review the result i
    dumps — only looking caught it.
 5. **Fix small things directly**; send larger rework back as a new, specific brief.
 6. **Commit** reviewed work only (`git add` the specific paths if another Codex task is running), with
-   the build-log entry.
+   a note of what was done.

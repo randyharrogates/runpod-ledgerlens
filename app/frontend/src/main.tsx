@@ -18,9 +18,7 @@ const Training = lazy(() => import('./components/Training').then(m => ({default:
 import { getJSON } from './request';
 import { TrainingRun, PodAlert } from './components/PodAlert';
 import { GpuSwitch } from './components/GpuSwitch';
-import { Presenter } from './components/Presenter';
 import { Assistant } from './components/Assistant';
-import { tour } from './tour';
 import { installBrowserLogging } from './logs';
 import { LogsDrawer } from './components/Logs';
 import './style.css';
@@ -59,9 +57,6 @@ function App() {
     window.addEventListener('ledgerlens:logs', show);
     return () => window.removeEventListener('ledgerlens:logs', show);
   }, []);
-  const [presenter, setPresenter] = useState(false);
-  const [tourIndex, setTourIndex] = useState(0);
-  function tourGo(index: number) { setTourIndex(index); navigate(tour[index].route + ((tour[index] as {query?: string}).query || '')); if (tour[index].readStep) setTab(['Documents','Review','Analysis','Memo'][tour[index].readStep! - 1]); }
 
   useEffect(() => {
     if (!busy) return;
@@ -161,7 +156,7 @@ function App() {
   }
   const route = routes.find(r => r[0] === path);
   return (
-    <div className={presenter ? "shell presenting" : "shell"} data-tour-active={presenter ? tour[tourIndex].highlight : undefined}>
+    <div className="shell">
       <aside className="rail">
         <RouterLink href="/" className="brand" aria-label="LedgerLens home">LL</RouterLink>
         <nav aria-label="Workspace">
@@ -171,9 +166,6 @@ function App() {
           </RouterLink>)}
         </nav>
         <GpuSwitch />
-        <button className="presenter" aria-pressed={presenter} onClick={() => {setPresenter(!presenter); tourGo(0);}}>
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true"><path d="M7 4l13 8-13 8z" /></svg>Presenter
-        </button>
         <button className="presenter logs-toggle" aria-pressed={logsOpen} onClick={() => {setLogsInitial({}); setLogsOpen(!logsOpen);}}>
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true"><path d="M5 6h14 M5 12h14 M5 18h9" /></svg>Logs
         </button>
@@ -217,7 +209,6 @@ function App() {
         <UnderTheHood history={history} status={status} />
         </>}</Suspense>
       </main>
-      {presenter && <Presenter index={tourIndex} go={tourGo} exit={() => setPresenter(false)} readMemo={() => setTab('Memo')} />}
       <LogsDrawer open={logsOpen} onClose={closeLogs} session={session} initial={logsInitial} />
     </div>
   );

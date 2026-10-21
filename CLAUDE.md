@@ -17,8 +17,8 @@ cheaper GPU? Three held-out test sets: unseen synthetic layouts, real CORD v2 re
 and phone photos of printed pages.
 
 Read these, in order: `README.md` → `docs/REPORT.md` (results) → `docs/DECISIONS.md` (what we chose
-and why) → `docs/BUILD_LOG.md` (every step and decision, with times). Local-only notes, when present:
-`docs/HANDOFF.md` (current state) and `docs/PLAN.md` (the original spec).
+and why) → `docs/JOURNAL.md` (how the agent work went). Local-only notes, when present:
+`docs/HANDOFF.md` (current state), `docs/PLAN.md` (the original spec) and `docs/BUILD_LOG.md` (every step).
 
 ## 2. Repo map
 ```
@@ -27,7 +27,7 @@ worker/           Runpod Serverless handler (vLLM inside), Dockerfile, client, p
 train/            dataset builder (+CORD), Unsloth LoRA SFT, vLLM batch predict, report, run_pod.sh
 app/              FastAPI backend + React/Vite frontend (demo UI, phone QR upload, cost panel)
 scripts/          release-worker.sh (ships main → deploy branch → Runpod rebuild)
-docs/             REPORT, DECISIONS, BUILD_LOG
+docs/             REPORT, DECISIONS, JOURNAL
 tests/            pytest suites per area
 ```
 Run checks: `uv run ruff check . && uv run ruff format --check . && uv run pytest -q`.
@@ -54,9 +54,10 @@ the project-specific commands.
 
 ## 4. Rules
 1. **Budget.** Stop every Pod after use (an A100 idles at ~$2/h). Min workers 0 except during a
-   demo. Cap max workers. Check spend daily (`runpodctl user`) and record it in the build log.
-2. **Build log.** Record every step as it happens in `docs/BUILD_LOG.md` (time SGT, what, why,
-   IDs/commands, review findings, spend). It is the source for the report. Use the `build-log` skill.
+   demo. Cap max workers. Check spend daily (`runpodctl user`).
+2. **Record as you go.** Write each measured result and choice into `docs/REPORT.md` and
+   `docs/DECISIONS.md` as it lands. When the local `docs/BUILD_LOG.md` exists, log every step there
+   too (time SGT, what, why, IDs/commands, review findings, spend) with the `build-log` skill.
 3. **Deploys.** The endpoint rebuilds on every push to its tracked branch. Develop on `main`; ship with
    `scripts/release-worker.sh`. The endpoint tracks `deploy`, so pushing `main` never rebuilds.
 4. **GitHub.** The repo is `randyharrogates/runpod-ledgerlens`. Use that account's token for each

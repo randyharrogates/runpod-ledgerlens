@@ -46,4 +46,4 @@ Measured on 17 Oct 2026 (1024×576, 28 steps, guidance 3.5, no CPU offload):
 | Paused worker resumed by FlashBoot | 0.1–1.1 s queue | |
 | Cost per image, warm | ≈ $0.006 | ≈ $0.005 |
 
-Details: `docs/BUILD_LOG.md`.
+Details: `docs/REPORT.md`.
