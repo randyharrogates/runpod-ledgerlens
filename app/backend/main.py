@@ -242,13 +242,24 @@ def sample(s: str):
         metadata = (
             json.loads(metadata_path.read_text()) if metadata_path.exists() else {}
         )
-        pending.append((data, truth, metadata))
+        pending.append((name, data, truth, metadata))
     with LOCK:
-        if len(pages) + len(pending) > 30:
+        existing = {
+            item["sample"]: identity
+            for identity, item in pages.items()
+            if "sample" in item
+        }
+        adding = {name for name, *_ in pending} - existing.keys()
+        if len(pages) + len(adding) > 30:
             raise HTTPException(400, "Maximum 30 pages per session")
         ids = []
-        for data, truth, metadata in pending:
+        for name, data, truth, metadata in pending:
+            if name in existing:
+                ids.append(existing[name])
+                continue
             identity = add_page(pages, data, "image/png", truth)
+            pages[identity]["sample"] = name
+            existing[name] = identity
             layout = LAYOUTS.get(metadata.get("layout_id"))
             pages[identity]["date_format"] = layout.date_format if layout else None
             ids.append(identity)

@@ -17,6 +17,7 @@ from worker import handler as worker
 @pytest.fixture(autouse=True)
 def reset(monkeypatch):
     monkeypatch.setattr(worker, "_FIRST_JOB", True)
+    monkeypatch.setattr(worker, "WORKER_CONFIG", {})
     monkeypatch.setattr(worker, "PROCESS", None)
     monkeypatch.setattr(
         worker, "ENGINE", {"status": "disabled", "engine_load_seconds": 0.0}
@@ -431,6 +432,7 @@ def test_engine_import_failure_still_starts_serverless(monkeypatch, caplog):
         SimpleNamespace(serverless=SimpleNamespace(start=registered.append)),
     )
     module = runpy.run_path("worker/handler.py", run_name="__main__")
+    assert registered[0] is module["WORKER_CONFIG"]
     assert registered[0]["handler"] is module["handler"]
     assert module["ENGINE"]["status"] == "failed"
     assert module["ENGINE"]["error"] == reason[-2000:]
@@ -940,3 +942,60 @@ def test_engine_failure_tail_is_bounded(monkeypatch, capsys, content):
     assert str(exc.value) == "vLLM exited early:\n" + expected
     assert capsys.readouterr().err == content.decode()
     worker._STDERR.close()
+
+
+@pytest.mark.parametrize("task", ["extract", "agent", "read"])
+def test_failed_engine_retires_worker(monkeypatch, task):
+    import asyncio
+
+    monkeypatch.setattr(worker, "ENGINE", {"status": "failed", "error": "boom"})
+    data = extract_input() if task == "extract" else {"task": task}
+
+    async def collect():
+        return [event async for event in worker.handler({"input": data})]
+
+    assert asyncio.run(collect()) == [{"error": "Model engine failed to start: boom"}]
+    assert worker.WORKER_CONFIG["refresh_worker"] is True
+
+
+@pytest.mark.parametrize("task", ["extract", "health"])
+def test_exited_engine_retires_worker(monkeypatch, task):
+    from types import SimpleNamespace
+
+    monkeypatch.setattr(worker, "ENGINE", {"status": "ready"})
+    monkeypatch.setattr(worker, "PROCESS", SimpleNamespace(poll=lambda: 1))
+    monkeypatch.setattr(
+        worker, "_STDERR", io.BytesIO("\n".join(map(str, range(100))).encode())
+    )
+    data = extract_input() if task == "extract" else {"task": task}
+    result = list(worker.sync_handler({"input": data}))[0]
+    if task == "extract":
+        assert result["error"].startswith(
+            "Model engine stopped: vLLM exited with code 1"
+        )
+    else:
+        assert result["status"] == "exited"
+    assert worker.ENGINE["error"].splitlines()[1:] == list(map(str, range(20, 100)))
+    assert worker.WORKER_CONFIG["refresh_worker"] is True
+
+
+def test_healthy_engine_stays_in_rotation(monkeypatch):
+    from types import SimpleNamespace
+
+    monkeypatch.setattr(worker, "ENGINE", {"status": "ready"})
+    monkeypatch.setattr(worker, "PROCESS", SimpleNamespace(poll=lambda: None))
+    assert (
+        list(worker.sync_handler({"input": {"task": "health"}}))[0]["status"] == "ready"
+    )
+    assert "refresh_worker" not in worker.WORKER_CONFIG
+
+
+@pytest.mark.parametrize("task", ["extract", "memo"])
+def test_max_tokens_cannot_exceed_context(monkeypatch, task):
+    monkeypatch.setenv("MAX_MODEL_LEN", "2048")
+    data = extract_input() if task == "extract" else {"task": "memo", "analysis": {}}
+    data["max_tokens"] = 2049
+    with pytest.raises(ValueError, match=r"max_tokens.*MAX_MODEL_LEN.*2048"):
+        worker.validate_input({"input": data})
+    data["max_tokens"] = 2048
+    worker.validate_input({"input": data})

@@ -49,12 +49,40 @@ MAX_INPUT_PIXELS = 60_000_000
 Image.MAX_IMAGE_PIXELS = MAX_INPUT_PIXELS
 MODELS = {"statement": Statement, "invoice": Invoice, "receipt": Receipt}
 ENGINE = {"status": "disabled", "engine_load_seconds": 0.0, "model_source": None}
+WORKER_CONFIG = {}
 PROCESS = None
 _STDERR = None
 _FIRST_JOB = True
 _JOB_LOCK = threading.Lock()
 VLLM_LISTENERS = set()
 VLLM_LISTENERS_LOCK = threading.Lock()
+
+
+def retire_worker(reason):
+    if not WORKER_CONFIG.get("refresh_worker"):
+        logging.warning("Retiring worker: %s", reason)
+    WORKER_CONFIG["refresh_worker"] = True
+
+
+def stderr_tail():
+    if _STDERR is None:
+        return ""
+    _STDERR.seek(0, os.SEEK_END)
+    size = _STDERR.tell()
+    _STDERR.seek(max(0, size - 65536))
+    return "\n".join(_STDERR.read().decode(errors="replace").splitlines()[-80:])
+
+
+def engine_problem():
+    if ENGINE["status"] == "failed":
+        return f"Model engine failed to start: {ENGINE.get('error', 'unknown error')}"
+    if PROCESS is not None and (code := PROCESS.poll()) is not None:
+        error = f"vLLM exited with code {code}"
+        if tail := stderr_tail():
+            error += "\n" + tail
+        ENGINE.update(status="exited", error=error)
+        return f"Model engine stopped: {error}"
+    return None
 
 
 def resolve_model(cache_root=Path("/runpod-volume/huggingface-cache/hub")):
@@ -177,11 +205,7 @@ def start_engine():
                 if PROCESS.poll() is not None:
                     stop.set()
                     follower.join(timeout=2)
-                    _STDERR.seek(0, os.SEEK_END)
-                    size = _STDERR.tell()
-                    _STDERR.seek(max(0, size - 65536))
-                    tail = _STDERR.read().decode(errors="replace").splitlines()[-80:]
-                    raise RuntimeError("vLLM exited early:\n" + "\n".join(tail))
+                    raise RuntimeError("vLLM exited early:\n" + stderr_tail())
                 try:
                     if client.get(BASE_URL + "/health").is_success:
                         ENGINE.update(
@@ -244,6 +268,10 @@ def validate_input(job):
         type(data["max_tokens"]) is not int or data["max_tokens"] <= 0
     ):
         raise ValueError("max_tokens must be a positive integer")
+    if task in ("extract", "memo"):
+        context = int(os.getenv("MAX_MODEL_LEN", "8192"))
+        if data.get("max_tokens", 0) > context:
+            raise ValueError(f"max_tokens must be at most MAX_MODEL_LEN ({context})")
     if task == "generate":
         prompt = data.get("prompt")
         if not isinstance(prompt, str) or not 1 <= len(prompt.strip()) <= 20000:
@@ -357,20 +385,14 @@ def sync_handler(job):
     except ValueError as exc:
         yield {"error": str(exc)}
         return
+    problem = engine_problem()
+    if problem:
+        retire_worker(problem)
     if data["task"] == "health":
-        status = dict(ENGINE)
-        if (
-            ENGINE["status"] != "failed"
-            and PROCESS is not None
-            and PROCESS.poll() is not None
-        ):
-            status["status"] = "exited"
-        yield {"task": "health", **status, "cold_start": cold}
+        yield {"task": "health", **ENGINE, "cold_start": cold}
         return
-    if ENGINE["status"] == "failed":
-        yield {
-            "error": f"Model engine failed to start: {ENGINE.get('error', 'unknown error')}"
-        }
+    if problem:
+        yield {"error": problem}
         return
     started = time.monotonic()
     payload = {
@@ -540,10 +562,9 @@ async def handler(job):
     ):
         from worker.agent import Engine, run_agent, run_read
 
-        if ENGINE["status"] == "failed":
-            yield {
-                "error": f"Model engine failed to start: {ENGINE.get('error', 'unknown error')}"
-            }
+        if problem := engine_problem():
+            retire_worker(problem)
+            yield {"error": problem}
             return
         data = dict(data)
         if "task" not in data:
@@ -583,10 +604,9 @@ if __name__ == "__main__":
 
     from worker.agent import MAX_CONCURRENCY
 
-    runpod.serverless.start(
-        {
-            "handler": handler,
-            "concurrency_modifier": lambda current: MAX_CONCURRENCY,
-            "return_aggregate_stream": True,
-        }
+    WORKER_CONFIG.update(
+        handler=handler,
+        concurrency_modifier=lambda current: MAX_CONCURRENCY,
+        return_aggregate_stream=True,
     )
+    runpod.serverless.start(WORKER_CONFIG)

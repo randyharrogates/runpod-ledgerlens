@@ -312,6 +312,16 @@ curl -s "https://api.runpod.ai/v2/$EP/status/<job id>" -H "Authorization: Bearer
 The memo task streams: send `{"input":{"task":"memo","analysis":{...}}}` to `/run`, then read
 `/stream/<job id>` for the text as it is written. `worker/client.py` does all of this for you.
 
+### If a worker never starts
+
+A worker that stays "initializing" and bills without running a job can be stuck before our code
+runs. On 21 Oct an agent worker sat for 2.5 hours on "failed to mount global stores: bucket … is not
+available on this machine" (the beta global volume), billing about $1.60/h. Check the endpoint's
+Logs tab; to recycle it, set workers max to 0, wait until health shows no workers, then set max back.
+Before a demo, warm each endpoint with a `health` job and check it answers. Failures inside our
+container (vLLM won't start or dies) are handled by the worker itself: it fails the job with the
+reason and asks Runpod to replace it (`worker/README.md`).
+
 ## Limitations and the synthetic-to-real gap
 
 - Statements and invoices are synthetic. The real-document checks are CORD receipts (a different

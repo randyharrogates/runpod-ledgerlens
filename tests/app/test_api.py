@@ -580,3 +580,28 @@ def test_compare_without_truth(client):
 def test_status_4b_offline(client, monkeypatch):
     monkeypatch.delenv("RUNPOD_ENDPOINT_4B", raising=False)
     assert client.get("/api/status").json()["4b"] == {"offline": True}
+
+
+def test_sample_load_is_idempotent(client):
+    s = create(client)
+    ids = sample(client, s)
+    for identity in ids:
+        assert extract(client, s, identity).status_code == 200
+    before = client.get(f"/api/sessions/{s}/analysis").json()
+    assert sample(client, s) == ids
+    assert len(main.SESSIONS[s]["pages"]) == 5
+    for identity in ids:
+        assert extract(client, s, identity).status_code == 200
+    after = client.get(f"/api/sessions/{s}/analysis").json()
+    assert after["findings"]
+    assert after["findings"] == before["findings"]
+
+
+def test_existing_sample_can_load_at_page_limit(client):
+    s = create(client)
+    ids = sample(client, s)
+    pages = main.SESSIONS[s]["pages"]
+    for _ in range(25):
+        main.add_page(pages, png(), "image/png")
+    assert sample(client, s) == ids
+    assert len(pages) == 30

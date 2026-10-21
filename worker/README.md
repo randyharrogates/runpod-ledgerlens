@@ -34,7 +34,8 @@ Runpod wraps each payload in `{"input": ...}`. Examples:
 ```
 
 Images must decode to at most 15 MiB. `doc_type` is statement, invoice, or receipt;
-`max_tokens` must be a positive integer. Bad input yields one `{"error":"..."}`.
+`max_tokens` must be a positive integer, at most `MAX_MODEL_LEN` (8192) for extract and memo.
+Bad input yields one `{"error":"..."}`.
 Extraction yields one result, for example:
 
 ```json
@@ -171,7 +172,7 @@ shares one queue and is batched with `STREAM_FLUSH_CHARS` (64) and
 answer or ordered memo, remaining checker problems, summed token usage, step and
 total timings, GPU label, and agent model names. An exception cancels other work
 and produces an `error` event without a final result. Engine startup failures use
-the existing plain `error` response.
+the plain `error` response described under "When the engine is down".
 
 ```sh
 python worker/client.py read --endpoint-id ID --image page1.png --image page2.png
@@ -200,6 +201,14 @@ images, documents or answers. Each yield is one HTTP request to Runpod, so log
 lines are batched: they are sent with the next text flush, on the same 200 ms
 deadline, at 20 lines, or just before `final`/`error`; ordinary progress events
 do not flush them.
+
+### When the engine is down
+
+If vLLM failed to start, or has exited since, every job on that worker returns one
+`{"error": "Model engine failed to start: ..."}` or `{"error": "Model engine stopped: ..."}`
+(Runpod marks the job FAILED), and `health` reports `status` `failed` or `exited`. The handler
+then sets the SDK's `refresh_worker` flag, so Runpod stops this worker after the job and starts
+a fresh one, possibly on another host, instead of sending it more jobs that would fail.
 
 vLLM's stdout and stderr go to a file that a thread copies to the container's
 stderr, so Runpod's Logs tab shows them; the last 80 lines still form the

@@ -7,10 +7,9 @@ FROM ${VLLM_IMAGE}
 ENTRYPOINT []
 WORKDIR /app
 
-# Pin everything already installed, so adding runpod/httpx can never upgrade a package vLLM
-# depends on. If they conflict, the build fails here instead of the worker failing later.
+# Constraints keep httpx and other installed packages at the vLLM image's versions.
 RUN pip list --format=freeze > /tmp/constraints.txt \
- && pip install --no-cache-dir -c /tmp/constraints.txt runpod httpx
+ && pip install --no-cache-dir -c /tmp/constraints.txt runpod==1.12.0 httpx
 # The cu129 image ships a CUDA 13 torchcodec (needs libcudart.so.13), which raises OSError when vLLM
 # imports it and kills the server at start. We only send images, so remove it; vLLM treats a missing
 # torchcodec as "no audio decoding". The import check fails the build, not the worker, if this recurs.
