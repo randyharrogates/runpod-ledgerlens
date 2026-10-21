@@ -18,16 +18,18 @@ Environment variables:
 
 | Variable | Purpose |
 | --- | --- |
-| RUNPOD_ENDPOINT_8B | Base model endpoint ID; optional |
+| DEMO_MODE | Set to 1 to force offline behaviour (recorded answers, no model calls) |
+| RUNPOD_API_KEY | Server-only credential; falls back to `runpodctl`'s config via `worker.client.runpodctl_key()` |
+| RUNPOD_ENDPOINT_8B | Big model (Qwen3-VL-8B) endpoint ID, e.g. `szucrtrufff80a`; optional |
+| RUNPOD_ENDPOINT_FT | Fine-tuned 4B endpoint ID, e.g. `5078uudfkeaw2v`; optional |
+| RUNPOD_ENDPOINT_4B | Untrained 4B endpoint ID for Read and Compare, e.g. the base 4B `cuvgn5z2av09my`; optional |
 | RUNPOD_ENDPOINT_AGENT | Credit assistant endpoint ID: `cuvgn5z2av09my` |
+| RUNPOD_ENDPOINT_IMAGE | FLUX.1-dev endpoint ID for memo covers: `qj707h1pdzzpez`; without it the app shows the recorded sample cover |
 | RUNPOD_WORKER_LOGS | Runpod worker-log polling is on by default; set to 0 to turn it off |
-| RUNPOD_ENDPOINT_4B | Base small-model endpoint ID; optional |
-| TRAINING_ENABLED | Set to 1 to permit real GPU rentals; unset uses simulation |
-| LEDGERLENS_DATA | Directory of rendered dataset pages, answer keys, metadata and splits; unset uses bundled samples and recorded summaries |
-| RUNPOD_ENDPOINT_FT | Fine-tuned model endpoint ID; optional |
-| RUNPOD_API_KEY | Server-only credential; falls back to worker.client.runpodctl_key() |
 | GPU_PRICE_PER_SEC_8B / GPU_PRICE_PER_SEC_FT | Optional override, dollars per second. By default each request is priced by the GPU the worker reports: RTX 5090 or PRO 4500 $1.58/h, RTX 4090 $1.10/h, RTX 3090 $0.69/h (Serverless flex, Oct 2026) |
-| DEMO_MODE | Set to 1 to force offline behavior |
+| LEDGERLENS_DATA | Directory of rendered dataset pages, answer keys, metadata and splits; unset uses bundled samples and recorded summaries |
+| LEDGERLENS_GPU_STATE | Where the GPU switch keeps its timer; default `~/.ledgerlens/gpu-warm.json` |
+| TRAINING_ENABLED | Set to 1 to permit real GPU rentals; unset uses simulation |
 | PUBLIC_BASE_URL | Phone-facing origin, e.g. http://192.168.1.20:8090; otherwise LAN IP detected via UDP |
 
 Phone and laptop need the same Wi-Fi and port 8090 reachable. iOS Safari converts camera photos to JPEG for file inputs. The server rejects HEIC files that arrive without conversion. Sessions are bearer capabilities in URLs, held only in memory; restarting clears them. This is a demo with no persistent storage or login. Do not use real confidential documents on an unprotected public connection.

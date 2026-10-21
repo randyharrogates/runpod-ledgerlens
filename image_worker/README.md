@@ -33,8 +33,9 @@ curl -sS "https://api.runpod.ai/v2/$ENDPOINT_ID/status/$JOB_ID" \
 cat result.json | python3 -c "import json,sys,base64;o=json.load(sys.stdin)['output'];open('cover.png','wb').write(base64.b64decode(o['image_base64']))"
 ```
 
-Endpoint: `qj707h1pdzzpez`. The image is built by `.github/workflows/image-worker.yml` and
-published as `ghcr.io/randyharrogates/ledgerlens-flux:<commit>`.
+Endpoint: `qj707h1pdzzpez`, container disk 30 GB, max 1 worker. Runpod builds the image from the
+`deploy-image` branch. If that builder is down, `.github/workflows/image-worker.yml` builds the same
+Dockerfile as `ghcr.io/randyharrogates/ledgerlens-flux:<commit>`; point the template at that image.
 
 Measured on 17 Oct 2026 (1024×576, 28 steps, guidance 3.5, no CPU offload):
 

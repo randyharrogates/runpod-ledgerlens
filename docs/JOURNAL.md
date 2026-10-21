@@ -244,8 +244,5 @@ small team of agents does the work on one Runpod Serverless GPU, quickly.
   the whole time; now it says it is waiting for a GPU worker, with a timer, and points to the
   GPU switch.
 
-## Still to do
-- Release the worker fixes (sharp JPEG pages, heading check), then re-record the memo demo.
-- Decide on the writer adapter (4 of 30 memos keep an invented threshold).
-- Train a memo-writing adapter and a better reader only if the tests show they're needed (ask
-  before spending).
+## What's next
+The open items, with the tests that would decide them, are in `docs/REPORT.md`, section 8.

@@ -2,8 +2,9 @@
 
 **Phone photos of messy small-business bank statements and invoices go in; checked transaction
 rows, a cash-flow analysis, cited red flags and a credit memo come out.** Open vision models
-(Qwen3-VL) run on **Runpod Serverless**, and FLUX.1-dev draws the memo's cover illustration, so a Southeast Asian lender can keep confidential documents
-off US-hosted APIs and pay a known price per page.
+(Qwen3-VL) run on **Runpod Serverless**, and FLUX.1-dev draws the memo's cover illustration. A
+Southeast Asian lender can keep confidential documents off US-hosted APIs and pay a known price per
+page.
 
 The ML question behind it: *can a 4B model, LoRA fine-tuned on our own synthetic documents, match
 an 8B model zero-shot on extraction quality (row F1), speed and cost per 1,000 pages?*
@@ -19,29 +20,34 @@ an 8B model zero-shot on extraction quality (row F1), speed and cost per 1,000 p
 | A Docker image with the handler and the model | [`worker/Dockerfile`](worker/Dockerfile) loads weights from model cache / volume for the three LLM endpoints; [`worker/Dockerfile.baked`](worker/Dockerfile.baked) bakes weights into the image (not yet built); [`image_worker/Dockerfile`](image_worker/Dockerfile) for FLUX, weights from the model cache |
 | A deployed Serverless endpoint | 8B `szucrtrufff80a`, fine-tuned 4B `5078uudfkeaw2v`, base 4B `cuvgn5z2av09my` serves the credit assistant, FLUX.1-dev `qj707h1pdzzpez` draws memo covers |
 | Accept an input, return a generated output | `{"input":{"task":"generate","prompt":"..."}}` returns generated text; a bare `prompt` goes to the chat agent on the agent endpoint; `{"input":{"prompt":"..."}}` on the FLUX endpoint returns a generated image. Document tasks return validated JSON rows and a streamed credit memo. [Call it with curl](#call-the-endpoint-with-curl) |
-| Show it working | The demo app (`app/`, with a 3-minute Presenter tour) calls the live endpoints |
+| Show it working | The demo app (`app/`) calls the live endpoints, or replays recorded endpoint answers when they are off. [Screenshots](#see-it-working) |
 | Code, configuration and clear docs | This README, [`worker/README.md`](worker/README.md), [`docs/REPORT.md`](docs/REPORT.md), [`docs/DECISIONS.md`](docs/DECISIONS.md), [`docs/JOURNAL.md`](docs/JOURNAL.md) |
 
-**Two ways to ship the model.** The three LLM endpoints use `worker/Dockerfile` and load
-weights from Runpod storage:
+## See it working
 
-- **8B:** Runpod's **model cache**. 16.3 GiB of weights load in 5.7 s with no download,
-  keeping the image small and builds and worker pulls fast.
-- **Fine-tuned 4B:** a **network volume**, where the training Pod wrote the merged weights.
-  Swapping in a new fine-tune needs no rebuild or upload; the volume pins it to one data centre.
-- **Agent, base 4B:** Runpod's **model cache** plus the trained reader as a **LoRA adapter**
-  on the beta **global volume** `ledgerlens-global`. Workers can start in any data centre;
-  the compile cache stays on container disk because global storage has no locking or atomic rename.
-- **FLUX.1-dev (image endpoint):** Runpod's **model cache** (gated model, so the endpoint carries
-  a Hugging Face token). The image is built by GitHub Actions and pulled from GHCR, because
-  Runpod's GitHub builder failed to start on 17 Oct (see `docs/DECISIONS.md`).
+Screenshots of the demo app in offline mode, which replays real answers recorded from the live
+endpoints (the app labels them "Recorded run").
 
-`worker/Dockerfile.baked` downloads the pinned 8B weights during the build and sets
-`MODEL_PATH=/models/model` and `HF_HUB_OFFLINE=1`. It includes both the handler and model,
-with no network volume, so the endpoint is not pinned to one data centre. The trade-off is
-an image about 16 GiB larger and slower builds and pulls. It has not yet been built, and its
-cold start has not been measured.
-Health reports `model_source: "baked"`.
+**Credit assistant.** Five pages read by the fine-tuned reader, then a credit memo. Code computes
+the key figures and every row reference; the model writes the wording. The cover is a FLUX.1-dev
+illustration, labelled as not evidence.
+
+![Credit assistant with a credit memo](docs/images/assistant-memo.png)
+
+**Reading a statement.** Each line read from the page, next to the page. A tick means the printed
+running balance adds up; the returned cheque is flagged.
+
+![Rows read from a statement page](docs/images/read-rows.png)
+
+**Comparing models.** One page in a layout none of the models trained on: the fine-tuned 4B reads
+18 of 18 lines right, both untrained models 11 of 18.
+
+![Three models on the same page](docs/images/compare.png)
+
+**Results.** 1,499 test pages in layouts held back from training: 96.5% of lines right for the
+fine-tuned 4B, 57.8% for the 8B.
+
+![Scores on unseen layouts](docs/images/results.png)
 
 ## What it does
 
@@ -96,13 +102,13 @@ flowchart LR
 | Piece | Choice | Why |
 |---|---|---|
 | Worker | `worker/handler.py`: a generator handler that starts `vllm serve` in-process at cold start; tasks `generate`, `extract`, `memo`, `read`, `agent`, `health` | One engine per worker; streaming memo over `/stream` |
-| Image | `worker/Dockerfile` on `vllm/vllm-openai:v0.31.0-cu129`, built by Runpod's GitHub integration from the `deploy` branch | No local Docker; pushes to `main` never rebuild by accident (`scripts/release-worker.sh` ships) |
+| Image | `worker/Dockerfile` on `vllm/vllm-openai:v0.31.0-cu129`, built by Runpod's GitHub integration from the `deploy` branch; FLUX from `image_worker/Dockerfile` on the `deploy-image` branch | No local Docker; pushes to `main` never rebuild by accident (`scripts/release-worker.sh` ships) |
 | 8B weights | Runpod **model cache** (`Qwen/Qwen3-VL-8B-Instruct`, pinned commit) | 16.3 GiB loaded in 5.7 s; no download at cold start |
-| Fine-tuned 4B weights | **Network volume** (`MODEL_PATH`), same image and template | No rebuild or upload to swap models; pins the endpoint to EU-RO-1 |
+| Fine-tuned 4B weights | **Network volume** (`MODEL_PATH`), same image, its own template | No rebuild or upload to swap models; pins the endpoint to EU-RO-1 |
 | Agent endpoint | `cuvgn5z2av09my`: base 4B model cache + reader LoRA on global volume `ledgerlens-global` | One engine for chat and reading; workers can start in any data centre |
-| Image endpoint | `qj707h1pdzzpez`: `image_worker/Dockerfile` (PyTorch 2.8 + diffusers), image from GHCR, FLUX.1-dev from model cache; 48 GB GPUs first (A40 / A6000), then 32 GB PRO with CPU offload; max 1 worker | FLUX.1-dev is ~34 GB in bf16, so 48 GB runs it fully on GPU |
-| Scaling | Active 0, max 2, idle 60 s, FlashBoot on, queue-delay scaling 4 s, timeout 600 s | Nothing bills while idle. For a demo, the app's GPU switch keeps one worker on the Assistant or on every endpoint, on a shutoff timer, and calls an endpoint ready only after a `health` job answers |
-| GPUs | 32 GB class (RTX 5090 / RTX PRO 4500), CUDA ≥ 12.9; the 4B agent endpoint also allows 24 GB pools (it has run on RTX PRO 6000 Blackwell MIG 1g.24gb) | The 8B in bf16 fits 32 GB at 8,192 tokens; older drivers can't start the image |
+| Image endpoint | `qj707h1pdzzpez`: `image_worker/Dockerfile` (PyTorch 2.8 + diffusers), FLUX.1-dev from model cache; GPU pools 48 GB first, then 32 GB PRO (with CPU offload) and 48 GB PRO; max 1 worker | FLUX.1-dev is ~34 GB in bf16, so 48 GB runs it fully on GPU |
+| Scaling | Active 0, max 2 (FLUX max 1), idle 60 s, FlashBoot on, queue-delay scaling 4 s, timeout 600 s | Nothing bills while idle. For a demo, the app's GPU switch keeps one worker on the Assistant or on every endpoint, on a shutoff timer, and calls an endpoint ready only after a `health` job answers |
+| GPUs | Pools in the endpoint editor: 8B 32 GB PRO, 24 GB PRO and 24 GB; fine-tuned 4B 32 GB PRO, then 24 GB PRO; agent 32 GB PRO, 24 GB PRO and 24 GB (it has run on RTX PRO 6000 Blackwell MIG 1g.24gb). CUDA ≥ 12.9 | The cheapest pools that hold each model. Serverless timings for the 8B were all measured on an RTX 5090. Older drivers can't start the image |
 | Safety | Image size checked before decoding (decompression bombs); engine start failures fail jobs fast with the error instead of crash-looping paid workers | Both found or hardened during the build (see `docs/REPORT.md`) |
 
 ### Measured (8B, RTX 5090, 9 Oct)
@@ -112,6 +118,62 @@ flowchart LR
 | Warm statement page | 13.7–15.1 s execution, 0.13–1.4 s queue |
 | Cold start | ~3.5 min (torch.compile ~27 s and CUDA-graph capture ~63 s are the big parts) |
 | Serverless cost, warm | ≈ **$6.0–6.6 per 1,000 pages** at $0.000439/s |
+
+### How the weights reach the GPU
+
+The three LLM endpoints use `worker/Dockerfile` and load weights from Runpod storage:
+
+- **8B:** Runpod's **model cache**. 16.3 GiB of weights load in 5.7 s with no download,
+  keeping the image small and builds and worker pulls fast.
+- **Fine-tuned 4B:** a **network volume**, where the training Pod wrote the merged weights.
+  Swapping in a new fine-tune needs no rebuild or upload; the volume pins it to one data centre.
+- **Agent, base 4B:** Runpod's **model cache** plus the trained reader as a **LoRA adapter**
+  on the beta **global volume** `ledgerlens-global`. Workers can start in any data centre;
+  the compile cache stays on container disk because global storage has no locking or atomic rename.
+- **FLUX.1-dev (image endpoint):** Runpod's **model cache** (gated model, so the endpoint carries
+  a Hugging Face token). Runpod's GitHub integration builds `image_worker/Dockerfile` from the
+  `deploy-image` branch. When that builder failed on 17 Oct, a GitHub Actions workflow built the
+  same Dockerfile to GHCR instead; it is kept as a fallback (see `docs/DECISIONS.md`).
+
+The other way to ship a model: `worker/Dockerfile.baked` downloads the pinned 8B weights during the build and sets
+`MODEL_PATH=/models/model` and `HF_HUB_OFFLINE=1`. It includes both the handler and model,
+with no network volume, so the endpoint is not pinned to one data centre. The trade-off is
+an image about 16 GiB larger and slower builds and pulls. It has not yet been built, and its
+cold start has not been measured.
+Health reports `model_source: "baked"`.
+
+## Deploy it yourself
+
+These are the live settings on 21 Oct 2026: images, environment, disks, scaling and volumes read from
+the Runpod API; model sources from each endpoint's `health` reply. Endpoints are made
+in the console (**Serverless → New Endpoint → GitHub repository**), because a template made by hand
+can't pull an image built by the GitHub integration.
+
+1. **Fork this repo** and connect GitHub to Runpod.
+2. **8B endpoint.** Branch `deploy`, Dockerfile `worker/Dockerfile`, container disk 40 GB.
+   Model cache: `Qwen/Qwen3-VL-8B-Instruct`. Environment: `MODEL_NAME=Qwen/Qwen3-VL-8B-Instruct`,
+   `MAX_MODEL_LEN=8192`, `GPU_MEM_UTIL=0.92`. Workers 0 / 2, idle 60 s, FlashBoot on,
+   queue-delay scaling 4 s, execution timeout 600 s, CUDA 12.9 or newer.
+3. **Fine-tuned 4B endpoint.** Run training first (`train/README.md`); on a Pod with the network
+   volume at `/workspace` it writes `ledgerlens/main/merged` (and the adapter, `ledgerlens/main/adapter`). Same branch, Dockerfile and settings as the 8B, plus that network volume
+   and `MODEL_PATH=/runpod-volume/ledgerlens/main/merged` in place of `MODEL_NAME`.
+4. **Agent endpoint (base 4B + reader adapter).** Same branch and Dockerfile. Model cache:
+   `Qwen/Qwen3-VL-4B-Instruct`. Attach a volume holding the trained adapter at
+   `ledgerlens/main/adapter` (ours is a global volume, so workers can start in any data centre).
+   Environment: `MODEL_NAME=Qwen/Qwen3-VL-4B-Instruct`, `MAX_MODEL_LEN=8192`, `GPU_MEM_UTIL=0.92`,
+   `READER_MODEL=reader` and
+   ```
+   VLLM_EXTRA_ARGS=--enable-lora --max-loras 2 --max-lora-rank 16 --lora-modules reader=/runpod-volume/ledgerlens/main/adapter --compilation-config '{"cudagraph_specialize_lora": false, "cudagraph_capture_sizes": [1, 2, 4, 8, 16]}'
+   ```
+5. **FLUX endpoint.** Branch `deploy-image`, Dockerfile `image_worker/Dockerfile`, container disk
+   30 GB. Model cache: `black-forest-labs/FLUX.1-dev`. Accept the model's licence on Hugging Face
+   and set `HF_TOKEN`. Max 1 worker.
+6. **Check each endpoint** with a `health` job (the [curl examples](#call-the-endpoint-with-curl)).
+   On 21 Oct, from cold, all four answered: the 8B and the base 4B loaded from the model cache,
+   the fine-tuned 4B from the volume, FLUX from the model cache.
+   Queue time including the cold start: 8B 243 s, fine-tuned 4B 168 s, agent 328 s, FLUX 28 s.
+7. **Ship changes** with `scripts/release-worker.sh`: it runs the tests, shows what changed in the
+   image and fast-forwards `deploy`, which rebuilds the LLM endpoints. Pushing `main` rebuilds nothing.
 
 ## Results: 8B zero-shot vs 4B zero-shot vs 4B fine-tuned
 
@@ -171,7 +233,7 @@ uv sync && uv run ruff check . && uv run ruff format --check . && uv run pytest 
 ```
 
 - **Demo app, offline** (cached sample results): see `app/README.md`; `DEMO_MODE=1`, port 8090.
-- **Demo app, live:** set `RUNPOD_ENDPOINT_8B`, `RUNPOD_ENDPOINT_FT`,
+- **Demo app, live:** set `RUNPOD_ENDPOINT_8B`, `RUNPOD_ENDPOINT_FT`, `RUNPOD_ENDPOINT_4B`,
   `RUNPOD_ENDPOINT_AGENT=cuvgn5z2av09my` and `RUNPOD_ENDPOINT_IMAGE=qj707h1pdzzpez`; the key is read from
   `runpodctl`'s config, never from the browser.
 - **One page from the command line:**
@@ -259,11 +321,14 @@ The memo task streams: send `{"input":{"task":"memo","analysis":{...}}}` to `/ru
 ## Repo map
 
 ```
-src/ledgerlens/  schema, datagen, analytics, direction (balance check), eval/score, images (pixel cap)
-worker/          Serverless handler, Dockerfile, prompts, REST client
+src/ledgerlens/  schema, datagen, analytics, direction (balance check), eval/score, images (pixel cap), agent
+worker/          LLM Serverless handler (vLLM inside), Dockerfiles, prompts, REST client
+image_worker/    FLUX.1-dev Serverless handler and Dockerfile
 train/           dataset builder (+CORD), Unsloth LoRA SFT, vLLM batch predict, report, run_pod.sh
 app/             FastAPI backend + React/Vite frontend
-docs/            DECISIONS (what we chose and why), JOURNAL (how the agent work went, step by step), REPORT (results)
+scripts/         release-worker.sh (ships main to the deploy branch), insight and GPU-stock helpers
+eval/            recorded scores and examples the app and report read
+docs/            REPORT (results), DECISIONS (what we chose and why), JOURNAL (how the agent work went)
 ```
 
 ## Licence and credits

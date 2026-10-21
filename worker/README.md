@@ -5,6 +5,26 @@ image into a validated LedgerLens schema, and streams a short credit memo from
 computed analysis. The chat orchestrator computes cash-flow analytics in Python. Tests need neither a
 GPU nor vLLM: set `LEDGERLENS_NO_ENGINE=1` and replace `vllm_client`.
 
+## Tasks at a glance
+
+All three LLM endpoints run this same image, so each accepts every task; the right column says
+which endpoint the app sends it to. Send with `/run`, then poll `/status` (one result) or `/stream`
+(events as they happen).
+
+| `task` | Input (inside `input`) | Output | Poll | Used on |
+|---|---|---|---|---|
+| `health` | nothing else | engine status, model, `model_source` (`cache`, `volume`, `baked`, `download`), `engine_load_seconds`, `cold_start` | `/status` | every endpoint |
+| `generate` | `prompt`, optional `system`, `image_base64`, `max_tokens`, `temperature`, `stream` | `text`, `usage`, `timing`, `gpu`, `model` | `/status`, or `/stream` with `stream: true` | any |
+| `extract` | `doc_type` (`statement`, `invoice`, `receipt`), `image_base64` | validated `document` (rows and header), `valid`, `usage`, `timing` | `/status` | 8B, fine-tuned 4B, base 4B (Read and Compare pages) |
+| `memo` | `analysis` (computed figures with page/row citations) | `delta` text chunks, then `done` with `usage`, `timing` | `/stream` | the model picked on the Read page (8B by default) |
+| `read` | `pages: [{page_id, image_base64}]` | per-page `triage` and `rows` events, then `final` | `/stream` | agent |
+| `agent` | `message`, optional `documents`, `new_pages`, `history`, `last_memo` | `step`, `route`, `deltas`, `section`, `tool`, `log` events, then `final` | `/stream` | agent |
+| *(none)* | `prompt`, optional `image_base64` | runs as `agent` with `message` = `prompt` | `/stream` | agent |
+
+Details for each are below. Bad input always returns one `{"error": "..."}` saying what was wrong.
+
+## Request examples
+
 Runpod wraps each payload in `{"input": ...}`. Examples:
 
 ```json

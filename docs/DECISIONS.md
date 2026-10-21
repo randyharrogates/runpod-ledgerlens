@@ -220,17 +220,20 @@ we gave up. Measured results and costs are in `REPORT.md`; the story of the agen
   route for a commercial deployment, since FLUX.1 [dev] is non-commercial for the model itself).
 - **Own endpoint, own branch:** FLUX needs PyTorch + diffusers and a 48 GB GPU, not the vLLM image,
   and it tracks `deploy-image` so the LLM endpoints never rebuild for it.
-- **Image built on GitHub Actions:** Runpod's GitHub builder failed twice on 17 Oct before reading
-  the Dockerfile (runc could not start buildkit). The workflow `.github/workflows/image-worker.yml`
-  builds the same Dockerfile and pushes it to GHCR; the endpoint's template points at that image.
+- **A second build route:** Runpod's GitHub builder failed twice on 17 Oct before reading the
+  Dockerfile (runc could not start buildkit). The workflow `.github/workflows/image-worker.yml`
+  builds the same Dockerfile and pushes it to GHCR, and the endpoint ran that image while the builder
+  was down. On 21 Oct a push to `deploy-image` built on Runpod again, and the template now runs
+  Runpod's build; the workflow stays as a fallback.
 
 ## 8. Where it runs
 
 - **EU-RO-1 (Romania)** for training and the merged fine-tuned model's network volume. The
   agent uses a global volume and permits any data centre; live workers ran in US data centres.
   A lender would need to restrict hosting to its permitted regions.
-- **32 GB GPUs** (RTX 5090 / RTX PRO 4500) for the 8B at full length; **24 GB pools** also
-  serve the 4B, including RTX PRO 6000 Blackwell MIG 1g.24gb for the agent.
+- **32 GB GPUs** for the 8B at full length: the RTX 5090 on Serverless, the RTX PRO 4500 on the
+  evaluation Pod. Its endpoint also allows the 24 GB pools, but no 8B timing was measured on one.
+  **24 GB pools** also serve the 4B, including RTX PRO 6000 Blackwell MIG 1g.24gb for the agent.
 - **Delete training Pods, don't stop them.** A stopped Pod may not restart if its machine is busy;
   everything that matters is on the volume.
 
