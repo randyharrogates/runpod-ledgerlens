@@ -151,9 +151,12 @@ def test_load_failure(monkeypatch):
     for _ in range(3):
         result = worker.handler({"input": {"prompt": "lake"}})
         assert result == {
-            "error": "Image model failed to load: " + worker.ENGINE["error"]
+            "error": "Image model failed to load: " + worker.ENGINE["error"],
+            "refresh_worker": True,
         }
     assert calls == [1]
+    health = worker.handler({"input": {"task": "health"}})
+    assert health["status"] == "failed" and health["refresh_worker"] is True
 
 
 @pytest.mark.parametrize("gib,offload", [(32, True), (40, False), (48, False)])

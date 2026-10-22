@@ -19,7 +19,9 @@ Use `format: "jpeg"` with optional `quality` (50–95, default 90).
 Output includes `image_base64`, `mime`, `seed`, `width`, `height`, `steps`,
 `guidance`, `prompt`, `model`, `gpu`, and
 `timing: {"generate_s": ..., "load_s": ..., "cold_start": ...}`.
-Errors return `{"error":"..."}`. Send `{"input":{"task":"health"}}` for engine state.
+Errors return `{"error":"..."}` (Runpod marks the job FAILED). Send `{"input":{"task":"health"}}`
+for engine state. If the model failed to load, the job also returns `refresh_worker`, so Runpod
+replaces the worker instead of sending it more jobs.
 
 Submit, then poll using the returned job ID until status is COMPLETED:
 ```sh

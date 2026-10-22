@@ -152,7 +152,11 @@ def generate(params):
     started = time.monotonic()
     pipe = load_pipeline()
     if ENGINE["status"] == "failed":
-        return {"error": f"Image model failed to load: {ENGINE['error']}"}
+        # refresh_worker: Runpod stops this worker after the job and starts a fresh one.
+        return {
+            "error": f"Image model failed to load: {ENGINE['error']}",
+            "refresh_worker": True,
+        }
     image = pipe(
         prompt=params["prompt"],
         width=params["width"],
@@ -195,7 +199,10 @@ def handler(job):
         return {"error": str(exc)}
     with _JOB_LOCK:
         if params["task"] == "health":
-            return {**ENGINE, "gpu": gpu_name(), "cold_start": _take_cold_start()}
+            result = {**ENGINE, "gpu": gpu_name(), "cold_start": _take_cold_start()}
+            if ENGINE["status"] == "failed":
+                result["refresh_worker"] = True
+            return result
         try:
             logging.info("Generating image; prompt length=%d", len(params["prompt"]))
             return generate(params)
